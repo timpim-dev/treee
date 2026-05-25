@@ -482,54 +482,52 @@ export class Player {
     if (this.voltShieldTimer > 0) {
       this.voltShieldTimer -= dt;
 
-      const ORB_COUNT   = 3;
-      const ORBIT_R     = 80;   // px — large enough to intercept approaching enemies
-      const ORB_R       = 14;   // hitbox radius of each orb
-      const SPIN_SPEED  = 2.2;  // radians/sec
-      const ZAP_DMG     = 25;
-      const ZAP_COOLDOWN = 0.5; // seconds before same enemy can be zapped again by same orb
+      const ORB_COUNT    = 3;
+      const ORBIT_R      = 80;
+      const ORB_R        = 14;
+      const SPIN_SPEED   = 2.2;
+      const ZAP_DMG      = 25;
+      const ZAP_COOLDOWN = 0.5;
 
       if (!this.voltShieldHitCooldowns) this.voltShieldHitCooldowns = {};
 
-      // Tick down per-enemy hit cooldowns
+      // Tick down hit cooldowns
       for (const k in this.voltShieldHitCooldowns) {
         this.voltShieldHitCooldowns[k] -= dt;
         if (this.voltShieldHitCooldowns[k] <= 0) delete this.voltShieldHitCooldowns[k];
       }
+
+      // Take ONE snapshot of the live enemy array for the entire shield update.
+      // This snapshot is used for ALL three orbs so kills inside the loop
+      // never affect iteration of subsequent orbs or the snapshot itself.
+      const enemySnapshot = this.game.enemies.filter(e => !e.dead);
+
+      // Collect deferred chain-lightning requests — fire them all AFTER the orb
+      // loop so they cannot trigger takeDamage while we are still iterating.
+      const chainQueue = [];
 
       for (let i = 0; i < ORB_COUNT; i++) {
         const orbAngle = this.voltShieldTimer * SPIN_SPEED * -1 + (i / ORB_COUNT) * Math.PI * 2;
         const ox = this.x + Math.cos(orbAngle) * ORBIT_R;
         const oy = this.y + Math.sin(orbAngle) * ORBIT_R;
 
-        // Persistent glow particles for the orb body
+        // Orb glow particles
         this.game.particles.spawn(ox, oy, {
-          vx: (Math.random() - 0.5) * 12,
-          vy: (Math.random() - 0.5) * 12,
+          vx: (Math.random() - 0.5) * 12, vy: (Math.random() - 0.5) * 12,
           color: Math.random() < 0.5 ? '#fff200' : '#ffe066',
-          size: Math.random() * 3 + 3,
-          life: 0.08,
-          glow: true
+          size: Math.random() * 3 + 3, life: 0.08, glow: true
         });
-        // Trailing arc sparks
         if (Math.random() < 0.4) {
           this.game.particles.spawn(ox, oy, {
-            vx: (Math.random() - 0.5) * 30,
-            vy: (Math.random() - 0.5) * 30,
-            color: '#ffffff',
-            size: 1.5,
-            life: 0.12,
-            glow: true
+            vx: (Math.random() - 0.5) * 30, vy: (Math.random() - 0.5) * 30,
+            color: '#ffffff', size: 1.5, life: 0.12, glow: true
           });
         }
 
-        // Snapshot enemies BEFORE iterating — kills during the loop won't corrupt indices.
-        // Use .dead flag (the authoritative death marker) not .hp which can transiently be 0.
-        const enemySnapshot = [...this.game.enemies];
         for (const enemy of enemySnapshot) {
+          // Re-check .dead — a previous orb in this same frame may have killed it
           if (enemy.dead) continue;
 
-          // Stable per-instance id for hit cooldown keys
           if (enemy._vsId === undefined) {
             enemy._vsId = (Player._vsIdCounter = (Player._vsIdCounter || 0) + 1);
           }
@@ -540,16 +538,20 @@ export class Player {
           if (d <= ORB_R + enemy.radius) {
             const dmg = ZAP_DMG + Math.round((this.modifiers.lightningDamage || 0) * ZAP_DMG);
             enemy.takeDamage(dmg, false, this.game);
-            // Set cooldown regardless of whether enemy survived — prevents double-hit next frame
             this.voltShieldHitCooldowns[hitKey] = ZAP_COOLDOWN;
-            // Only follow-up if enemy survived the zap
+            this.game.particles.createExplosion(ox, oy, '#fff200', 6, 50, 1.5);
             if (!enemy.dead) {
               enemy.applyStatus(SPELL_TYPES.LIGHTNING, 2.5);
-              this.game.triggerChainLightning(ox, oy, Math.round(dmg * 0.5), 2, 120);
+              // Queue chain lightning — do NOT call it here
+              chainQueue.push({ x: ox, y: oy, dmg: Math.round(dmg * 0.5) });
             }
-            this.game.particles.createExplosion(ox, oy, '#fff200', 6, 50, 1.5);
           }
         }
+      }
+
+      // Fire deferred chain lightning now that all orb iteration is done
+      for (const { x, y, dmg } of chainQueue) {
+        this.game.triggerChainLightning(x, y, dmg, 2, 120);
       }
     }
 
