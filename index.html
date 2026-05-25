@@ -80,6 +80,15 @@
         </div>
       </div>
 
+      <!-- HUD Minimap widget -->
+      <div id="hud-minimap-container" class="hud-panel">
+        <div class="minimap-title-row">
+          <span>MINIMAP</span>
+          <button id="btn-toggle-worldmap" class="btn-map-toggle" title="Open World Map (Tab/M)">&#9974;</button>
+        </div>
+        <canvas id="minimap-canvas" width="120" height="120"></canvas>
+      </div>
+
       <!-- Active Spells Hotbar -->
       <div id="hud-spell-hotbar">
         <div class="spell-slot locked" id="spell-slot-1">
@@ -357,11 +366,11 @@
       </div>
     </div>
 
-    <!-- 8. RUNE SATCHEL — Full Inventory Management Panel -->
+    <!-- 8. RUNE SATCHEL & EQUIPMENT — Full Inventory Management Panel -->
     <div id="panel-inventory" class="panel-overlay hidden">
       <div class="inv-panel-content">
         <div class="inv-panel-header">
-          <h2>RUNE SATCHEL</h2>
+          <h2>WIZARD BAG & GEAR</h2>
           <div class="inv-panel-meta">
             <span>Shards: <canvas class="inline-icon" id="icon-shard-inv" width="12" height="12" draggable="false"></canvas> <strong id="inv-shards-value">0</strong></span>
             <span>Slots: <strong id="inv-slots-used">0</strong> / <strong id="inv-slots-max">4</strong></span>
@@ -369,22 +378,86 @@
           <button id="btn-close-inventory" class="btn-close">&times;</button>
         </div>
 
-        <!-- Relic Grid -->
-        <div id="inv-relic-grid" class="inv-relic-grid">
-          <!-- slots injected by JS -->
-        </div>
+        <div class="inv-layout-split">
+          <!-- Left: Equipment Paper Doll -->
+          <div class="inv-equip-section">
+            <h3>EQUIPPED GEAR</h3>
+            <div class="equip-slots-container">
+              <!-- Helmet Slot -->
+              <div class="equip-slot" id="equip-slot-helmet" data-slot="helmet">
+                <div class="equip-slot-label">HELMET</div>
+                <canvas class="equip-slot-canvas" id="equip-canvas-helmet" width="32" height="32"></canvas>
+                <div class="tooltip" id="tooltip-equip-helmet">Empty Helmet Slot</div>
+              </div>
+              <!-- Weapon Slot -->
+              <div class="equip-slot" id="equip-slot-weapon" data-slot="weapon">
+                <div class="equip-slot-label">WEAPON</div>
+                <canvas class="equip-slot-canvas" id="equip-canvas-weapon" width="32" height="32"></canvas>
+                <div class="tooltip" id="tooltip-equip-weapon">Empty Weapon Slot</div>
+              </div>
+              <!-- Chestplate Slot -->
+              <div class="equip-slot" id="equip-slot-chestplate" data-slot="chestplate">
+                <div class="equip-slot-label">ROBE</div>
+                <canvas class="equip-slot-canvas" id="equip-canvas-chestplate" width="32" height="32"></canvas>
+                <div class="tooltip" id="tooltip-equip-chestplate">Empty Robe Slot</div>
+              </div>
+              <!-- Boots Slot -->
+              <div class="equip-slot" id="equip-slot-boots" data-slot="boots">
+                <div class="equip-slot-label">BOOTS</div>
+                <canvas class="equip-slot-canvas" id="equip-canvas-boots" width="32" height="32"></canvas>
+                <div class="tooltip" id="tooltip-equip-boots">Empty Boots Slot</div>
+              </div>
+              <!-- Ring Slot -->
+              <div class="equip-slot" id="equip-slot-ring" data-slot="ring">
+                <div class="equip-slot-label">RING</div>
+                <canvas class="equip-slot-canvas" id="equip-canvas-ring" width="32" height="32"></canvas>
+                <div class="tooltip" id="tooltip-equip-ring">Empty Ring Slot</div>
+              </div>
+            </div>
+          </div>
 
-        <!-- Buy extra slot -->
-        <div class="inv-expand-row">
-          <button id="btn-buy-inv-slot" class="btn-menu small">
-            BUY SLOT (<span id="inv-slot-cost">60</span> Shards)
-          </button>
-          <span class="inv-expand-note">Max 10 slots. Cost increases with each purchase.</span>
+          <!-- Right: Satchel Bag Grid -->
+          <div class="inv-bag-section">
+            <h3>SATCHEL BAG</h3>
+            <div id="inv-relic-grid" class="inv-relic-grid">
+              <!-- slots injected by JS -->
+            </div>
+
+            <!-- Buy extra slot -->
+            <div class="inv-expand-row" style="margin-top: 12px;">
+              <button id="btn-buy-inv-slot" class="btn-menu small">
+                BUY SLOT (<span id="inv-slot-cost">60</span> Shards)
+              </button>
+              <span class="inv-expand-note">Max 10 slots. Cost increases with each purchase.</span>
+            </div>
+          </div>
         </div>
 
         <!-- Close / back -->
         <div class="menu-buttons" style="margin-top:18px;">
           <button id="btn-inv-back" class="btn-menu secondary">CLOSE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8.5 DUNGEON MAP OVERLAY -->
+    <div id="panel-worldmap" class="panel-overlay hidden">
+      <div class="worldmap-content">
+        <div class="worldmap-header">
+          <h2>DUNGEON MAP</h2>
+          <button id="btn-close-worldmap" class="btn-close">&times;</button>
+        </div>
+        <div class="worldmap-canvas-container">
+          <canvas id="worldmap-canvas" width="400" height="400"></canvas>
+        </div>
+        <div class="worldmap-legend">
+          <span class="legend-item"><span class="legend-color player"></span> Player</span>
+          <span class="legend-item"><span class="legend-color chest"></span> Chest</span>
+          <span class="legend-item"><span class="legend-color shrine"></span> Shrine</span>
+          <span class="legend-item"><span class="legend-color special"></span> Special Room</span>
+        </div>
+        <div class="menu-buttons" style="margin-top:14px;">
+          <button id="btn-close-worldmap-btn" class="btn-menu secondary">CLOSE</button>
         </div>
       </div>
     </div>

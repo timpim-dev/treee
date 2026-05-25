@@ -1,7 +1,7 @@
 /**
  * LevelManager - Manages arenas, waves, spawns, and dynamic events (Meteors, Storms)
  */
-import { RELICS_CATALOG } from '../entities/Player.js';
+import { RELICS_CATALOG, EQUIPMENT_CATALOG } from '../entities/Player.js';
 
 export class LevelManager {
   constructor(game) {
@@ -41,30 +41,27 @@ export class LevelManager {
     this.meteorIndicators = [];
   }
 
-  generateObstacles() {
-    this.obstacles = [];
-    
-    // Scale columns and rows based on wave
-    // Starts at 10x10, increases by 1 cell every 2 waves
-    const cols = 10 + Math.floor((this.wave - 1) / 2);
-    const rows = 10 + Math.floor((this.wave - 1) / 2);
+  preGenerateFullMaze() {
+    const cols = 30;
+    const rows = 30;
     const cellSize = 200;
     
-    this.navCols = cols;
-    this.navRows = rows;
-    this.navCellSize = cellSize;
-    this.width = cols * cellSize;
-    this.height = rows * cellSize;
-
-    // 40x40 pixel tiles, so 5 tiles per 200px cell
-    this.tileWidth = cols * 5;
-    this.tileHeight = rows * 5;
-    this.tileGrid = [];
-    for (let x = 0; x < this.tileWidth; x++) {
-      this.tileGrid[x] = new Array(this.tileHeight).fill(0);
+    this.fullCols = cols;
+    this.fullRows = rows;
+    this.fullWidth = cols * cellSize;
+    this.fullHeight = rows * cellSize;
+    this.fullTileWidth = cols * 5;
+    this.fullTileHeight = rows * 5;
+    
+    // Allocate fullTileGrid and exploredGrid once at 150x150, keeping exploredGrid forever
+    this.fullTileGrid = [];
+    this.exploredGrid = [];
+    for (let x = 0; x < this.fullTileWidth; x++) {
+      this.fullTileGrid[x] = new Array(this.fullTileHeight).fill(0);
+      this.exploredGrid[x] = new Array(this.fullTileHeight).fill(false);
     }
     
-    // Create grid cells with walls for the DFS maze generator
+    // Create cells grid for DFS maze generation
     const cells = [];
     for (let c = 0; c < cols; c++) {
       cells[c] = [];
@@ -73,13 +70,31 @@ export class LevelManager {
           c,
           r,
           visited: false,
-          walls: {
-            north: true, // y = r * cellSize
-            south: true, // y = (r + 1) * cellSize
-            east: true,  // x = (c + 1) * cellSize
-            west: true   // x = c * cellSize
-          }
+          walls: { north: true, south: true, east: true, west: true }
         };
+      }
+    }
+    
+    // Choose special rooms in full grid
+    this.fullSpecialRooms = [];
+    const midC = Math.floor(cols / 2);
+    const midR = Math.floor(rows / 2);
+    const roomTypes = ['treasure', 'shrine', 'nest'];
+    const usedCells = new Set();
+    usedCells.add(`${midC},${midR}`);
+    
+    for (let i = 0; i < roomTypes.length; i++) {
+      let attempts = 0;
+      while (attempts < 100) {
+        const rc = Math.floor(Math.random() * cols);
+        const rr = Math.floor(Math.random() * rows);
+        const key = `${rc},${rr}`;
+        if (!usedCells.has(key)) {
+          usedCells.add(key);
+          this.fullSpecialRooms.push({ c: rc, r: rr, type: roomTypes[i] });
+          break;
+        }
+        attempts++;
       }
     }
     
@@ -91,35 +106,20 @@ export class LevelManager {
     const totalCells = cols * rows;
     
     while (visitedCount < totalCells) {
-      // Find unvisited neighbors
       const neighbors = [];
       const { c, r } = current;
-      
       if (r > 0 && !cells[c][r - 1].visited) neighbors.push({ cell: cells[c][r - 1], dir: 'north' });
       if (r < rows - 1 && !cells[c][r + 1].visited) neighbors.push({ cell: cells[c][r + 1], dir: 'south' });
       if (c < cols - 1 && !cells[c + 1][r].visited) neighbors.push({ cell: cells[c + 1][r], dir: 'east' });
       if (c > 0 && !cells[c - 1][r].visited) neighbors.push({ cell: cells[c - 1][r], dir: 'west' });
       
       if (neighbors.length > 0) {
-        // Choose a random neighbor
         const nextObj = neighbors[Math.floor(Math.random() * neighbors.length)];
         const nextCell = nextObj.cell;
-        
-        // Remove wall between current and next
-        if (nextObj.dir === 'north') {
-          current.walls.north = false;
-          nextCell.walls.south = false;
-        } else if (nextObj.dir === 'south') {
-          current.walls.south = false;
-          nextCell.walls.north = false;
-        } else if (nextObj.dir === 'east') {
-          current.walls.east = false;
-          nextCell.walls.west = false;
-        } else if (nextObj.dir === 'west') {
-          current.walls.west = false;
-          nextCell.walls.east = false;
-        }
-        
+        if (nextObj.dir === 'north') { current.walls.north = false; nextCell.walls.south = false; }
+        else if (nextObj.dir === 'south') { current.walls.south = false; nextCell.walls.north = false; }
+        else if (nextObj.dir === 'east') { current.walls.east = false; nextCell.walls.west = false; }
+        else if (nextObj.dir === 'west') { current.walls.west = false; nextCell.walls.east = false; }
         stack.push(current);
         current = nextCell;
         current.visited = true;
@@ -131,21 +131,15 @@ export class LevelManager {
       }
     }
     
-    // To make it more open (loops & chambers), randomly remove 35% of all remaining walls.
+    // Randomly remove 35% of remaining walls to make it open
     const hWalls = [];
     const vWalls = [];
-    
     for (let c = 0; c < cols; c++) {
       for (let r = 0; r < rows; r++) {
-        if (r > 0 && cells[c][r].walls.north) {
-          hWalls.push({ c, r, type: 'h' });
-        }
-        if (c > 0 && cells[c][r].walls.west) {
-          vWalls.push({ c, r, type: 'v' });
-        }
+        if (r > 0 && cells[c][r].walls.north) hWalls.push({ c, r, type: 'h' });
+        if (c > 0 && cells[c][r].walls.west) vWalls.push({ c, r, type: 'v' });
       }
     }
-    
     const allWalls = [...hWalls, ...vWalls];
     const removeCount = Math.floor(allWalls.length * 0.35);
     for (let i = 0; i < removeCount; i++) {
@@ -160,99 +154,188 @@ export class LevelManager {
       }
     }
     
-    // Store nav graph (cell adjacency) for pathfinding
-    this.navCells = cells;
-
-    // Compile boundary tiles to solid walls
-    for (let x = 0; x < this.tileWidth; x++) {
-      this.tileGrid[x][0] = 1;
-      this.tileGrid[x][this.tileHeight - 1] = 1;
+    // Clear walls of special rooms
+    for (const room of this.fullSpecialRooms) {
+      const cell = cells[room.c][room.r];
+      cell.walls.north = false;
+      cell.walls.south = false;
+      cell.walls.east = false;
+      cell.walls.west = false;
+      if (room.r > 0) cells[room.c][room.r - 1].walls.south = false;
+      if (room.r < rows - 1) cells[room.c][room.r + 1].walls.north = false;
+      if (room.c > 0) cells[room.c - 1][room.r].walls.east = false;
+      if (room.c < cols - 1) cells[room.c + 1][room.r].walls.west = false;
     }
-    for (let y = 0; y < this.tileHeight; y++) {
-      this.tileGrid[0][y] = 1;
-      this.tileGrid[this.tileWidth - 1][y] = 1;
+    
+    this.fullNavCells = cells;
+    
+    // Compile outer boundaries to solid walls
+    for (let x = 0; x < this.fullTileWidth; x++) {
+      this.fullTileGrid[x][0] = 1;
+      this.fullTileGrid[x][this.fullTileHeight - 1] = 1;
     }
-
-    // Compile inner cell walls into solid tiles
+    for (let y = 0; y < this.fullTileHeight; y++) {
+      this.fullTileGrid[0][y] = 1;
+      this.fullTileGrid[this.fullTileWidth - 1][y] = 1;
+    }
+    
+    // Compile inner cell walls
     for (let c = 0; c < cols; c++) {
       for (let r = 0; r < rows; r++) {
         const cell = cells[c][r];
         if (r > 0 && cell.walls.north) {
           const ty = r * 5;
           const startTx = c * 5;
-          const endTx = Math.min(this.tileWidth - 1, (c + 1) * 5);
-          for (let tx = startTx; tx <= endTx; tx++) {
-            this.tileGrid[tx][ty] = 1;
-          }
+          const endTx = Math.min(this.fullTileWidth - 1, (c + 1) * 5);
+          for (let tx = startTx; tx <= endTx; tx++) this.fullTileGrid[tx][ty] = 1;
         }
         if (c > 0 && cell.walls.west) {
           const tx = c * 5;
           const startTy = r * 5;
-          const endTy = Math.min(this.tileHeight - 1, (r + 1) * 5);
-          for (let ty = startTy; ty <= endTy; ty++) {
-            this.tileGrid[tx][ty] = 1;
+          const endTy = Math.min(this.fullTileHeight - 1, (r + 1) * 5);
+          for (let ty = startTy; ty <= endTy; ty++) this.fullTileGrid[tx][ty] = 1;
+        }
+      }
+    }
+    
+    // Clear special room interiors and set to runic flooring
+    for (const room of this.fullSpecialRooms) {
+      const startTx = room.c * 5 + 1;
+      const endTx = room.c * 5 + 4;
+      const startTy = room.r * 5 + 1;
+      const endTy = room.r * 5 + 4;
+      for (let tx = startTx; tx <= endTx; tx++) {
+        for (let ty = startTy; ty <= endTy; ty++) {
+          if (tx > 0 && tx < this.fullTileWidth - 1 && ty > 0 && ty < this.fullTileHeight - 1) {
+            this.fullTileGrid[tx][ty] = 2; // Runic flooring
           }
         }
       }
     }
-
-    // Clear inner walls in a 3-tile radius around player spawn (middle of the grid)
-    const spawnCenterX = Math.floor(this.tileWidth / 2);
-    const spawnCenterY = Math.floor(this.tileHeight / 2);
+    
+    // Clear player spawn (middle of the grid at cell (5,5))
+    const spawnCenterX = 5 * 5 + 2;
+    const spawnCenterY = 5 * 5 + 2;
     const spawnRadius = 3;
     for (let x = spawnCenterX - spawnRadius; x <= spawnCenterX + spawnRadius; x++) {
       for (let y = spawnCenterY - spawnRadius; y <= spawnCenterY + spawnRadius; y++) {
-        if (x > 0 && x < this.tileWidth - 1 && y > 0 && y < this.tileHeight - 1) {
-          this.tileGrid[x][y] = 0;
+        if (x > 0 && x < this.fullTileWidth - 1 && y > 0 && y < this.fullTileHeight - 1) {
+          this.fullTileGrid[x][y] = 0;
         }
       }
     }
+    
+    // Pre-generate explosive barrels
+    this.fullExplosiveBarrels = [];
+    for (let c = 0; c < cols; c++) {
+      for (let r = 0; r < rows; r++) {
+        const cx = (c + 0.5) * cellSize;
+        const cy = (r + 0.5) * cellSize;
+        if (Math.hypot(cx - this.fullWidth / 2, cy - this.fullHeight / 2) < 200) continue;
+        if (Math.random() < 0.12) {
+          const bx = cx + (Math.random() - 0.5) * 60;
+          const by = cy + (Math.random() - 0.5) * 60;
+          let overlap = false;
+          for (const b of this.fullExplosiveBarrels) {
+            if (Math.hypot(b.x - bx, b.y - by) < 40) { overlap = true; break; }
+          }
+          if (!overlap) {
+            this.fullExplosiveBarrels.push({ x: bx, y: by, radius: 12, type: 'explosive_barrel' });
+          }
+        }
+      }
+    }
+    
+    this.mapRevealed = false;
+  }
 
-    // Place physics pillars at the center of all solid inner wall tiles
+  generateObstacles() {
+    if (!this.fullTileGrid) {
+      this.preGenerateFullMaze();
+    }
+    
+    // Scale active columns and rows based on wave
+    // Starts at 10x10, increases by 1 cell every 2 waves
+    const activeCols = Math.min(30, 10 + Math.floor((this.wave - 1) / 2));
+    const activeRows = Math.min(30, 10 + Math.floor((this.wave - 1) / 2));
+    
+    this.navCols = activeCols;
+    this.navRows = activeRows;
+    this.navCellSize = 200;
+    
+    this.width = activeCols * 200;
+    this.height = activeRows * 200;
+    
+    this.tileWidth = activeCols * 5;
+    this.tileHeight = activeRows * 5;
+    
+    // Initialize tileGrid for the active region
+    this.tileGrid = [];
+    for (let x = 0; x < this.tileWidth; x++) {
+      this.tileGrid[x] = new Array(this.tileHeight).fill(0);
+    }
+    
+    // Copy the active portion of fullTileGrid into tileGrid
+    // We overwrite the outer boundary tiles with solid walls (1)
+    for (let x = 0; x < this.tileWidth; x++) {
+      for (let y = 0; y < this.tileHeight; y++) {
+        if (x === 0 || x === this.tileWidth - 1 || y === 0 || y === this.tileHeight - 1) {
+          this.tileGrid[x][y] = 1;
+        } else {
+          this.tileGrid[x][y] = this.fullTileGrid[x][y];
+        }
+      }
+    }
+    
+    // Reconstruct navCells for active region pathfinding
+    this.navCells = [];
+    for (let c = 0; c < activeCols; c++) {
+      this.navCells[c] = [];
+      for (let r = 0; r < activeRows; r++) {
+        const fullCell = this.fullNavCells[c][r];
+        this.navCells[c][r] = {
+          c,
+          r,
+          visited: true,
+          walls: {
+            north: r === 0 ? true : fullCell.walls.north,
+            south: r === activeRows - 1 ? true : fullCell.walls.south,
+            east: c === activeCols - 1 ? true : fullCell.walls.east,
+            west: c === 0 ? true : fullCell.walls.west
+          }
+        };
+      }
+    }
+    
+    // Reconstruct physics obstacles (pillars) for active region
+    this.obstacles = [];
     for (let tx = 1; tx < this.tileWidth - 1; tx++) {
       for (let ty = 1; ty < this.tileHeight - 1; ty++) {
         if (this.tileGrid[tx][ty] === 1) {
           this.obstacles.push({
             x: tx * 40 + 20,
             y: ty * 40 + 20,
-            radius: 20, // aligns perfectly with tile width (diameter 40)
+            radius: 20,
             type: 'pillar'
           });
         }
       }
     }
     
-    // Add some random explosive barrels in chambers
-    for (let c = 0; c < cols; c++) {
-      for (let r = 0; r < rows; r++) {
-        const cx = (c + 0.5) * cellSize;
-        const cy = (r + 0.5) * cellSize;
-        if (Math.hypot(cx - this.width / 2, cy - this.height / 2) < 200) {
-          continue;
-        }
-        
-        if (Math.random() < 0.12) {
-          const bx = cx + (Math.random() - 0.5) * 60;
-          const by = cy + (Math.random() - 0.5) * 60;
-          
-          let overlap = false;
-          for (const obs of this.obstacles) {
-            if (Math.hypot(obs.x - bx, obs.y - by) < obs.radius + 20) {
-              overlap = true;
-              break;
-            }
-          }
-          if (!overlap) {
-            this.obstacles.push({
-              x: bx,
-              y: by,
-              radius: 14,
-              type: 'explosive_barrel'
-            });
-          }
+    // Add explosive barrels that fall inside the active region (with clearance)
+    if (this.fullExplosiveBarrels) {
+      for (const barrel of this.fullExplosiveBarrels) {
+        const tx = Math.floor(barrel.x / 40);
+        const ty = Math.floor(barrel.y / 40);
+        if (tx > 0 && tx < this.tileWidth - 1 && ty > 0 && ty < this.tileHeight - 1) {
+          this.obstacles.push(barrel);
         }
       }
     }
+    
+    // Filter special rooms that are inside the active region
+    this.specialRooms = this.fullSpecialRooms.filter(room => room.c < activeCols && room.r < activeRows);
+  }
   }
 
 
@@ -398,12 +481,48 @@ export class LevelManager {
     this.chests = [];
     this.shrines = [];
     
+    // Spawn special rooms contents
+    this.spawnSpecialRoomsContents();
+
     // Spawn 1 chest and 1 shrine per wave
     this.spawnChest();
     this.spawnShrine();
 
+    // Spawn the elite room guards
+    this.specialSpawns.forEach(spawn => {
+      this.game.spawnEnemy(spawn.x, spawn.y, spawn.type);
+    });
+
     // Handle background level sound cues or screen flashes
     this.game.screenShake = 10;
+  }
+
+  spawnSpecialRoomsContents() {
+    this.specialSpawns = [];
+    if (!this.specialRooms) return;
+    
+    for (const room of this.specialRooms) {
+      const cx = (room.c + 0.5) * this.navCellSize;
+      const cy = (room.r + 0.5) * this.navCellSize;
+      
+      if (room.type === 'treasure') {
+        // Spawn 2 special chests in the Treasury!
+        this.chests.push({ x: cx - 20, y: cy, radius: 12, unlockTimer: 2.0, isSpecial: true });
+        this.chests.push({ x: cx + 20, y: cy, radius: 12, unlockTimer: 2.0, isSpecial: true });
+      } else if (room.type === 'shrine') {
+        // Spawn a guaranteed shrine in the center!
+        const types = ['haste', 'mana', 'damage'];
+        const buffType = types[Math.floor(Math.random() * types.length)];
+        this.shrines.push({ x: cx, y: cy, radius: 16, buffType, cooldown: 0, pulseTimer: 0 });
+      } else if (room.type === 'nest') {
+        // Spawn 1 special chest and queue 1 elite enemy spawner
+        this.chests.push({ x: cx - 25, y: cy, radius: 12, unlockTimer: 2.0, isSpecial: true });
+        
+        const eliteTypes = ['slime_elite', 'skeleton_elite', 'horror_elite'];
+        const eliteType = eliteTypes[Math.floor(Math.random() * eliteTypes.length)];
+        this.specialSpawns.push({ x: cx + 25, y: cy, type: eliteType });
+      }
+    }
   }
 
   spawnChest() {
@@ -474,6 +593,22 @@ export class LevelManager {
   }
 
   update(dt) {
+    // Uncover fog of war around player
+    if (this.game.player && this.exploredGrid) {
+      const px = Math.floor(this.game.player.x / 40);
+      const py = Math.floor(this.game.player.y / 40);
+      const radius = 5; // 5 tiles radius = 200px (explores 1 cell diameter)
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dy = -radius; dy <= radius; dy++) {
+          const tx = px + dx;
+          const ty = py + dy;
+          if (tx >= 0 && tx < this.tileWidth && ty >= 0 && ty < this.tileHeight) {
+            this.exploredGrid[tx][ty] = true;
+          }
+        }
+      }
+    }
+
     if (!this.waveInProgress) return;
 
     // Advance wave countdown
@@ -583,9 +718,10 @@ export class LevelManager {
             this.game.spawnItem(chest.x + (Math.random()-0.5)*15, chest.y + (Math.random()-0.5)*15, 'shard', 25);
           }
 
-          // 50% chance to drop relic from chest
+          // 50% chance to drop relic/gear from chest
           if (Math.random() < 0.50) {
-            const randomRelic = RELICS_CATALOG[Math.floor(Math.random() * RELICS_CATALOG.length)];
+            const combinedPool = [...RELICS_CATALOG, ...EQUIPMENT_CATALOG];
+            const randomRelic = combinedPool[Math.floor(Math.random() * combinedPool.length)];
             this.game.spawnItem(chest.x, chest.y, 'relic', randomRelic);
           }
 
@@ -910,16 +1046,22 @@ export class LevelManager {
     if (!this.tileGrid) return;
     
     const tileSize = 40;
+    const zoom = this.game.gameZoom || 1.0;
     
-    // Determine range of visible tiles
-    const startTx = Math.max(0, Math.floor(camera.x / tileSize));
-    const endTx = Math.min(this.tileWidth - 1, Math.ceil((camera.x + canvasWidth) / tileSize));
-    const startTy = Math.max(0, Math.floor(camera.y / tileSize));
-    const endTy = Math.min(this.tileHeight - 1, Math.ceil((camera.y + canvasHeight) / tileSize));
+    // Determine range of visible tiles taking camera zoom into account
+    const halfW = (canvasWidth / 2) / zoom;
+    const halfH = (canvasHeight / 2) / zoom;
+    const centerX = camera.x + canvasWidth / 2;
+    const centerY = camera.y + canvasHeight / 2;
+    
+    const startTx = Math.max(0, Math.floor((centerX - halfW) / tileSize));
+    const endTx = Math.min(this.tileWidth - 1, Math.ceil((centerX + halfW) / tileSize));
+    const startTy = Math.max(0, Math.floor((centerY - halfH) / tileSize));
+    const endTy = Math.min(this.tileHeight - 1, Math.ceil((centerY + halfH) / tileSize));
     
     for (let tx = startTx; tx <= endTx; tx++) {
       for (let ty = startTy; ty <= endTy; ty++) {
-        // Only draw floor if it's a floor tile (0)
+        // Draw floor if it's a floor tile (0)
         if (this.tileGrid[tx][ty] === 0) {
           const rx = tx * tileSize - camera.x;
           const ry = ty * tileSize - camera.y;
@@ -958,6 +1100,21 @@ export class LevelManager {
             ctx.lineTo(rx + 20, ry + tileSize);
             ctx.stroke();
           }
+        } else if (this.tileGrid[tx][ty] === 2) {
+          // Draw special runic floor
+          const rx = tx * tileSize - camera.x;
+          const ry = ty * tileSize - camera.y;
+          
+          ctx.fillStyle = '#22153c'; // deep runic purple
+          ctx.fillRect(rx, ry, tileSize, tileSize);
+          
+          ctx.strokeStyle = '#43267d'; // glowing purple border
+          ctx.lineWidth = 1;
+          ctx.strokeRect(rx, ry, tileSize, tileSize);
+          
+          // Add a faint central rune symbol or dot
+          ctx.fillStyle = '#7d5fff';
+          ctx.fillRect(rx + tileSize / 2 - 2, ry + tileSize / 2 - 2, 4, 4);
         }
       }
     }
@@ -1032,10 +1189,20 @@ export class LevelManager {
     });
 
     // Draw wall tiles (connected textures) and explosive barrels
-    const startTx = Math.max(0, Math.floor(camera.x / tileSize));
-    const endTx = Math.min(this.tileWidth - 1, Math.ceil((camera.x + this.game.canvas.width) / tileSize));
-    const startTy = Math.max(0, Math.floor(camera.y / tileSize));
-    const endTy = Math.min(this.tileHeight - 1, Math.ceil((camera.y + this.game.canvas.height) / tileSize));
+    const zoom = this.game.gameZoom || 1.0;
+    const canvasWidth = this.game.canvas.width;
+    const canvasHeight = this.game.canvas.height;
+    
+    // Determine range of visible tiles taking camera zoom into account
+    const halfW = (canvasWidth / 2) / zoom;
+    const halfH = (canvasHeight / 2) / zoom;
+    const centerX = camera.x + canvasWidth / 2;
+    const centerY = camera.y + canvasHeight / 2;
+    
+    const startTx = Math.max(0, Math.floor((centerX - halfW) / tileSize));
+    const endTx = Math.min(this.tileWidth - 1, Math.ceil((centerX + halfW) / tileSize));
+    const startTy = Math.max(0, Math.floor((centerY - halfH) / tileSize));
+    const endTy = Math.min(this.tileHeight - 1, Math.ceil((centerY + halfH) / tileSize));
     
     // First pass: Draw drop shadows on the ground for any wall that has floor below it
     ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';

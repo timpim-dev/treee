@@ -6,7 +6,7 @@ import { ParticleSystem } from './ParticleSystem.js';
 import { AbilityTree } from './AbilityTree.js';
 import { LevelManager } from './LevelManager.js';
 import { AudioManager } from './AudioManager.js';
-import { Player, RELICS_CATALOG } from '../entities/Player.js';
+import { Player, RELICS_CATALOG, EQUIPMENT_CATALOG } from '../entities/Player.js';
 import { Enemy } from '../entities/Enemy.js';
 import { SPELL_TYPES, SpellBook, processCombo } from './Spells.js';
 
@@ -128,7 +128,17 @@ export class Game {
           this.setState('PAUSED');
         } else if (this.state === 'PAUSED') {
           this.setState('PLAYING');
-        } else if (this.state === 'UPGRADE_TREE') {
+        } else if (this.state === 'UPGRADE_TREE' || this.state === 'INVENTORY' || this.state === 'SPELLMAP' || this.state === 'WORLD_MAP') {
+          this.setState('PLAYING');
+        }
+      }
+
+      if (key === 'm' || key === 'tab') {
+        if (this.state === 'PLAYING') {
+          e.preventDefault();
+          this.setState('WORLD_MAP');
+        } else if (this.state === 'WORLD_MAP') {
+          e.preventDefault();
           this.setState('PLAYING');
         }
       }
@@ -367,7 +377,8 @@ export class Game {
           return;
         }
         this.player.shards -= 50;
-        const randomRelic = RELICS_CATALOG[Math.floor(Math.random() * RELICS_CATALOG.length)];
+        const combinedPool = [...RELICS_CATALOG, ...EQUIPMENT_CATALOG];
+        const randomRelic = combinedPool[Math.floor(Math.random() * combinedPool.length)];
         this.player.inventory.push(randomRelic);
         this.player.recalculateModifiers(this.abilityTree);
         this.player.saveGameState();
@@ -450,6 +461,21 @@ export class Game {
       this.refreshInventoryPanel();
       this.updateHUD();
     });
+
+    // ── World Map Panel ──────────────────────────────────────────────────
+    const toggleMapFn = () => {
+      if (this.state === 'PLAYING') {
+        this.setState('WORLD_MAP');
+      } else if (this.state === 'WORLD_MAP') {
+        this.setState('PLAYING');
+      }
+    };
+    
+    document.getElementById('btn-toggle-worldmap').addEventListener('click', toggleMapFn);
+    document.getElementById('minimap-canvas').addEventListener('click', toggleMapFn);
+    
+    document.getElementById('btn-close-worldmap').addEventListener('click', () => this.setState('PLAYING'));
+    document.getElementById('btn-close-worldmap-btn').addEventListener('click', () => this.setState('PLAYING'));
   }
 
   _invSlotCost() {
@@ -670,19 +696,27 @@ export class Game {
       return c.toDataURL();
     };
 
-    // Filled relic slots
+    // Filled relic/bag slots
     for (let i = 0; i < slots; i++) {
       const card = document.createElement('div');
       if (i < relics.length) {
-        const relic = relics[i];
-        card.className = 'inv-relic-card';
+        const item = relics[i];
+        const isGear = !!item.type;
+        card.className = isGear ? 'inv-relic-card gear-item' : 'inv-relic-card';
+        card.style.cursor = isGear ? 'pointer' : 'default';
+        
         card.innerHTML = `
-          <button class="btn-remove-relic" data-idx="${i}" title="Remove relic">✕</button>
-          <img class="inv-relic-sprite" src="${iconDataUrl(relic.sprite)}" alt="${relic.name}" draggable="false">
-          <div class="inv-relic-name">${relic.name}</div>
-          <div class="inv-relic-desc">${relic.desc}</div>
+          <button class="btn-remove-relic" data-idx="${i}" title="Discard item">✕</button>
+          <img class="inv-relic-sprite" src="${iconDataUrl(item.sprite)}" alt="${item.name}" draggable="false">
+          <div class="inv-relic-name">${item.name}</div>
+          <div class="inv-relic-desc">
+            ${item.desc}
+            ${isGear ? '<div style="color: var(--color-aether); margin-top: 4px; font-family: var(--font-pixel); font-size: 5.5px;">(CLICK TO EQUIP)</div>' : ''}
+          </div>
         `;
+        
         card.querySelector('.btn-remove-relic').addEventListener('click', (e) => {
+          e.stopPropagation(); // prevent triggering equipGear click
           const idx = parseInt(e.currentTarget.dataset.idx, 10);
           this.player.inventory.splice(idx, 1);
           this.player.recalculateModifiers(this.abilityTree);
@@ -691,6 +725,13 @@ export class Game {
           this.refreshInventoryPanel();
           this.updateHUD();
         });
+
+        if (isGear) {
+          card.addEventListener('click', (e) => {
+            if (e.target.classList.contains('btn-remove-relic')) return;
+            this.equipGear(i);
+          });
+        }
       } else {
         card.className = 'inv-relic-card empty-slot';
         card.innerHTML = `<div class="inv-slot-label">EMPTY</div>`;
@@ -708,6 +749,116 @@ export class Game {
 
     // Draw shard icon
     this.drawHTMLIcon('icon-shard-inv', 'item_shard', 12);
+
+    // Update Equipped Slots UI (left side)
+    const equipSlots = ['helmet', 'chestplate', 'boots', 'weapon', 'ring'];
+    equipSlots.forEach((slot) => {
+      const slotEl = document.getElementById(`equip-slot-${slot}`);
+      const canvas = document.getElementById(`equip-canvas-${slot}`);
+      const tooltip = document.getElementById(`tooltip-equip-${slot}`);
+      
+      if (!slotEl || !canvas || !tooltip) return;
+      
+      const item = this.player.equipment[slot];
+      
+      // Clear canvas
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = false;
+      
+      // Clear listeners by cloning slotEl
+      const newSlotEl = slotEl.cloneNode(true);
+      slotEl.parentNode.replaceChild(newSlotEl, slotEl);
+      
+      if (item) {
+        newSlotEl.classList.add('filled');
+        // Draw the item sprite
+        this.assets.draw(ctx, item.sprite, 16, 16, 32);
+        
+        // Update tooltip content
+        let statsStr = '';
+        if (item.stats) {
+          statsStr = Object.entries(item.stats)
+            .map(([stat, val]) => {
+              const sign = val >= 0 ? '+' : '';
+              const percent = stat.toLowerCase().includes('damage') || stat === 'speed' || stat === 'cooldownReduction' || stat === 'castSpeed' || stat === 'critChance' || stat === 'damageReduction' || stat === 'xpGain' ? '%' : '';
+              const displayVal = percent ? Math.round(val * 100) : val;
+              // Format camelCase to readable label
+              const label = stat.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+              return `${sign}${displayVal}${percent} ${label}`;
+            })
+            .join(', ');
+        }
+        tooltip.innerHTML = `<strong style="color: #eccc68;">${item.name}</strong><br/>${statsStr}<br/><span style="color: #ff4757; font-size: 8px; font-family: var(--font-pixel); font-weight: bold; display: block; margin-top: 4px;">(CLICK TO UNEQUIP)</span>`;
+        
+        newSlotEl.addEventListener('click', () => {
+          this.unequipGear(slot);
+        });
+      } else {
+        newSlotEl.classList.remove('filled');
+        const prettyName = slot === 'chestplate' ? 'ROBE' : slot.toUpperCase();
+        tooltip.innerHTML = `<strong style="color: #57606f;">EMPTY ${prettyName} SLOT</strong>`;
+      }
+    });
+  }
+
+  equipGear(idx) {
+    const gear = this.player.inventory[idx];
+    if (!gear || !gear.type) return;
+    
+    const slot = gear.type;
+    const prevGear = this.player.equipment[slot];
+    
+    if (prevGear) {
+      // Swap gear in inventory
+      this.player.inventory[idx] = prevGear;
+    } else {
+      // Just remove from inventory
+      this.player.inventory.splice(idx, 1);
+    }
+    
+    this.player.equipment[slot] = gear;
+    
+    this.player.recalculateModifiers(this.abilityTree);
+    this.player.saveGameState();
+    if (this.audio) this.audio.playBuy(); // Equipping gear plays buy sfx
+    this.refreshInventoryPanel();
+    this.updateHUD();
+    
+    this.particles.spawnText(this.player.x, this.player.y - 20, `EQUIPPED: ${gear.name}`, {
+      color: '#eccc68',
+      fontSize: 10,
+      fontPixel: true
+    });
+  }
+
+  unequipGear(slot) {
+    const gear = this.player.equipment[slot];
+    if (!gear) return;
+    
+    if (this.player.inventory.length >= this.player.maxInventorySlots) {
+      this.particles.spawnText(this.player.x, this.player.y - 20, "SATCHEL FULL", {
+        color: '#ff4757',
+        fontSize: 10,
+        fontPixel: true
+      });
+      return;
+    }
+    
+    this.player.equipment[slot] = null;
+    this.player.inventory.push(gear);
+    
+    this.player.recalculateModifiers(this.abilityTree);
+    this.player.saveGameState();
+    if (this.audio) this.audio.playClick();
+    this.refreshInventoryPanel();
+    this.updateHUD();
+    
+    this.particles.spawnText(this.player.x, this.player.y - 20, `UNEQUIPPED: ${gear.name}`, {
+      color: '#a55eea',
+      fontSize: 10,
+      fontPixel: true
+    });
   }
 
   // ----------------------------------------------------
@@ -954,9 +1105,9 @@ export class Game {
     
     if (this.audio) this.audio.playStateChange();
     
-    // Keep HUD visible during inventory/spellmap so stats are readable
+    // Keep HUD visible during inventory/spellmap/worldmap so stats are readable
     document.getElementById('hud').classList.toggle('hidden',
-      newState !== 'PLAYING' && newState !== 'INVENTORY' && newState !== 'SPELLMAP');
+      newState !== 'PLAYING' && newState !== 'INVENTORY' && newState !== 'SPELLMAP' && newState !== 'WORLD_MAP');
     
     this.showPanel(
       newState === 'MENU'          ? 'panel-main-menu' :
@@ -965,7 +1116,8 @@ export class Game {
       newState === 'PAUSED'        ? 'panel-pause' :
       newState === 'SHOP'          ? 'panel-shop' :
       newState === 'INVENTORY'     ? 'panel-inventory' :
-      newState === 'SPELLMAP'      ? 'panel-spellmap' : ''
+      newState === 'SPELLMAP'      ? 'panel-spellmap' :
+      newState === 'WORLD_MAP'     ? 'panel-worldmap' : ''
     );
 
     if (newState === 'INVENTORY') {
@@ -973,6 +1125,9 @@ export class Game {
     }
     if (newState === 'SPELLMAP') {
       this.refreshSpellmapPanel();
+    }
+    if (newState === 'WORLD_MAP') {
+      this.drawWorldmap();
     }
 
     if (newState === 'UPGRADE_TREE') {
@@ -988,7 +1143,6 @@ export class Game {
         rebirthBadge.classList.add('hidden');
       }
     }
-
     if (newState === 'SHOP') {
       this.drawShopItems();
       const shopShards = document.getElementById('shop-shards-value');
@@ -999,7 +1153,7 @@ export class Game {
   }
 
   showPanel(panelId) {
-    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-how-to', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-spellmap'];
+    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-how-to', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-spellmap', 'panel-worldmap'];
     overlays.forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
@@ -1461,6 +1615,8 @@ export class Game {
       this.draw();
     } else if (this.state === 'UPGRADE_TREE') {
       this.abilityTree.draw(this.treeCanvas, this.treeCtx);
+    } else if (this.state === 'WORLD_MAP') {
+      this.drawWorldmap();
     }
     
     requestAnimationFrame((t) => this.loop(t));
@@ -2147,6 +2303,10 @@ export class Game {
     if (boss) {
       this.drawBossHealthBar(boss);
     }
+
+    if (this.state === 'PLAYING') {
+      this.drawMinimap();
+    }
   }
 
   drawFloorGrid() {
@@ -2186,5 +2346,190 @@ export class Game {
     this.ctx.fillText(`${boss.name} (${Math.round(boss.hp)} / ${boss.maxHp})`, bx + bw/2, by + 8);
     
     this.ctx.restore();
+  }
+
+  drawMinimap() {
+    const canvas = document.getElementById('minimap-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    const lvl = this.levelManager;
+    if (!lvl || !lvl.tileGrid || !lvl.exploredGrid) return;
+    
+    const tileSize = 40;
+    const miniCellSize = 4; // 4x4 pixels per tile on minimap
+    const mapW = canvas.width;
+    const mapH = canvas.height;
+    
+    const px = this.player.x;
+    const py = this.player.y;
+    
+    const pTileX = px / tileSize;
+    const pTileY = py / tileSize;
+    
+    const viewTilesX = Math.ceil(mapW / miniCellSize);
+    const viewTilesY = Math.ceil(mapH / miniCellSize);
+    
+    const startX = Math.floor(pTileX - viewTilesX / 2);
+    const startY = Math.floor(pTileY - viewTilesY / 2);
+    
+    ctx.save();
+    
+    for (let dx = 0; dx < viewTilesX; dx++) {
+      for (let dy = 0; dy < viewTilesY; dy++) {
+        const tx = startX + dx;
+        const ty = startY + dy;
+        
+        const rx = dx * miniCellSize;
+        const ry = dy * miniCellSize;
+        
+        if (tx >= 0 && tx < lvl.tileWidth && ty >= 0 && ty < lvl.tileHeight) {
+          const explored = lvl.exploredGrid[tx][ty];
+          if (explored) {
+            const tile = lvl.tileGrid[tx][ty];
+            if (tile === 1) {
+              ctx.fillStyle = '#2f3640'; // Wall
+            } else if (tile === 2) {
+              ctx.fillStyle = '#2c1b4d'; // Special Room
+            } else {
+              ctx.fillStyle = '#121320'; // Floor
+            }
+            ctx.fillRect(rx, ry, miniCellSize, miniCellSize);
+          } else {
+            ctx.fillStyle = '#000000'; // Unexplored
+            ctx.fillRect(rx, ry, miniCellSize, miniCellSize);
+          }
+        } else {
+          ctx.fillStyle = '#000000'; // Out of bounds
+          ctx.fillRect(rx, ry, miniCellSize, miniCellSize);
+        }
+      }
+    }
+    
+    // Draw player in the middle (white cross/dot)
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(mapW / 2 - 2, mapH / 2 - 2, 4, 4);
+    
+    const isExplored = (wx, wy) => {
+      const tx = Math.floor(wx / tileSize);
+      const ty = Math.floor(wy / tileSize);
+      return tx >= 0 && tx < lvl.tileWidth && ty >= 0 && ty < lvl.tileHeight && lvl.exploredGrid[tx][ty];
+    };
+    
+    // Shrines (blue dots)
+    lvl.shrines.forEach(shrine => {
+      if (isExplored(shrine.x, shrine.y)) {
+        const sdx = (shrine.x / tileSize - pTileX) * miniCellSize + mapW / 2;
+        const sdy = (shrine.y / tileSize - pTileY) * miniCellSize + mapH / 2;
+        ctx.fillStyle = '#70a1ff';
+        ctx.fillRect(sdx - 2, sdy - 2, 4, 4);
+      }
+    });
+    
+    // Chests (gold dots)
+    lvl.chests.forEach(chest => {
+      if (isExplored(chest.x, chest.y)) {
+        const cdx = (chest.x / tileSize - pTileX) * miniCellSize + mapW / 2;
+        const cdy = (chest.y / tileSize - pTileY) * miniCellSize + mapH / 2;
+        ctx.fillStyle = '#eccc68';
+        ctx.fillRect(cdx - 2, cdy - 2, 4, 4);
+      }
+    });
+
+    // Enemies (red dots)
+    this.enemies.forEach(enemy => {
+      if (!enemy.dead && isExplored(enemy.x, enemy.y)) {
+        const edx = (enemy.x / tileSize - pTileX) * miniCellSize + mapW / 2;
+        const edy = (enemy.y / tileSize - pTileY) * miniCellSize + mapH / 2;
+        ctx.fillStyle = '#ff4757';
+        ctx.fillRect(edx - 1.5, edy - 1.5, 3, 3);
+      }
+    });
+    
+    ctx.restore();
+  }
+
+  drawWorldmap() {
+    const canvas = document.getElementById('worldmap-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    const lvl = this.levelManager;
+    if (!lvl || !lvl.tileGrid || !lvl.exploredGrid) return;
+    
+    const w = canvas.width;
+    const h = canvas.height;
+    
+    const scaleX = w / lvl.tileWidth;
+    const scaleY = h / lvl.tileHeight;
+    const scale = Math.min(scaleX, scaleY);
+    
+    const offsetX = (w - lvl.tileWidth * scale) / 2;
+    const offsetY = (h - lvl.tileHeight * scale) / 2;
+    
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    
+    for (let tx = 0; tx < lvl.tileWidth; tx++) {
+      for (let ty = 0; ty < lvl.tileHeight; ty++) {
+        const explored = lvl.exploredGrid[tx][ty];
+        const rx = tx * scale;
+        const ry = ty * scale;
+        
+        if (explored) {
+          const tile = lvl.tileGrid[tx][ty];
+          if (tile === 1) {
+            ctx.fillStyle = '#2f3640'; // Wall
+          } else if (tile === 2) {
+            ctx.fillStyle = '#2c1b4d'; // Special Room
+          } else {
+            ctx.fillStyle = '#121320'; // Floor
+          }
+          ctx.fillRect(rx, ry, scale + 0.5, scale + 0.5);
+        } else {
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(rx, ry, scale + 0.5, scale + 0.5);
+        }
+      }
+    }
+    
+    // Draw shrines
+    lvl.shrines.forEach(shrine => {
+      const tx = Math.floor(shrine.x / 40);
+      const ty = Math.floor(shrine.y / 40);
+      if (lvl.exploredGrid[tx][ty]) {
+        ctx.fillStyle = '#70a1ff';
+        ctx.beginPath();
+        ctx.arc(tx * scale + scale / 2, ty * scale + scale / 2, Math.max(3, scale * 1.2), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+    
+    // Draw chests
+    lvl.chests.forEach(chest => {
+      const tx = Math.floor(chest.x / 40);
+      const ty = Math.floor(chest.y / 40);
+      if (lvl.exploredGrid[tx][ty]) {
+        ctx.fillStyle = '#eccc68';
+        ctx.beginPath();
+        ctx.arc(tx * scale + scale / 2, ty * scale + scale / 2, Math.max(3, scale * 1.2), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+    
+    // Draw player
+    const pTx = Math.floor(this.player.x / 40);
+    const pTy = Math.floor(this.player.y / 40);
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#eccc68';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(pTx * scale + scale / 2, pTy * scale + scale / 2, Math.max(4, scale * 1.5), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    
+    ctx.restore();
   }
 }

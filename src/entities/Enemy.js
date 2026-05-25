@@ -2,7 +2,7 @@
  * Enemy - Opponents with AI archetypes and status reaction targets
  */
 import { SPELL_TYPES } from '../engine/Spells.js';
-import { RELICS_CATALOG } from './Player.js';
+import { RELICS_CATALOG, EQUIPMENT_CATALOG } from './Player.js';
 
 export class Enemy {
   constructor(game, x, y, type) {
@@ -242,7 +242,8 @@ export class Enemy {
 
     if (this.type.includes('elite') || this.type === 'archon') {
       if (Math.random() < 0.50) {
-        const randomRelic = RELICS_CATALOG[Math.floor(Math.random() * RELICS_CATALOG.length)];
+        const combinedPool = [...RELICS_CATALOG, ...EQUIPMENT_CATALOG];
+        const randomRelic = combinedPool[Math.floor(Math.random() * combinedPool.length)];
         game.spawnItem(this.x, this.y, 'relic', randomRelic);
       }
     }

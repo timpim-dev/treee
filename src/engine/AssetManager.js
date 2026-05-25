@@ -939,6 +939,61 @@ export class AssetManager {
       "........"
     ]]);
 
+    this.sprites['equip_wand'] = this.createSprite(8, 8, [[
+      "......kk",
+      ".....kyy",
+      "....kyyk",
+      "...kskk.",
+      "..ksk...",
+      ".ksk....",
+      "kkk.....",
+      "........"
+    ]]);
+
+    this.sprites['equip_staff'] = this.createSprite(8, 8, [[
+      "....kkk.",
+      "...krrro",
+      "....kkko",
+      "...ksk..",
+      "..ksk...",
+      ".ksk....",
+      "ksk.....",
+      "kk......"
+    ]]);
+
+    this.sprites['equip_hat'] = this.createSprite(8, 8, [[
+      "....k...",
+      "...kbk..",
+      "..kbbk..",
+      ".kbbbbk.",
+      "kkkkkkkk",
+      ".ksggsk.",
+      "........",
+      "........"
+    ]]);
+
+    this.sprites['equip_robe'] = this.createSprite(8, 8, [[
+      "..kkkk..",
+      ".kbwwbk.",
+      "kbbbbbbk",
+      "kbbbbbbk",
+      "kbbbbbbk",
+      ".kbbbbk.",
+      "..kkkk..",
+      "........"
+    ]]);
+
+    this.sprites['equip_boots'] = this.createSprite(8, 8, [[
+      "........",
+      "..kkkk..",
+      ".kssssk.",
+      ".kskk...",
+      "kksskk..",
+      "ksssssk.",
+      "kkkkkkk.",
+      "........"
+    ]]);
+
     this.sprites['item_chest_relic'] = this.createSprite(16, 16, [[
       "................",
       "....kkkkkkkk....",

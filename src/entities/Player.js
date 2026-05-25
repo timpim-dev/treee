@@ -24,6 +24,29 @@ export const RELICS_CATALOG = [
   { id: 'relic_xp',        name: 'Scholar\'s Lens',  desc: '+20% XP Gain',               sprite: 'relic_boots',   stats: { xpGain: 0.20 } },
 ];
 
+export const EQUIPMENT_CATALOG = [
+  // Weapons
+  { id: 'equip_wand_novice', name: 'Novice Wand', type: 'weapon', desc: '+10% Cast Speed', sprite: 'equip_wand', stats: { castSpeed: 0.10 } },
+  { id: 'equip_staff_fire', name: 'Pyromancer Staff', type: 'weapon', desc: '+30% Fire Damage', sprite: 'equip_staff', stats: { fireDamage: 0.30 } },
+  { id: 'equip_wand_mana', name: 'Mana Scepter', type: 'weapon', desc: '+40 Max MP, +0.3 Mana Regen', sprite: 'equip_wand', stats: { maxMp: 40, manaRegen: 0.3 } },
+  
+  // Helmets
+  { id: 'equip_hood_apprentice', name: 'Apprentice Hood', type: 'helmet', desc: '+15 Max MP, +10% Cast Speed', sprite: 'equip_hat', stats: { maxMp: 15, castSpeed: 0.10 } },
+  { id: 'equip_crown_mage', name: 'Archmage Crown', type: 'helmet', desc: '+15% Cooldown Reduction', sprite: 'equip_hat', stats: { cooldownReduction: 0.15 } },
+
+  // Armors
+  { id: 'equip_robe_student', name: 'Student Robe', type: 'chestplate', desc: '+20 Max HP', sprite: 'equip_robe', stats: { maxHp: 20 } },
+  { id: 'equip_robe_runic', name: 'Runic Mail', type: 'chestplate', desc: '+15% Damage Reduction, +25 Max HP', sprite: 'equip_robe', stats: { damageReduction: 0.15, maxHp: 25 } },
+
+  // Boots
+  { id: 'equip_boots_leather', name: 'Traveler Boots', type: 'boots', desc: '+15% Move Speed', sprite: 'equip_boots', stats: { speed: 0.15 } },
+  { id: 'equip_boots_wizard', name: 'Levitation Boots', type: 'boots', desc: '+25% Move Speed', sprite: 'equip_boots', stats: { speed: 0.25 } },
+
+  // Rings / Accessories
+  { id: 'equip_ring_gold', name: 'Golden Band', type: 'ring', desc: '+10% XP Gain', sprite: 'relic_ring', stats: { xpGain: 0.10 } },
+  { id: 'equip_ring_crit', name: 'Slayer Ring', type: 'ring', desc: '+10% Crit Chance', sprite: 'relic_ring', stats: { critChance: 0.10 } }
+];
+
 export class Player {
   constructor(game, x, y) {
     this.game = game;
@@ -55,6 +78,13 @@ export class Player {
     // Relics Inventory
     this.inventory = [];
     this.maxInventorySlots = 4; // starts at 4, can be purchased up to 10
+    this.equipment = {
+      helmet: null,
+      chestplate: null,
+      boots: null,
+      weapon: null,
+      ring: null
+    };
     
     // Spell slot system
     // customSpellMap overrides auto-assignment when set by the player
@@ -276,15 +306,29 @@ export class Player {
       // shardGain is used directly in Game.js when collecting shards
     }
 
-    // Add inventory relics stats
-    this.inventory.forEach((relic) => {
-      if (relic && relic.stats) {
-        for (const statKey in relic.stats) {
-          const value = relic.stats[statKey];
+    // Add inventory relics stats (relics in bag are passives, gear is not)
+    this.inventory.forEach((item) => {
+      const isRelic = !item.type;
+      if (isRelic && item.stats) {
+        for (const statKey in item.stats) {
+          const value = item.stats[statKey];
           this.modifiers[statKey] += value;
         }
       }
     });
+
+    // Add equipped gear stats
+    if (this.equipment) {
+      for (const slot in this.equipment) {
+        const item = this.equipment[slot];
+        if (item && item.stats) {
+          for (const statKey in item.stats) {
+            const value = item.stats[statKey];
+            this.modifiers[statKey] += value;
+          }
+        }
+      }
+    }
 
     // Apply HP/Mana additions
     const oldMaxHp = this.getMaxHp();
@@ -686,6 +730,13 @@ export class Player {
     this.shopMaxMp     = 0;
     this.shopManaRegen = 0;
     this.inventory     = [];
+    this.equipment     = {
+      helmet: null,
+      chestplate: null,
+      boots: null,
+      weapon: null,
+      ring: null
+    };
 
     // Reset ability tree
     const tree = this.game.abilityTree;
@@ -714,6 +765,13 @@ export class Player {
       shopMaxMp: this.shopMaxMp,
       shopManaRegen: this.shopManaRegen,
       inventory: this.inventory.map(r => r.id),
+      equipment: {
+        helmet: this.equipment?.helmet?.id || null,
+        chestplate: this.equipment?.chestplate?.id || null,
+        boots: this.equipment?.boots?.id || null,
+        weapon: this.equipment?.weapon?.id || null,
+        ring: this.equipment?.ring?.id || null
+      },
       treeNodes: {},
       rebirthCount: this.rebirthCount,
       rebirthBonuses: this.rebirthBonuses,
@@ -752,10 +810,24 @@ export class Player {
           this.rebirthBonuses = { ...this.rebirthBonuses, ...progress.rebirthBonuses };
         }
         
+        const findItem = (id) => {
+          return RELICS_CATALOG.find(r => r.id === id) || EQUIPMENT_CATALOG.find(e => e.id === id);
+        };
+
         if (progress.inventory) {
           this.inventory = progress.inventory
-            .map(id => RELICS_CATALOG.find(r => r.id === id))
+            .map(id => findItem(id))
             .filter(Boolean);
+        }
+
+        if (progress.equipment) {
+          this.equipment = {
+            helmet: progress.equipment.helmet ? findItem(progress.equipment.helmet) : null,
+            chestplate: progress.equipment.chestplate ? findItem(progress.equipment.chestplate) : null,
+            boots: progress.equipment.boots ? findItem(progress.equipment.boots) : null,
+            weapon: progress.equipment.weapon ? findItem(progress.equipment.weapon) : null,
+            ring: progress.equipment.ring ? findItem(progress.equipment.ring) : null
+          };
         }
 
         if (progress.treeNodes) {
