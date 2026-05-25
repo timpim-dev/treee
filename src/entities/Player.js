@@ -749,6 +749,15 @@ export class Player {
     this.recalculateModifiers(tree);
     this.hp = this.getMaxHp();
     this.mp = this.getMaxMp();
+
+    // Reset LevelManager for a fresh map on next start
+    if (this.game.levelManager) {
+      this.game.levelManager.fullTileGrid = null;
+      this.game.levelManager.wave = 1;
+      this.game.levelManager.spawnedSpecialRooms = new Set();
+      this.game.levelManager.mapRevealed = false;
+    }
+
     this.saveGameState();
 
     return true;

@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-qF5lucl9.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-DYF6QMiC.css">
+  <script type="module" crossorigin src="/assets/index-Bgxp9xb3.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-Bv3IBxYd.css">
 </head>
 <body>
   <!-- Main Game Canvas Container -->
@@ -71,10 +71,9 @@
       </div>
 
       <!-- Relics Inventory HUD (compact strip — click to open full panel) -->
-      <div id="hud-inventory" class="hud-panel">
+      <div id="hud-inventory" class="hud-panel" style="cursor: pointer;" title="Open Satchel & Gear (I)">
         <div class="inventory-title">
-          RELICS
-          <button id="btn-open-inventory" class="btn-inv-open" title="Manage Relics">&#9776;</button>
+          🎒 SATCHEL (I)
         </div>
         <div class="inventory-slots" id="inventory-container">
           <!-- slots rendered dynamically by updateHUD -->
@@ -385,31 +384,40 @@
             <h3>EQUIPPED GEAR</h3>
             <div class="equip-slots-container">
               <!-- Helmet Slot -->
-              <div class="equip-slot" id="equip-slot-helmet" data-slot="helmet">
+              <div class="equip-slot" id="equip-slot-helmet" data-slot="helmet" style="grid-column: 1; grid-row: 1;">
                 <div class="equip-slot-label">HELMET</div>
                 <canvas class="equip-slot-canvas" id="equip-canvas-helmet" width="32" height="32"></canvas>
                 <div class="tooltip" id="tooltip-equip-helmet">Empty Helmet Slot</div>
               </div>
-              <!-- Weapon Slot -->
-              <div class="equip-slot" id="equip-slot-weapon" data-slot="weapon">
-                <div class="equip-slot-label">WEAPON</div>
-                <canvas class="equip-slot-canvas" id="equip-canvas-weapon" width="32" height="32"></canvas>
-                <div class="tooltip" id="tooltip-equip-weapon">Empty Weapon Slot</div>
-              </div>
-              <!-- Chestplate Slot -->
-              <div class="equip-slot" id="equip-slot-chestplate" data-slot="chestplate">
+              
+              <!-- Robe Slot -->
+              <div class="equip-slot" id="equip-slot-chestplate" data-slot="chestplate" style="grid-column: 1; grid-row: 2;">
                 <div class="equip-slot-label">ROBE</div>
                 <canvas class="equip-slot-canvas" id="equip-canvas-chestplate" width="32" height="32"></canvas>
                 <div class="tooltip" id="tooltip-equip-chestplate">Empty Robe Slot</div>
               </div>
+
               <!-- Boots Slot -->
-              <div class="equip-slot" id="equip-slot-boots" data-slot="boots">
+              <div class="equip-slot" id="equip-slot-boots" data-slot="boots" style="grid-column: 1; grid-row: 3;">
                 <div class="equip-slot-label">BOOTS</div>
                 <canvas class="equip-slot-canvas" id="equip-canvas-boots" width="32" height="32"></canvas>
                 <div class="tooltip" id="tooltip-equip-boots">Empty Boots Slot</div>
               </div>
+
+              <!-- Player Character Preview -->
+              <div class="equip-player-preview">
+                <canvas class="equip-player-canvas" id="inv-player-canvas" width="48" height="48"></canvas>
+              </div>
+
+              <!-- Weapon Slot -->
+              <div class="equip-slot" id="equip-slot-weapon" data-slot="weapon" style="grid-column: 3; grid-row: 1;">
+                <div class="equip-slot-label">WEAPON</div>
+                <canvas class="equip-slot-canvas" id="equip-canvas-weapon" width="32" height="32"></canvas>
+                <div class="tooltip" id="tooltip-equip-weapon">Empty Weapon Slot</div>
+              </div>
+
               <!-- Ring Slot -->
-              <div class="equip-slot" id="equip-slot-ring" data-slot="ring">
+              <div class="equip-slot" id="equip-slot-ring" data-slot="ring" style="grid-column: 3; grid-row: 2;">
                 <div class="equip-slot-label">RING</div>
                 <canvas class="equip-slot-canvas" id="equip-canvas-ring" width="32" height="32"></canvas>
                 <div class="tooltip" id="tooltip-equip-ring">Empty Ring Slot</div>
@@ -457,7 +465,8 @@
           <span class="legend-item"><span class="legend-color shrine"></span> Shrine</span>
           <span class="legend-item"><span class="legend-color special"></span> Special Room</span>
         </div>
-        <div class="menu-buttons" style="margin-top:14px;">
+        <div class="menu-buttons" style="margin-top:14px; display: flex; gap: 10px; justify-content: center;">
+          <button id="btn-reveal-map" class="btn-menu small">REVEAL MAP (150 Shards)</button>
           <button id="btn-close-worldmap-btn" class="btn-menu secondary">CLOSE</button>
         </div>
       </div>

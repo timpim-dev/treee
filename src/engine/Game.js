@@ -142,6 +142,18 @@ export class Game {
           this.setState('PLAYING');
         }
       }
+
+      if (key === 'i') {
+        if (this.state === 'PLAYING') {
+          e.preventDefault();
+          this._prevStateBeforeInventory = this.state;
+          this.setState('INVENTORY');
+          this.refreshInventoryPanel();
+        } else if (this.state === 'INVENTORY') {
+          e.preventDefault();
+          this._closeInventory();
+        }
+      }
       
       // Quick skills hotkeys triggers
       if (this.state === 'PLAYING') {
@@ -398,7 +410,7 @@ export class Game {
     });
 
     // ── Inventory Panel ──────────────────────────────────────────────────
-    document.getElementById('btn-open-inventory').addEventListener('click', () => {
+    document.getElementById('hud-inventory').addEventListener('click', () => {
       this._prevStateBeforeInventory = this.state;
       this.setState('INVENTORY');
       this.refreshInventoryPanel();
@@ -476,6 +488,42 @@ export class Game {
     
     document.getElementById('btn-close-worldmap').addEventListener('click', () => this.setState('PLAYING'));
     document.getElementById('btn-close-worldmap-btn').addEventListener('click', () => this.setState('PLAYING'));
+    
+    document.getElementById('btn-reveal-map').addEventListener('click', () => {
+      const cost = 150;
+      const lvl = this.levelManager;
+      if (lvl.mapRevealed) {
+        this.particles.spawnText(this.player.x, this.player.y - 20, "MAP ALREADY UNLOCKED", { color: '#ff4757', fontSize: 10, fontPixel: true });
+        return;
+      }
+      if (this.player.shards < cost) {
+        this.particles.spawnText(this.player.x, this.player.y - 20, "NOT ENOUGH SHARDS", { color: '#ff4757', fontSize: 10, fontPixel: true });
+        return;
+      }
+      
+      this.player.shards -= cost;
+      lvl.mapRevealed = true;
+      
+      // Unfog all tiles in the level
+      for (let x = 0; x < lvl.fullTileWidth; x++) {
+        for (let y = 0; y < lvl.fullTileHeight; y++) {
+          lvl.exploredGrid[x][y] = true;
+        }
+      }
+      
+      this.player.saveGameState();
+      if (this.audio) this.audio.playBuy();
+      this.updateHUD();
+      this.drawWorldmap();
+      
+      const revealBtn = document.getElementById('btn-reveal-map');
+      if (revealBtn) {
+        revealBtn.innerText = "MAP UNLOCKED";
+        revealBtn.disabled = true;
+      }
+      
+      this.particles.spawnText(this.player.x, this.player.y - 20, "MAP UNLOCKED!", { color: '#eccc68', fontSize: 10, fontPixel: true });
+    });
   }
 
   _invSlotCost() {
@@ -861,6 +909,65 @@ export class Game {
     });
   }
 
+  drawInventoryPlayer() {
+    const canvas = document.getElementById('inv-player-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.imageSmoothingEnabled = false;
+
+    // Center coordinates for drawing the player sprite inside the 48x48 canvas
+    const px = canvas.width / 2;
+    const py = canvas.height / 2;
+
+    // Cycle idle animation frame
+    const fIdx = Math.floor(this.frameIndex * 3) % 2; // 0 or 1 for idle breathing effect!
+
+    ctx.save();
+    
+    // Draw trail shadow at feet
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+    ctx.beginPath();
+    ctx.arc(px, py + 12, 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw player base sprite
+    this.assets.draw(ctx, 'player', px, py, 32, fIdx, 0);
+
+    // Overlay equipped gear sprites on the player mini-preview
+    // Helmet
+    const helmet = this.player.equipment.helmet;
+    if (helmet) {
+      this.assets.draw(ctx, helmet.sprite, px, py - 10, 16);
+    }
+    
+    // Robe
+    const robe = this.player.equipment.chestplate;
+    if (robe) {
+      this.assets.draw(ctx, robe.sprite, px, py + 2, 16);
+    }
+    
+    // Boots
+    const boots = this.player.equipment.boots;
+    if (boots) {
+      this.assets.draw(ctx, boots.sprite, px, py + 11, 16);
+    }
+
+    // Weapon
+    const weapon = this.player.equipment.weapon;
+    if (weapon) {
+      this.assets.draw(ctx, weapon.sprite, px - 11, py + 2, 16);
+    }
+
+    // Ring
+    const ring = this.player.equipment.ring;
+    if (ring) {
+      this.assets.draw(ctx, ring.sprite, px + 11, py + 2, 10);
+    }
+
+    ctx.restore();
+  }
+
   // ----------------------------------------------------
   // ABILITY TREE MOUSE INTERACTION (Pan / Zoom)
   // ----------------------------------------------------
@@ -1127,6 +1234,16 @@ export class Game {
       this.refreshSpellmapPanel();
     }
     if (newState === 'WORLD_MAP') {
+      const btn = document.getElementById('btn-reveal-map');
+      if (btn) {
+        if (this.levelManager.mapRevealed) {
+          btn.innerText = "MAP UNLOCKED";
+          btn.disabled = true;
+        } else {
+          btn.innerText = "REVEAL MAP (150 Shards)";
+          btn.disabled = false;
+        }
+      }
       this.drawWorldmap();
     }
 
@@ -1617,6 +1734,8 @@ export class Game {
       this.abilityTree.draw(this.treeCanvas, this.treeCtx);
     } else if (this.state === 'WORLD_MAP') {
       this.drawWorldmap();
+    } else if (this.state === 'INVENTORY') {
+      this.drawInventoryPlayer();
     }
     
     requestAnimationFrame((t) => this.loop(t));

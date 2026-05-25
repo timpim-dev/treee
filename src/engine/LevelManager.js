@@ -336,7 +336,6 @@ export class LevelManager {
     // Filter special rooms that are inside the active region
     this.specialRooms = this.fullSpecialRooms.filter(room => room.c < activeCols && room.r < activeRows);
   }
-  }
 
 
 
@@ -442,18 +441,31 @@ export class LevelManager {
   }
 
   startNextWave() {
-    // Regenerate obstacles for the new wave size
+    const isFirstWave = (this.wave === 1);
+    
+    // Regenerate obstacles (which updates active bounds) for the new wave size
     this.generateObstacles();
 
-    // Reset player position to center of the new map
-    this.game.player.x = this.width / 2;
-    this.game.player.y = this.height / 2;
-    this.game.player.vx = 0;
-    this.game.player.vy = 0;
+    if (isFirstWave) {
+      // Reset player position to center of the new map only on wave 1
+      this.game.player.x = this.width / 2;
+      this.game.player.y = this.height / 2;
+      this.game.player.vx = 0;
+      this.game.player.vy = 0;
 
-    // Reset camera instantly to player center
-    this.game.camera.x = this.game.player.x - this.game.canvas.width / 2;
-    this.game.camera.y = this.game.player.y - this.game.canvas.height / 2;
+      // Reset camera instantly to player center
+      this.game.camera.x = this.game.player.x - this.game.canvas.width / 2;
+      this.game.camera.y = this.game.player.y - this.game.canvas.height / 2;
+
+      // Clear chests/shrines/room trackers on first wave
+      this.chests = [];
+      this.shrines = [];
+      this.spawnedSpecialRooms = new Set();
+    } else {
+      // Wave > 1: player stays where they are!
+      this.game.player.vx = 0;
+      this.game.player.vy = 0;
+    }
 
     // Clear active projectiles and area effects
     this.game.projectiles = [];
@@ -477,14 +489,10 @@ export class LevelManager {
       life: 2.0
     });
 
-    // Clear previous items/chests/shrines to prevent clutter, and spawn fresh ones!
-    this.chests = [];
-    this.shrines = [];
-    
-    // Spawn special rooms contents
+    // Spawn special rooms contents (only newly entered ones)
     this.spawnSpecialRoomsContents();
 
-    // Spawn 1 chest and 1 shrine per wave
+    // Spawn 1 chest and 1 shrine per wave in the active area
     this.spawnChest();
     this.spawnShrine();
 
@@ -501,7 +509,13 @@ export class LevelManager {
     this.specialSpawns = [];
     if (!this.specialRooms) return;
     
+    this.spawnedSpecialRooms = this.spawnedSpecialRooms || new Set();
+    
     for (const room of this.specialRooms) {
+      const roomKey = `${room.c},${room.r}`;
+      if (this.spawnedSpecialRooms.has(roomKey)) continue;
+      this.spawnedSpecialRooms.add(roomKey);
+      
       const cx = (room.c + 0.5) * this.navCellSize;
       const cy = (room.r + 0.5) * this.navCellSize;
       
