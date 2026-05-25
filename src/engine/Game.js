@@ -1126,6 +1126,11 @@ export class Game {
 
   triggerChainLightning(startX, startY, damage, maxJumps, jumpRange) {
     if (this.audio) this.audio.playLightning();
+
+    // Work entirely from a snapshot taken right now so mid-iteration kills
+    // cannot affect which enemies we visit.
+    const snapshot = this.enemies.filter(e => !e.dead);
+
     let currentX = startX;
     let currentY = startY;
     const jumpedTargets = new Set();
@@ -1134,56 +1139,31 @@ export class Game {
       let nearest = null;
       let minDist = jumpRange;
 
-      this.enemies.forEach((enemy) => {
-        if (!enemy.dead && !jumpedTargets.has(enemy)) {
-          const dist = Math.hypot(enemy.x - currentX, enemy.y - currentY);
-          if (dist < minDist) {
-            minDist = dist;
-            nearest = enemy;
-          }
-        }
-      });
-
-      if (!nearest) break;
-
-      // Jump to target
-      jumpedTargets.add(nearest);
-      
-      // Draw lightning bolt path particle
-      const steps = 6;
-      let lx = currentX;
-      let ly = currentY;
-      for (let s = 1; s <= steps; s++) {
-        const ratio = s / steps;
-        const targetX = currentX + (nearest.x - currentX) * ratio + (Math.random() - 0.5) * 15;
-        const targetY = currentY + (nearest.y - currentY) * ratio + (Math.random() - 0.5) * 15;
-        
-        this.particles.spawn(lx, ly, {
-          vx: 0, vy: 0,
-          color: '#fff200',
-          size: 2,
-          life: 0.25,
-          glow: true,
-          shape: 'spark'
-        });
-        lx = targetX;
-        ly = targetY;
+      for (const enemy of snapshot) {
+        if (enemy.dead || jumpedTargets.has(enemy)) continue;
+        const dist = Math.hypot(enemy.x - currentX, enemy.y - currentY);
+        if (dist < minDist) { minDist = dist; nearest = enemy; }
       }
 
-      // Final step to enemy
-      this.particles.spawn(lx, ly, {
-        vx: 0, vy: 0,
-        color: '#fff200',
-        size: 3,
-        life: 0.2,
-        glow: true,
-        shape: 'spark'
-      });
+      if (!nearest) break;
+      jumpedTargets.add(nearest);
 
-      // Apply shock damage — guard against enemy already dead this frame
-      if (nearest.hp <= 0) break;
+      // Spawn bolt particles
+      const steps = 6;
+      let lx = currentX, ly = currentY;
+      for (let s = 1; s <= steps; s++) {
+        const ratio = s / steps;
+        const tx = currentX + (nearest.x - currentX) * ratio + (Math.random() - 0.5) * 15;
+        const ty = currentY + (nearest.y - currentY) * ratio + (Math.random() - 0.5) * 15;
+        this.particles.spawn(lx, ly, { vx:0, vy:0, color:'#fff200', size:2, life:0.25, glow:true, shape:'spark' });
+        lx = tx; ly = ty;
+      }
+      this.particles.spawn(lx, ly, { vx:0, vy:0, color:'#fff200', size:3, life:0.2, glow:true, shape:'spark' });
+
+      // Skip if already killed earlier this chain
+      if (nearest.dead) break;
       nearest.takeDamage(damage, false, this);
-      if (nearest.hp > 0) nearest.applyStatus(SPELL_TYPES.LIGHTNING, 4.0);
+      if (!nearest.dead) nearest.applyStatus(SPELL_TYPES.LIGHTNING, 4.0);
 
       currentX = nearest.x;
       currentY = nearest.y;
