@@ -1152,7 +1152,7 @@ tr:hover td {
   box-shadow: 0 0 12px rgba(125, 95, 255, 0.6);
 }
 
-/* ── Rune Satchel Panel ─────────────────────────────────────────────── */
+/* ── Inventory Panel ─────────────────────────────────────────────────── */
 #panel-inventory {
   z-index: 60;
   display: flex;
@@ -1166,12 +1166,89 @@ tr:hover td {
   border: 4px double var(--color-aether);
   box-shadow: 0 0 40px rgba(125,95,255,0.25), 6px 6px 0 rgba(0,0,0,0.8);
   padding: 24px 28px 20px;
-  width: min(680px, 96vw);
-  max-height: 90vh;
+  width: min(820px, 96vw);
+  max-height: 92vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
+}
+
+/* Tab bar */
+.inv-tab-bar {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid rgba(125,95,255,0.25);
+  padding-bottom: 0;
+}
+.inv-tab-btn {
+  background: transparent;
+  border: 2px solid rgba(125,95,255,0.2);
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  color: var(--text-secondary);
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  padding: 6px 14px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: background 0.15s, color 0.15s;
+  position: relative;
+  top: 2px;
+}
+.inv-tab-btn:hover {
+  background: rgba(125,95,255,0.15);
+  color: #fff;
+}
+.inv-tab-btn.active {
+  background: rgba(125,95,255,0.25);
+  border-color: var(--color-aether);
+  color: var(--color-aether);
+}
+
+/* Tab panes */
+.inv-tab-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.inv-tab-pane.hidden { display: none; }
+
+.inv-tab-desc {
+  font-family: var(--font-clean);
+  font-size: 10px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Gear tab layout: paper doll left + storage right */
+.inv-gear-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.inv-gear-layout .inv-bag-section {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Click hint inside item cards */
+.inv-click-hint {
+  color: var(--color-aether);
+  margin-top: 4px;
+  font-family: var(--font-pixel);
+  font-size: 5.5px;
+}
+
+/* Empty message */
+.inv-empty-msg {
+  font-family: var(--font-clean);
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 20px;
+  line-height: 1.6;
+  opacity: 0.6;
 }
 
 .inv-panel-header {

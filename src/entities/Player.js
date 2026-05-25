@@ -75,9 +75,17 @@ export class Player {
     this.shopMaxMp = 0;
     this.shopManaRegen = 0;
 
-    // Relics Inventory
-    this.inventory = [];
-    this.maxInventorySlots = 4; // starts at 4, can be purchased up to 10
+    // Storage system — both are unlimited, no slot cap
+    // runeStorage: passive relics that auto-apply all their stats when collected
+    // gearStorage: armor/weapons/rings that must be manually equipped
+    this.runeStorage = [];
+    this.gearStorage = [];
+    // Keep inventory as a deprecated alias so any old references don't crash
+    Object.defineProperty(this, 'inventory', {
+      get: () => [...this.runeStorage, ...this.gearStorage],
+      configurable: true
+    });
+    this.maxInventorySlots = 4; // kept for save compat only
     this.equipment = {
       helmet: null,
       chestplate: null,
@@ -306,13 +314,16 @@ export class Player {
       // shardGain is used directly in Game.js when collecting shards
     }
 
-    // Add inventory relics stats (relics in bag are passives, gear is not)
-    this.inventory.forEach((item) => {
-      const isRelic = !item.type;
-      if (isRelic && item.stats) {
+    // Apply all rune stats passively (all relics in runeStorage are always active)
+    this.runeStorage.forEach((item) => {
+      if (item && item.stats) {
         for (const statKey in item.stats) {
           const value = item.stats[statKey];
-          this.modifiers[statKey] += value;
+          if (typeof value === 'boolean') {
+            this.modifiers[statKey] = this.modifiers[statKey] || value;
+          } else {
+            this.modifiers[statKey] += value;
+          }
         }
       }
     });
@@ -729,7 +740,8 @@ export class Player {
     this.shopMaxHp     = 0;
     this.shopMaxMp     = 0;
     this.shopManaRegen = 0;
-    this.inventory     = [];
+    this.runeStorage   = [];
+    this.gearStorage   = [];
     this.equipment     = {
       helmet: null,
       chestplate: null,
@@ -773,7 +785,8 @@ export class Player {
       shopMaxHp: this.shopMaxHp,
       shopMaxMp: this.shopMaxMp,
       shopManaRegen: this.shopManaRegen,
-      inventory: this.inventory.map(r => r.id),
+      runeStorage: this.runeStorage.map(r => r.id),
+      gearStorage: this.gearStorage.map(g => g.id),
       equipment: {
         helmet: this.equipment?.helmet?.id || null,
         chestplate: this.equipment?.chestplate?.id || null,
@@ -823,10 +836,17 @@ export class Player {
           return RELICS_CATALOG.find(r => r.id === id) || EQUIPMENT_CATALOG.find(e => e.id === id);
         };
 
-        if (progress.inventory) {
-          this.inventory = progress.inventory
-            .map(id => findItem(id))
-            .filter(Boolean);
+        // Load new storage format
+        if (progress.runeStorage) {
+          this.runeStorage = progress.runeStorage.map(id => findItem(id)).filter(Boolean);
+        } else if (progress.inventory) {
+          // Migrate old saves: split old inventory into runes vs gear
+          const all = progress.inventory.map(id => findItem(id)).filter(Boolean);
+          this.runeStorage = all.filter(item => !item.type);
+          this.gearStorage = all.filter(item => !!item.type);
+        }
+        if (progress.gearStorage) {
+          this.gearStorage = progress.gearStorage.map(id => findItem(id)).filter(Boolean);
         }
 
         if (progress.equipment) {

@@ -384,20 +384,22 @@ export class Game {
 
     document.getElementById('btn-buy-relic').addEventListener('click', () => {
       if (this.player.shards >= 50) {
-        if (this.player.inventory.length >= this.player.maxInventorySlots) {
-          this.particles.spawnText(this.player.x, this.player.y - 20, "SATCHEL FULL — BUY MORE SLOTS", { color: '#ff4757', fontSize: 10, fontPixel: true });
-          return;
-        }
         this.player.shards -= 50;
         const combinedPool = [...RELICS_CATALOG, ...EQUIPMENT_CATALOG];
-        const randomRelic = combinedPool[Math.floor(Math.random() * combinedPool.length)];
-        this.player.inventory.push(randomRelic);
+        const item = combinedPool[Math.floor(Math.random() * combinedPool.length)];
+        const isGear = !!item.type;
+        if (isGear) {
+          this.player.gearStorage.push(item);
+          this.particles.spawnText(this.player.x, this.player.y - 20, `GEAR: ${item.name} (check Gear tab)`, { color: '#eccc68', fontSize: 9, fontPixel: true });
+        } else {
+          this.player.runeStorage.push(item);
+          this.particles.spawnText(this.player.x, this.player.y - 20, `RUNE: ${item.name}`, { color: '#a55eea', fontSize: 10, fontPixel: true });
+        }
         this.player.recalculateModifiers(this.abilityTree);
         this.player.saveGameState();
         this.updateHUD();
         const shopShards = document.getElementById('shop-shards-value');
         if (shopShards) shopShards.innerText = this.player.shards;
-        this.particles.spawnText(this.player.x, this.player.y - 20, `+${randomRelic.name}`, { color: '#a55eea', fontSize: 10, fontPixel: true });
       } else {
         this.particles.spawnText(this.player.x, this.player.y - 20, "NEED SHARDS", { color: '#ff4757', fontSize: 10, fontPixel: true });
       }
@@ -421,6 +423,14 @@ export class Game {
     });
     document.getElementById('btn-inv-back').addEventListener('click', () => {
       this._closeInventory();
+    });
+
+    // Inventory tab switching
+    document.querySelectorAll('.inv-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this._invActiveTab = btn.dataset.tab;
+        this.refreshInventoryPanel();
+      });
     });
 
     // ── Chest GUI ────────────────────────────────────────────────────────
@@ -460,24 +470,7 @@ export class Game {
       this.updateHUD();
     });
 
-    document.getElementById('btn-buy-inv-slot').addEventListener('click', () => {
-      const max = 10;
-      if (this.player.maxInventorySlots >= max) {
-        this.particles.spawnText(this.player.x, this.player.y - 20, 'MAX SLOTS REACHED', { color: '#ff4757', fontSize: 10, fontPixel: true });
-        return;
-      }
-      const cost = this._invSlotCost();
-      if (this.player.shards < cost) {
-        this.particles.spawnText(this.player.x, this.player.y - 20, 'NOT ENOUGH SHARDS', { color: '#ff4757', fontSize: 10, fontPixel: true });
-        return;
-      }
-      this.player.shards -= cost;
-      this.player.maxInventorySlots += 1;
-      this.player.saveGameState();
-      if (this.audio) this.audio.playBuy();
-      this.refreshInventoryPanel();
-      this.updateHUD();
-    });
+    // (inv-slot purchase removed — storage is now unlimited)
 
     // ── World Map Panel ──────────────────────────────────────────────────
     const toggleMapFn = () => {
@@ -719,215 +712,202 @@ export class Game {
     );
   }
 
+  // Helper: render a stat object into a human-readable string
+  _statsToString(stats) {
+    if (!stats) return '';
+    return Object.entries(stats).map(([stat, val]) => {
+      const sign = val >= 0 ? '+' : '';
+      const isPercent = stat.toLowerCase().includes('damage') || ['speed','cooldownReduction','castSpeed','critChance','damageReduction','xpGain'].includes(stat);
+      const displayVal = isPercent ? Math.round(val * 100) : val;
+      const label = stat.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+      return `${sign}${displayVal}${isPercent ? '%' : ''} ${label}`;
+    }).join(' · ');
+  }
+
+  // Helper: build an item card element
+  _makeItemCard(item, { onRemove, onClick, removeTitle = 'Drop', clickHint = '' } = {}) {
+    const c = document.createElement('canvas');
+    c.width = 32; c.height = 32;
+    const cx = c.getContext('2d');
+    cx.imageSmoothingEnabled = false;
+    this.assets.draw(cx, item.sprite, 16, 16, 32);
+    const iconSrc = c.toDataURL();
+
+    const card = document.createElement('div');
+    card.className = 'inv-relic-card' + (item.type ? ' gear-item' : '');
+    if (onClick) card.style.cursor = 'pointer';
+    card.innerHTML = `
+      <button class="btn-remove-relic" title="${removeTitle}">✕</button>
+      <img class="inv-relic-sprite" src="${iconSrc}" alt="${item.name}" draggable="false">
+      <div class="inv-relic-name">${item.name}</div>
+      <div class="inv-relic-desc">${item.desc}${clickHint ? `<div class="inv-click-hint">${clickHint}</div>` : ''}</div>
+    `;
+    card.querySelector('.btn-remove-relic').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (onRemove) onRemove();
+    });
+    if (onClick) {
+      card.addEventListener('click', (e) => {
+        if (e.target.classList.contains('btn-remove-relic')) return;
+        onClick();
+      });
+    }
+    return card;
+  }
+
   refreshInventoryPanel() {
-    const grid = document.getElementById('inv-relic-grid');
-    if (!grid) return;
-    grid.innerHTML = '';
-
-    const slots  = this.player.maxInventorySlots;
-    const relics = this.player.inventory;
-    const maxAll = 10;
-
-    // Update header counts
+    // Update shard count in header
     document.getElementById('inv-shards-value').innerText = this.player.shards;
-    document.getElementById('inv-slots-used').innerText   = relics.length;
-    document.getElementById('inv-slots-max').innerText    = slots;
-
-    // Update buy-slot button
-    const costEl = document.getElementById('inv-slot-cost');
-    if (costEl) costEl.innerText = this._invSlotCost();
-    const buyBtn = document.getElementById('btn-buy-inv-slot');
-    const expandRow = document.querySelector('.inv-expand-row');
-    if (slots >= maxAll) {
-      if (buyBtn) { buyBtn.disabled = true; buyBtn.textContent = 'MAX SLOTS REACHED'; }
-      if (expandRow) expandRow.style.display = 'none';
-    } else {
-      if (buyBtn) { buyBtn.disabled = false; buyBtn.innerHTML = `BUY SLOT (<span id="inv-slot-cost">${this._invSlotCost()}</span> Shards)`; }
-      if (expandRow) expandRow.style.display = '';
-    }
-
-    // Draw icon into an off-screen canvas and return a data URL
-    const iconDataUrl = (spriteKey) => {
-      const c = document.createElement('canvas');
-      c.width = 32; c.height = 32;
-      const cx = c.getContext('2d');
-      cx.imageSmoothingEnabled = false;
-      this.assets.draw(cx, spriteKey, 16, 16, 32);
-      return c.toDataURL();
-    };
-
-    // Filled relic/bag slots
-    for (let i = 0; i < slots; i++) {
-      const card = document.createElement('div');
-      if (i < relics.length) {
-        const item = relics[i];
-        const isGear = !!item.type;
-        card.className = isGear ? 'inv-relic-card gear-item' : 'inv-relic-card';
-        card.style.cursor = isGear ? 'pointer' : 'default';
-        
-        card.innerHTML = `
-          <button class="btn-remove-relic" data-idx="${i}" title="Drop item on ground">✕</button>
-          <img class="inv-relic-sprite" src="${iconDataUrl(item.sprite)}" alt="${item.name}" draggable="false">
-          <div class="inv-relic-name">${item.name}</div>
-          <div class="inv-relic-desc">
-            ${item.desc}
-            ${isGear ? '<div style="color: var(--color-aether); margin-top: 4px; font-family: var(--font-pixel); font-size: 5.5px;">(CLICK TO EQUIP)</div>' : ''}
-          </div>
-        `;
-        
-        card.querySelector('.btn-remove-relic').addEventListener('click', (e) => {
-          e.stopPropagation(); // prevent triggering equipGear click
-          const idx = parseInt(e.currentTarget.dataset.idx, 10);
-          const dropped = this.player.inventory.splice(idx, 1)[0];
-          // Drop item on the ground near player so it can be picked up again
-          if (dropped) {
-            this.spawnItem(
-              this.player.x + (Math.random() - 0.5) * 40,
-              this.player.y + (Math.random() - 0.5) * 40,
-              'relic', dropped
-            );
-          }
-          this.player.recalculateModifiers(this.abilityTree);
-          this.player.saveGameState();
-          if (this.audio) this.audio.playClick();
-          this.refreshInventoryPanel();
-          this.updateHUD();
-        });
-
-        if (isGear) {
-          card.addEventListener('click', (e) => {
-            if (e.target.classList.contains('btn-remove-relic')) return;
-            this.equipGear(i);
-          });
-        }
-      } else {
-        card.className = 'inv-relic-card empty-slot';
-        card.innerHTML = `<div class="inv-slot-label">EMPTY</div>`;
-      }
-      grid.appendChild(card);
-    }
-
-    // Locked (not yet purchased) slots shown as ghost cards
-    for (let i = slots; i < maxAll; i++) {
-      const card = document.createElement('div');
-      card.className = 'inv-relic-card locked-slot';
-      card.innerHTML = `<div class="inv-slot-label">LOCKED</div>`;
-      grid.appendChild(card);
-    }
-
-    // Draw shard icon
     this.drawHTMLIcon('icon-shard-inv', 'item_shard', 12);
 
-    // Update Equipped Slots UI (left side)
-    const equipSlots = ['helmet', 'chestplate', 'boots', 'weapon', 'ring'];
-    equipSlots.forEach((slot) => {
-      const slotEl = document.getElementById(`equip-slot-${slot}`);
-      const canvas = document.getElementById(`equip-canvas-${slot}`);
-      const tooltip = document.getElementById(`tooltip-equip-${slot}`);
-      
-      if (!slotEl || !canvas || !tooltip) return;
-      
-      const item = this.player.equipment[slot];
-      
-      // Clear canvas
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.imageSmoothingEnabled = false;
-      
-      // Clear listeners by cloning slotEl
-      const newSlotEl = slotEl.cloneNode(true);
-      slotEl.parentNode.replaceChild(newSlotEl, slotEl);
-      
-      if (item) {
-        newSlotEl.classList.add('filled');
-        // Draw the item sprite
-        this.assets.draw(ctx, item.sprite, 16, 16, 32);
-        
-        // Update tooltip content
-        let statsStr = '';
-        if (item.stats) {
-          statsStr = Object.entries(item.stats)
-            .map(([stat, val]) => {
-              const sign = val >= 0 ? '+' : '';
-              const percent = stat.toLowerCase().includes('damage') || stat === 'speed' || stat === 'cooldownReduction' || stat === 'castSpeed' || stat === 'critChance' || stat === 'damageReduction' || stat === 'xpGain' ? '%' : '';
-              const displayVal = percent ? Math.round(val * 100) : val;
-              // Format camelCase to readable label
-              const label = stat.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-              return `${sign}${displayVal}${percent} ${label}`;
-            })
-            .join(', ');
+    // ── TAB SWITCHING ──────────────────────────────────────────────────────
+    // Determine active tab (default: runes)
+    if (!this._invActiveTab) this._invActiveTab = 'runes';
+    const activeTab = this._invActiveTab;
+    document.querySelectorAll('.inv-tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === activeTab);
+    });
+    document.querySelectorAll('.inv-tab-pane').forEach(pane => {
+      pane.classList.toggle('hidden', pane.dataset.tab !== activeTab);
+    });
+
+    // ── RUNES TAB ──────────────────────────────────────────────────────────
+    if (activeTab === 'runes') {
+      const runeGrid = document.getElementById('inv-rune-grid');
+      if (runeGrid) {
+        runeGrid.innerHTML = '';
+        const runes = this.player.runeStorage;
+        if (runes.length === 0) {
+          runeGrid.innerHTML = '<div class="inv-empty-msg">No runes collected yet.<br>Defeat enemies and open chests!</div>';
+        } else {
+          runes.forEach((item, idx) => {
+            const card = this._makeItemCard(item, {
+              removeTitle: 'Drop rune',
+              onRemove: () => {
+                this.player.runeStorage.splice(idx, 1);
+                this.player.recalculateModifiers(this.abilityTree);
+                this.player.saveGameState();
+                if (this.audio) this.audio.playClick();
+                this.refreshInventoryPanel();
+                this.updateHUD();
+              }
+            });
+            runeGrid.appendChild(card);
+          });
         }
-        tooltip.innerHTML = `<strong style="color: #eccc68;">${item.name}</strong><br/>${statsStr}<br/><span style="color: #ff4757; font-size: 8px; font-family: var(--font-pixel); font-weight: bold; display: block; margin-top: 4px;">(CLICK TO UNEQUIP)</span>`;
-        
-        newSlotEl.addEventListener('click', () => {
-          this.unequipGear(slot);
-        });
-      } else {
-        newSlotEl.classList.remove('filled');
-        const prettyName = slot === 'chestplate' ? 'ROBE' : slot.toUpperCase();
-        tooltip.innerHTML = `<strong style="color: #57606f;">EMPTY ${prettyName} SLOT</strong>`;
       }
+      const runeCount = document.getElementById('inv-rune-count');
+      if (runeCount) runeCount.innerText = this.player.runeStorage.length;
+    }
+
+    // ── GEAR TAB ───────────────────────────────────────────────────────────
+    if (activeTab === 'gear') {
+      // Gear storage list
+      const gearGrid = document.getElementById('inv-gear-grid');
+      if (gearGrid) {
+        gearGrid.innerHTML = '';
+        const gearItems = this.player.gearStorage;
+        if (gearItems.length === 0) {
+          gearGrid.innerHTML = '<div class="inv-empty-msg">No gear in storage.<br>Open chests to find equipment!</div>';
+        } else {
+          gearItems.forEach((item, idx) => {
+            const card = this._makeItemCard(item, {
+              removeTitle: 'Drop gear',
+              clickHint: 'CLICK TO EQUIP',
+              onClick: () => this.equipGearFromStorage(idx),
+              onRemove: () => {
+                this.player.gearStorage.splice(idx, 1);
+                this.player.saveGameState();
+                if (this.audio) this.audio.playClick();
+                this.refreshInventoryPanel();
+              }
+            });
+            gearGrid.appendChild(card);
+          });
+        }
+      }
+      const gearCount = document.getElementById('inv-gear-count');
+      if (gearCount) gearCount.innerText = this.player.gearStorage.length;
+
+      // Equipped paper doll
+      const equipSlots = ['helmet', 'chestplate', 'boots', 'weapon', 'ring'];
+      equipSlots.forEach((slot) => {
+        const slotEl = document.getElementById(`equip-slot-${slot}`);
+        const canvas = document.getElementById(`equip-canvas-${slot}`);
+        const tooltip = document.getElementById(`tooltip-equip-${slot}`);
+        if (!slotEl || !canvas || !tooltip) return;
+
+        const item = this.player.equipment[slot];
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.imageSmoothingEnabled = false;
+
+        // Replace element to clear old listeners
+        const newSlotEl = slotEl.cloneNode(true);
+        slotEl.parentNode.replaceChild(newSlotEl, slotEl);
+
+        if (item) {
+          newSlotEl.classList.add('filled');
+          this.assets.draw(ctx, item.sprite, 16, 16, 32);
+          tooltip.innerHTML = `<strong style="color:#eccc68">${item.name}</strong><br>${this._statsToString(item.stats)}<br><span style="color:#ff4757;font-size:8px;font-family:var(--font-pixel);display:block;margin-top:4px">(CLICK TO UNEQUIP)</span>`;
+          newSlotEl.addEventListener('click', () => this.unequipGear(slot));
+        } else {
+          newSlotEl.classList.remove('filled');
+          const label = slot === 'chestplate' ? 'ROBE' : slot.toUpperCase();
+          tooltip.innerHTML = `<strong style="color:#57606f">EMPTY ${label} SLOT</strong>`;
+        }
+      });
+    }
+
+    // Refresh the player preview on gear tab
+    this.drawInventoryPlayer();
+  }
+
+  // Equip a piece of gear from gearStorage by index
+  equipGearFromStorage(idx) {
+    const gear = this.player.gearStorage[idx];
+    if (!gear || !gear.type) return;
+
+    const slot = gear.type;
+    const prevGear = this.player.equipment[slot];
+
+    // Remove the new gear from storage
+    this.player.gearStorage.splice(idx, 1);
+    // If there was something in the slot, put it back in storage
+    if (prevGear) {
+      this.player.gearStorage.push(prevGear);
+    }
+    this.player.equipment[slot] = gear;
+
+    this.player.recalculateModifiers(this.abilityTree);
+    this.player.saveGameState();
+    if (this.audio) this.audio.playBuy();
+    this.refreshInventoryPanel();
+    this.updateHUD();
+    this.particles.spawnText(this.player.x, this.player.y - 20, `EQUIPPED: ${gear.name}`, {
+      color: '#eccc68', fontSize: 10, fontPixel: true
     });
   }
 
+  // Keep old equipGear as alias (called from chest GUI)
   equipGear(idx) {
-    const gear = this.player.inventory[idx];
-    if (!gear || !gear.type) return;
-    
-    const slot = gear.type;
-    const prevGear = this.player.equipment[slot];
-    
-    if (prevGear) {
-      // Swap gear in inventory
-      this.player.inventory[idx] = prevGear;
-    } else {
-      // Just remove from inventory
-      this.player.inventory.splice(idx, 1);
-    }
-    
-    this.player.equipment[slot] = gear;
-    
-    this.player.recalculateModifiers(this.abilityTree);
-    this.player.saveGameState();
-    if (this.audio) this.audio.playBuy(); // Equipping gear plays buy sfx
-    this.refreshInventoryPanel();
-    this.updateHUD();
-    
-    this.particles.spawnText(this.player.x, this.player.y - 20, `EQUIPPED: ${gear.name}`, {
-      color: '#eccc68',
-      fontSize: 10,
-      fontPixel: true
-    });
+    this.equipGearFromStorage(idx);
   }
 
   unequipGear(slot) {
     const gear = this.player.equipment[slot];
     if (!gear) return;
-
     this.player.equipment[slot] = null;
-
-    if (this.player.inventory.length < this.player.maxInventorySlots) {
-      this.player.inventory.push(gear);
-      this.particles.spawnText(this.player.x, this.player.y - 20, `UNEQUIPPED: ${gear.name}`, {
-        color: '#a55eea', fontSize: 10, fontPixel: true
-      });
-    } else {
-      // Bag full — drop the item on the ground near the player
-      this.spawnItem(
-        this.player.x + (Math.random() - 0.5) * 30,
-        this.player.y + (Math.random() - 0.5) * 30,
-        'relic', gear
-      );
-      this.particles.spawnText(this.player.x, this.player.y - 20, `BAG FULL — ${gear.name} DROPPED`, {
-        color: '#eccc68', fontSize: 9, fontPixel: true
-      });
-    }
-
+    // Always goes back to gear storage — no bag-full issue
+    this.player.gearStorage.push(gear);
     this.player.recalculateModifiers(this.abilityTree);
     this.player.saveGameState();
     if (this.audio) this.audio.playClick();
     this.refreshInventoryPanel();
     this.updateHUD();
+    this.particles.spawnText(this.player.x, this.player.y - 20, `UNEQUIPPED: ${gear.name}`, {
+      color: '#a55eea', fontSize: 10, fontPixel: true
+    });
   }
 
   drawInventoryPlayer() {
@@ -1001,51 +981,31 @@ export class Game {
     if (!grid) return;
     grid.innerHTML = '';
 
-    const iconDataUrl = (spriteKey) => {
-      const c = document.createElement('canvas');
-      c.width = 32; c.height = 32;
-      const cx = c.getContext('2d');
-      cx.imageSmoothingEnabled = false;
-      this.assets.draw(cx, spriteKey, 16, 16, 32);
-      return c.toDataURL();
-    };
-
     lootItems.forEach((item) => {
-      const card = document.createElement('div');
-      card.className = 'inv-relic-card' + (item.type ? ' gear-item' : '');
-      card.style.width = '120px';
-      card.style.cursor = 'pointer';
-      const isFull = this.player.inventory.length >= this.player.maxInventorySlots;
-      card.innerHTML = `
-        <img class="inv-relic-sprite" src="${iconDataUrl(item.sprite)}" alt="${item.name}" draggable="false">
-        <div class="inv-relic-name">${item.name}</div>
-        <div class="inv-relic-desc">${item.desc}</div>
-        <button class="btn-menu small" style="margin-top:6px; font-size:7px;" ${isFull ? 'disabled title="Inventory full"' : ''}>
-          ${isFull ? 'BAG FULL' : 'TAKE'}
-        </button>
-      `;
-      const takeBtn = card.querySelector('button');
-      takeBtn.addEventListener('click', () => {
-        if (this.player.inventory.length >= this.player.maxInventorySlots) {
-          this.particles.spawnText(this.player.x, this.player.y - 20, "INVENTORY FULL", { color: '#ff4757', fontSize: 10, fontPixel: true });
-          return;
-        }
-        this.player.inventory.push(item);
-        this.player.recalculateModifiers(this.abilityTree);
-        this.player.saveGameState();
-        if (this.audio) this.audio.playBuy();
-        this.particles.spawnText(this.player.x, this.player.y - 20, `+${item.name}`, { color: '#a55eea', fontSize: 10, fontPixel: true });
-        this.updateHUD();
-        // Remove from grid
-        card.remove();
-        // Refresh remaining take buttons in case inventory just filled
-        grid.querySelectorAll('button').forEach(btn => {
-          if (this.player.inventory.length >= this.player.maxInventorySlots) {
-            btn.disabled = true;
-            btn.textContent = 'BAG FULL';
+      const isGear = !!item.type;
+      const card = this._makeItemCard(item, {
+        removeTitle: 'Leave item',
+        clickHint: isGear ? 'CLICK TO TAKE (Gear tab)' : 'CLICK TO TAKE (auto-applied)',
+        onClick: () => {
+          if (isGear) {
+            this.player.gearStorage.push(item);
+            this.particles.spawnText(this.player.x, this.player.y - 20, `GEAR: ${item.name}`, { color: '#eccc68', fontSize: 10, fontPixel: true });
+          } else {
+            this.player.runeStorage.push(item);
+            this.particles.spawnText(this.player.x, this.player.y - 20, `RUNE: ${item.name}`, { color: '#a55eea', fontSize: 10, fontPixel: true });
           }
-        });
+          this.player.recalculateModifiers(this.abilityTree);
+          this.player.saveGameState();
+          if (this.audio) this.audio.playBuy();
+          this.updateHUD();
+          card.remove();
+        },
+        onRemove: () => {
+          // Leave behind (just remove the card without taking)
+          card.remove();
+        }
       });
+      card.style.width = '120px';
       grid.appendChild(card);
     });
 
@@ -1754,37 +1714,37 @@ export class Game {
       }
     });
 
-    // Render HUD relic strip — dynamic, shows up to maxInventorySlots slots
+    // Render HUD rune strip — shows the last 6 collected runes
     const invContainer = document.getElementById('inventory-container');
     if (invContainer) {
-      // Only rebuild DOM if slot count changed (avoids flicker every frame)
+      const runes = this.player.runeStorage;
+      const showCount = Math.min(runes.length, 6);
       const currentSlotCount = invContainer.querySelectorAll('.inv-slot').length;
-      const neededSlots = Math.min(this.player.maxInventorySlots, 6); // HUD shows max 6 to stay compact
-      if (currentSlotCount !== neededSlots) {
+      if (currentSlotCount !== 6) {
         invContainer.innerHTML = '';
-        for (let i = 0; i < neededSlots; i++) {
+        for (let i = 0; i < 6; i++) {
           invContainer.innerHTML += `<div class="inv-slot empty" id="inv-slot-${i+1}">
             <canvas class="inv-slot-canvas" id="inv-canvas-${i+1}" width="16" height="16"></canvas>
-            <div class="tooltip" id="tooltip-inv-${i+1}">Empty Slot</div>
+            <div class="tooltip" id="tooltip-inv-${i+1}">Empty</div>
           </div>`;
         }
       }
-      for (let i = 0; i < neededSlots; i++) {
-        const relic   = this.player.inventory[i];
+      for (let i = 0; i < 6; i++) {
+        const rune    = runes[runes.length - 6 + i]; // show latest 6
         const slotEl  = document.getElementById(`inv-slot-${i+1}`);
         const canvas  = document.getElementById(`inv-canvas-${i+1}`);
         const tooltip = document.getElementById(`tooltip-inv-${i+1}`);
         if (!slotEl || !canvas || !tooltip) continue;
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        if (relic) {
+        if (rune) {
           slotEl.classList.remove('empty');
           ctx.imageSmoothingEnabled = false;
-          this.assets.draw(ctx, relic.sprite, canvas.width / 2, canvas.height / 2, canvas.width);
-          tooltip.innerHTML = `<strong>${relic.name}</strong><br>${relic.desc}`;
+          this.assets.draw(ctx, rune.sprite, canvas.width / 2, canvas.height / 2, canvas.width);
+          tooltip.innerHTML = `<strong>${rune.name}</strong><br>${rune.desc}`;
         } else {
           slotEl.classList.add('empty');
-          tooltip.innerHTML = 'Empty Slot';
+          tooltip.innerHTML = 'Empty';
         }
       }
     }
@@ -2285,28 +2245,22 @@ export class Game {
             fontPixel: true
           });
         } else if (item.type === 'relic') {
-          if (this.player.inventory.length < this.player.maxInventorySlots) {
-            const relicData = item.value;
-            this.player.inventory.push(relicData);
-            this.player.recalculateModifiers(this.abilityTree);
-            this.player.saveGameState();
-            this.particles.spawnText(this.player.x, this.player.y - 20, `+${relicData.name}`, {
-              color: '#a55eea',
-              fontSize: 10,
-              fontPixel: true
+          const relicData = item.value;
+          const isGear = !!relicData.type; // gear has a slot type ('weapon','helmet', etc.)
+          if (isGear) {
+            this.player.gearStorage.push(relicData);
+            this.particles.spawnText(this.player.x, this.player.y - 20, `GEAR: ${relicData.name}`, {
+              color: '#eccc68', fontSize: 10, fontPixel: true
             });
-            this.particles.createExplosion(item.x, item.y, '#a55eea', 8, 80, 2.5);
           } else {
-            collected = false;
-            if (!this._lastInvFullTextTime || Date.now() - this._lastInvFullTextTime > 1500) {
-              this.particles.spawnText(this.player.x, this.player.y - 20, "BAG FULL — PRESS I TO MANAGE", {
-                color: '#ff4757',
-                fontSize: 9,
-                fontPixel: true
-              });
-              this._lastInvFullTextTime = Date.now();
-            }
+            this.player.runeStorage.push(relicData);
+            this.particles.spawnText(this.player.x, this.player.y - 20, `RUNE: ${relicData.name}`, {
+              color: '#a55eea', fontSize: 10, fontPixel: true
+            });
           }
+          this.player.recalculateModifiers(this.abilityTree);
+          this.player.saveGameState();
+          this.particles.createExplosion(item.x, item.y, isGear ? '#eccc68' : '#a55eea', 8, 80, 2.5);
         }
         
         if (collected) {
