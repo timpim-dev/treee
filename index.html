@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aetherweaver: Rune Odyssey</title>
+  <meta name="description" content="A dynamic pixel-art roguelite action game with a massive ability tree, active spell synergies, and elemental reaction systems.">
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <!-- Main Game Canvas Container -->
+  <div id="game-container">
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Glassmorphic HUD overlay -->
+    <div id="hud" class="hud-layer hidden">
+      <!-- Player Profile & Health/Mana -->
+      <div id="hud-player-stats" class="hud-panel">
+        <div class="hud-profile">
+          <div class="avatar-glow"></div>
+          <div class="hud-level-badge" id="hud-level-text">Lvl 1</div>
+        </div>
+        <div class="hud-bars-container">
+          <div class="hud-bar-wrapper">
+            <span class="bar-label">HP</span>
+            <div class="hud-bar hp-bar">
+              <div id="hud-hp-fill" class="bar-fill hp-fill" style="width: 100%;"></div>
+              <span id="hud-hp-text" class="bar-text">100 / 100</span>
+            </div>
+          </div>
+          <div class="hud-bar-wrapper">
+            <span class="bar-label">MP</span>
+            <div class="hud-bar mp-bar">
+              <div id="hud-mp-fill" class="bar-fill mp-fill" style="width: 100%;"></div>
+              <span id="hud-mp-text" class="bar-text">50 / 50</span>
+            </div>
+          </div>
+          <!-- XP Bar -->
+          <div class="hud-xp-wrapper">
+            <div class="hud-xp-bar">
+              <div id="hud-xp-fill" class="bar-fill xp-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wave / Timer Status -->
+      <div id="hud-wave-status" class="hud-panel text-center">
+        <div id="hud-wave-title">WAVE 1</div>
+        <div id="hud-wave-timer" class="pulse-red">00:30</div>
+        <div id="hud-enemies-left">Enemies: 0</div>
+      </div>
+
+      <!-- Resources (Gold, Aether Shards, Points) -->
+      <div id="hud-resources" class="hud-panel">
+        <div class="resource-item">
+          <canvas class="inline-icon" id="icon-shard-hud" width="12" height="12" draggable="false"></canvas>
+          <span id="hud-shards-value" class="resource-text">0</span>
+        </div>
+        <div class="resource-item hidden" id="hud-ap-notification">
+          <button id="btn-open-tree-hud" class="btn-pulse-glow">
+            <canvas class="inline-icon" id="icon-ap-hud" width="12" height="12" draggable="false"></canvas> Tree (<span id="hud-ap-value">0</span> AP)
+          </button>
+        </div>
+      </div>
+
+      <!-- Relics Inventory HUD (compact strip — click to open full panel) -->
+      <div id="hud-inventory" class="hud-panel">
+        <div class="inventory-title">
+          RELICS
+          <button id="btn-open-inventory" class="btn-inv-open" title="Manage Relics">&#9776;</button>
+        </div>
+        <div class="inventory-slots" id="inventory-container">
+          <!-- slots rendered dynamically by updateHUD -->
+        </div>
+      </div>
+
+      <!-- Active Spells Hotbar -->
+      <div id="hud-spell-hotbar">
+        <div class="spell-slot locked" id="spell-slot-1">
+          <span class="key-bind">LMB</span>
+          <canvas class="spell-icon-canvas" id="spell-icon-1" width="32" height="32"></canvas>
+          <div class="cooldown-overlay" id="cooldown-1"></div>
+          <div class="tooltip" id="tooltip-spell-1">Primary Spell</div>
+        </div>
+        <div class="spell-slot locked" id="spell-slot-2">
+          <span class="key-bind">RMB</span>
+          <canvas class="spell-icon-canvas" id="spell-icon-2" width="32" height="32"></canvas>
+          <div class="cooldown-overlay" id="cooldown-2"></div>
+          <div class="tooltip" id="tooltip-spell-2">Secondary Spell</div>
+        </div>
+        <div class="spell-slot locked" id="spell-slot-3">
+          <span class="key-bind">Space</span>
+          <canvas class="spell-icon-canvas" id="spell-icon-3" width="32" height="32"></canvas>
+          <div class="cooldown-overlay" id="cooldown-3"></div>
+          <div class="tooltip" id="tooltip-spell-3">Utility Spell</div>
+        </div>
+        <div class="spell-slot locked" id="spell-slot-4">
+          <span class="key-bind">Q</span>
+          <canvas class="spell-icon-canvas" id="spell-icon-4" width="32" height="32"></canvas>
+          <div class="cooldown-overlay" id="cooldown-4"></div>
+          <div class="tooltip" id="tooltip-spell-4">Ultimate Spell</div>
+        </div>
+        <div class="spell-slot locked" id="spell-slot-5">
+          <span class="key-bind">E</span>
+          <canvas class="spell-icon-canvas" id="spell-icon-5" width="32" height="32"></canvas>
+          <div class="cooldown-overlay" id="cooldown-5"></div>
+          <div class="tooltip" id="tooltip-spell-5">Lightning Spell</div>
+        </div>
+        <div class="spell-slot locked hidden" id="spell-slot-6">
+          <span class="key-bind">1</span>
+          <canvas class="spell-icon-canvas" id="spell-icon-6" width="32" height="32"></canvas>
+          <div class="cooldown-overlay" id="cooldown-6"></div>
+          <div class="tooltip" id="tooltip-spell-6">Extra Slot 1</div>
+        </div>
+        <div class="spell-slot locked hidden" id="spell-slot-7">
+          <span class="key-bind">2</span>
+          <canvas class="spell-icon-canvas" id="spell-icon-7" width="32" height="32"></canvas>
+          <div class="cooldown-overlay" id="cooldown-7"></div>
+          <div class="tooltip" id="tooltip-spell-7">Extra Slot 2</div>
+        </div>
+      </div>
+
+      <!-- Combo Alert Overlay -->
+      <div id="combo-alert-container"></div>
+    </div>
+
+    <!-- UI Overlay Panels -->
+    <!-- 1. MAIN MENU -->
+    <div id="panel-main-menu" class="panel-overlay">
+      <div class="menu-content text-center">
+        <h1 id="menu-title" class="glitch-title" data-text="AETHERWEAVER">AETHERWEAVER</h1>
+        <h2 id="menu-subtitle">RUNE ODYSSEY</h2>
+        <div class="menu-decor"></div>
+        <div class="menu-buttons">
+          <button id="btn-start-game" class="btn-menu">START ODYSSEY</button>
+          <button id="btn-how-to" class="btn-menu">HOW TO PLAY</button>
+          <button id="btn-leaderboard" class="btn-menu">HALL OF RUNES</button>
+          <button id="btn-menu-mute" class="btn-menu secondary">MUTE AUDIO</button>
+        </div>
+        <div class="menu-footer">
+          Use Keyboard WASD & Mouse to Weave Magic
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. HUGE ABILITY TREE -->
+    <div id="panel-ability-tree" class="panel-overlay hidden">
+      <div class="tree-header">
+        <h2>THE AETHER WEB</h2>
+        <div class="tree-stats">
+          <span>Aether Shards: <strong id="tree-shards">0</strong></span>
+          <span>Aether Points (AP): <strong id="tree-ap" class="text-glow">0</strong></span>
+          <span id="tree-rebirth-badge" class="hidden" style="color:#c39aff; font-size:0.8rem;">✦ Rebirth <strong id="tree-rebirth-count">0</strong></span>
+        </div>
+        <button id="btn-close-tree" class="btn-close">&times;</button>
+      </div>
+      
+      <!-- Canvas for Ability Tree Node network -->
+      <div id="tree-canvas-container">
+        <canvas id="tree-canvas" draggable="false"></canvas>
+        <div class="tree-controls">
+          <button id="btn-tree-zoom-in" class="btn-circle">+</button>
+          <button id="btn-tree-zoom-out" class="btn-circle">-</button>
+          <button id="btn-tree-reset" class="btn-tree-secondary">Reset Zoom</button>
+          <button id="btn-refund-tree" class="btn-tree-secondary danger">Refund All (-10 Shards)</button>
+        </div>
+        <div id="tree-tooltip" class="tree-node-tooltip hidden">
+          <h3 id="node-tooltip-title">Node Title</h3>
+          <div id="node-tooltip-type" class="node-type">Keystone</div>
+          <p id="node-tooltip-desc">Description of the node goes here...</p>
+          <div id="node-tooltip-cost">Cost: 1 AP</div>
+          <div id="node-tooltip-status" class="node-status-locked">Locked</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. GAME OVER PANEL -->
+    <div id="panel-game-over" class="panel-overlay hidden">
+      <div class="menu-content text-center">
+        <h1 class="text-danger glow-red">ODYSSEY ENDED</h1>
+        <p class="game-over-stats">
+          Waves Survived: <span id="go-waves" class="text-highlight">0</span><br>
+          Enemies Defeated: <span id="go-kills" class="text-highlight">0</span><br>
+          Runic Score: <span id="go-score" class="text-glow">0</span>
+        </p>
+        
+        <!-- Score submission form -->
+        <div id="leaderboard-submission-box">
+          <h3>Record Your Legend</h3>
+          <div class="input-group">
+            <input type="text" id="player-name-input" maxlength="15" placeholder="Enter Rune Name" />
+            <button id="btn-submit-score" class="btn-menu small">SUBMIT</button>
+          </div>
+          <p id="submit-status" class="hidden"></p>
+        </div>
+
+        <!-- Rebirth option (shown when level >= 10) -->
+        <div id="rebirth-panel" class="hidden" style="margin: 14px 0;">
+          <div id="rebirth-preview" style="font-size:0.78rem; color:#b39dff; margin-bottom:8px;"></div>
+          <button id="btn-rebirth" class="btn-menu" style="background: linear-gradient(135deg,#6c3baa,#a55eea); border-color:#c39aff;">
+            ✦ REBIRTH (Reset for Permanent Bonuses)
+          </button>
+        </div>
+
+        <div class="menu-buttons">
+          <button id="btn-restart-game" class="btn-menu">WEAVE AGAIN</button>
+          <button id="btn-go-to-menu" class="btn-menu secondary">MAIN MENU</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. LEADERBOARD PANEL -->
+    <div id="panel-leaderboard" class="panel-overlay hidden">
+      <div class="menu-content wide">
+        <h2>HALL OF RUNES</h2>
+        <div class="table-container">
+          <table id="leaderboard-table">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Runeweaver</th>
+                <th>Score</th>
+                <th>Wave</th>
+                <th>Lvl</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+        <div class="menu-buttons">
+          <button id="btn-close-leaderboard" class="btn-menu">BACK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. HOW TO PLAY / HELP -->
+    <div id="panel-how-to" class="panel-overlay hidden">
+      <div class="menu-content wide text-left scrolling-content">
+        <h2>ODYSSEY GUIDE</h2>
+        
+        <h3>Basic Controls</h3>
+        <p><strong>WASD / Arrow Keys</strong>: Move your Runeweaver around the battlefield.</p>
+        <p><strong>Mouse Cursor</strong>: Aim spells.</p>
+        <p><strong>Left Click (LMB)</strong>: Cast Primary Spell.</p>
+        <p><strong>Right Click (RMB)</strong>: Cast Secondary Spell.</p>
+        <p><strong>Spacebar</strong>: Cast Utility / Dash Spell.</p>
+        <p><strong>Q / E Key</strong>: Cast Ultimate Spell (unlocked in ability tree).</p>
+        <p><strong>Esc / P Key</strong>: Pause game.</p>
+        
+        <h3>Elemental Synergies & Combos</h3>
+        <p>Weaving multiple spell types on the same target triggers devastating reaction effects:</p>
+              <div>
+            <h3>Elemental Combinations</h3>
+            <ul>
+              <li><canvas class="inline-icon" id="combo-fire-1" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-fire">Fire</span> + <canvas class="inline-icon" id="combo-frost-1" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-frost">Frost</span> = <strong class="text-steam">Superheated Steam</strong>: Creates an scalding steam cloud dealing high fire DoT.</li>
+              <li><canvas class="inline-icon" id="combo-lightning-1" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-lightning">Lightning</span> + <canvas class="inline-icon" id="combo-frost-2" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-frost">Frost</span> = <strong class="text-superconduct">Superconductive Freeze</strong>: Deals instant lightning damage and freezes all nearby enemies.</li>
+              <li><canvas class="inline-icon" id="combo-void-1" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-void">Void</span> + <canvas class="inline-icon" id="combo-fire-2" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-fire">Fire</span> = <strong class="text-supernova">Supernova Singularity</strong>: Causes a pulled-in black hole to ignite and detonate in a massive screen-clearing explosion.</li>
+              <li><canvas class="inline-icon" id="combo-time-1" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-time">Time</span> + <canvas class="inline-icon" id="combo-lightning-2" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-lightning">Lightning</span> = <strong class="text-overload">Temporal Overload</strong>: Speeds up your cooldowns and grants lightning velocity.</li>
+            </ul>
+          </div>
+        </div>
+        
+        <div style="text-align: left; margin-top: 15px;">
+          <h3>Core Mechanics</h3>
+          <ul>
+            <li><strong>Ability Tree</strong>: Research Cryomancy or Electromancy branches to unlock nodes giving Max Mana and permanent regeneration.</li>
+            <li><strong>Runic Shop</strong>: Purchase <strong>Mana Potions</strong> or the permanent <strong>Mana Well</strong> stats between waves using shards!</li>
+          </ul>
+        </div>
+
+        <h3>The Aether Web (Ability Tree)</h3>
+        <p>Defeat monsters to collect <strong>Aether Shards</strong> and gain XP. Leveling up grants <strong>Aether Points (AP)</strong>. Press the <strong>⚡ Tree</strong> button at the top-right to open the Ability Tree and customize your build with over 100 upgrades!</p>
+        
+        <div class="menu-buttons text-center" style="margin-top: 2rem;">
+          <button id="btn-close-howto" class="btn-menu">READY TO WEAVE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. PAUSE PANEL -->
+    <div id="panel-pause" class="panel-overlay hidden">
+      <div class="menu-content text-center">
+        <h1>GAME PAUSED</h1>
+        <div class="menu-buttons">
+          <button id="btn-resume-game" class="btn-menu">RESUME</button>
+          <button id="btn-pause-tree" class="btn-menu">OPEN ABILITY TREE</button>
+          <button id="btn-pause-spellmap" class="btn-menu">SPELL LOADOUT</button>
+          <button id="btn-toggle-mute" class="btn-menu secondary">MUTE AUDIO</button>
+          <button id="btn-pause-menu" class="btn-menu secondary">QUIT TO MENU</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. RUNIC SHOP PANEL -->
+    <div id="panel-shop" class="panel-overlay hidden">
+      <div class="menu-content wide text-center">
+        <h1 class="text-glow">RUNIC SHOP</h1>
+        <p class="shop-intro">Trade shards for upgrades to prepare for the next onslaught</p>
+        
+        <div class="shop-shards-display">
+          Aether Shards: <canvas class="inline-icon" id="icon-shard-shop" width="12" height="12" draggable="false"></canvas> <span id="shop-shards-value">0</span>
+        </div>
+
+        <div class="shop-grid">
+          <!-- Item 1: HP Potion -->
+          <div class="shop-item">
+            <canvas class="shop-item-canvas" id="shop-canvas-hp" width="32" height="32"></canvas>
+            <h3>Health Potion</h3>
+            <p>Restores 50 HP</p>
+            <button id="btn-buy-hp" class="btn-menu small">BUY (15 Shards)</button>
+          </div>
+
+          <!-- Item 2: MP Potion -->
+          <div class="shop-item">
+            <canvas class="shop-item-canvas" id="shop-canvas-mp" width="32" height="32"></canvas>
+            <h3>Mana Potion</h3>
+            <p>Restores 30 Mana</p>
+            <button id="btn-buy-mp" class="btn-menu small">BUY (15 Shards)</button>
+          </div>
+
+          <!-- Item 3: Vitality Upgrade -->
+          <div class="shop-item">
+            <canvas class="shop-item-canvas" id="shop-canvas-vit" width="32" height="32"></canvas>
+            <h3>Runic Heart</h3>
+            <p>Perm +15 Max HP</p>
+            <button id="btn-buy-vit" class="btn-menu small">BUY (40 Shards)</button>
+          </div>
+
+          <!-- Item 4: Mana Upgrade -->
+          <div class="shop-item">
+            <canvas class="shop-item-canvas" id="shop-canvas-mana" width="32" height="32"></canvas>
+            <h3>Mana Well</h3>
+            <p>Perm +10 MP & +0.3/s Regen</p>
+            <button id="btn-buy-mana" class="btn-menu small">BUY (40 Shards)</button>
+          </div>
+
+          <!-- Item 5: Relic Chest -->
+          <div class="shop-item" style="grid-column: span 2;">
+            <canvas class="shop-item-canvas" id="shop-canvas-relic" width="32" height="32"></canvas>
+            <h3>Relic Chest</h3>
+            <p>Buy a random powerful Relic</p>
+            <button id="btn-buy-relic" class="btn-menu small">BUY (50 Shards)</button>
+          </div>
+        </div>
+
+        <div class="menu-buttons" style="margin-top: 25px; width: auto;">
+          <button id="btn-start-next-wave" class="btn-menu">START NEXT WAVE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8. RUNE SATCHEL — Full Inventory Management Panel -->
+    <div id="panel-inventory" class="panel-overlay hidden">
+      <div class="inv-panel-content">
+        <div class="inv-panel-header">
+          <h2>RUNE SATCHEL</h2>
+          <div class="inv-panel-meta">
+            <span>Shards: <canvas class="inline-icon" id="icon-shard-inv" width="12" height="12" draggable="false"></canvas> <strong id="inv-shards-value">0</strong></span>
+            <span>Slots: <strong id="inv-slots-used">0</strong> / <strong id="inv-slots-max">4</strong></span>
+          </div>
+          <button id="btn-close-inventory" class="btn-close">&times;</button>
+        </div>
+
+        <!-- Relic Grid -->
+        <div id="inv-relic-grid" class="inv-relic-grid">
+          <!-- slots injected by JS -->
+        </div>
+
+        <!-- Buy extra slot -->
+        <div class="inv-expand-row">
+          <button id="btn-buy-inv-slot" class="btn-menu small">
+            BUY SLOT (<span id="inv-slot-cost">60</span> Shards)
+          </button>
+          <span class="inv-expand-note">Max 10 slots. Cost increases with each purchase.</span>
+        </div>
+
+        <!-- Close / back -->
+        <div class="menu-buttons" style="margin-top:18px;">
+          <button id="btn-inv-back" class="btn-menu secondary">CLOSE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 9. SPELL REMAP PANEL -->
+    <div id="panel-spellmap" class="panel-overlay hidden">
+      <div class="spellmap-content">
+        <div class="spellmap-header">
+          <h2>SPELL LOADOUT</h2>
+          <div class="spellmap-meta">
+            <span id="spellmap-slots-info">Slots: 5 / 5</span>
+            <button id="btn-spellmap-buy-slot" class="btn-menu small" style="margin-left:12px;">UNLOCK SLOT (<span id="spellmap-slot-cost">80</span> Shards)</button>
+          </div>
+          <button id="btn-close-spellmap" class="btn-close">&times;</button>
+        </div>
+
+        <div class="spellmap-body">
+          <!-- Left: available spell palette -->
+          <div class="spellmap-palette-col">
+            <div class="spellmap-col-title">UNLOCKED SPELLS</div>
+            <div id="spellmap-palette" class="spellmap-palette">
+              <!-- injected by JS -->
+            </div>
+          </div>
+
+          <!-- Right: slot targets -->
+          <div class="spellmap-slots-col">
+            <div class="spellmap-col-title">ACTIVE SLOTS</div>
+            <div id="spellmap-slots" class="spellmap-slots">
+              <!-- injected by JS -->
+            </div>
+            <div class="spellmap-hint">Drag a spell onto a slot — or click a slot then click a spell.</div>
+          </div>
+        </div>
+
+        <div class="menu-buttons" style="margin-top:14px;">
+          <button id="btn-spellmap-reset" class="btn-menu secondary">RESET TO AUTO</button>
+          <button id="btn-close-spellmap-bottom" class="btn-menu secondary">CLOSE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Visual XP Bar -->
+    <div id="hud-bottom-xp-bar" class="hidden">
+      <div id="hud-bottom-xp-fill"></div>
+      <span id="hud-bottom-xp-text">XP: 0 / 50</span>
+    </div>
+
+  </div>
+
+  <!-- Entry Script -->
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,2219 @@
+/**
+ * Game - Main Orchestrator and Game Loop Manager
+ */
+import { AssetManager } from './AssetManager.js';
+import { ParticleSystem } from './ParticleSystem.js';
+import { AbilityTree } from './AbilityTree.js';
+import { LevelManager } from './LevelManager.js';
+import { AudioManager } from './AudioManager.js';
+import { Player, RELICS_CATALOG } from '../entities/Player.js';
+import { Enemy } from '../entities/Enemy.js';
+import { SPELL_TYPES, SpellBook, processCombo } from './Spells.js';
+
+export class Game {
+  constructor() {
+    // 1. Setup Canvas
+    this.canvas = document.getElementById('game-canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.resizeCanvas();
+    
+    // 2. Instantiate Systems
+    this.assets = new AssetManager();
+    this.particles = new ParticleSystem();
+    this.audio = new AudioManager();
+    this.abilityTree = new AbilityTree(this);
+    this.levelManager = new LevelManager(this);
+    
+    // Unlock AudioContext on first user interaction
+    const unlockAudio = () => {
+      this.audio.init();
+      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+    };
+    window.addEventListener('click', unlockAudio);
+    window.addEventListener('keydown', unlockAudio);
+    
+    // Player spawn centered
+    this.player = new Player(this, this.levelManager.width / 2, this.levelManager.height / 2);
+    this.abilityTree.panX = 0;
+    this.abilityTree.panY = 0;
+    this.player.recalculateModifiers(this.abilityTree);
+    
+    // Camera
+    this.camera = { x: this.player.x - this.canvas.width / 2, y: this.player.y - this.canvas.height / 2 };
+    
+    // 3. Entity Registers
+    this.projectiles = [];
+    this.enemies = [];
+    this.items = [];
+    this.areaEffects = [];
+    
+    // 4. Inputs state
+    this.keys = {};
+    this.mouseX = 0;
+    this.mouseY = 0;
+    this.isLeftMouseDown = false;
+    this.isRightMouseDown = false;
+    
+    // 5. Game State Parameters
+    this.state = 'MENU'; // 'MENU', 'PLAYING', 'UPGRADE_TREE', 'GAME_OVER', 'PAUSED'
+    this.gameZoom = 1.0;
+    this.score = 0;
+    this.kills = 0;
+    
+    // Frame clocks
+    this.lastTime = 0;
+    this.frameIndex = 0;
+    this.screenShake = 0;
+    this.timeDilationTimer = 0; // Chrono dilation active indicator
+    
+    // 6. Bind Listeners
+    this.initInputListeners();
+    this.initUIListeners();
+    this.updateHUD();
+    
+    this.treeCanvas = document.getElementById('tree-canvas');
+    this.treeCtx = this.treeCanvas.getContext('2d');
+    this.resizeTreeCanvas();
+    this.initTreeListeners();
+    
+    this.drawHTMLIcons();
+
+    // Start rendering loops
+    window.addEventListener('resize', () => {
+      this.resizeCanvas();
+      this.resizeTreeCanvas();
+    });
+    
+    // Kick off animation loop
+    requestAnimationFrame((time) => this.loop(time));
+  }
+
+  resizeCanvas() {
+    const scale = 3; // chunky pixel art scale factor
+    this.canvas.width = Math.ceil(window.innerWidth / scale);
+    this.canvas.height = Math.ceil(window.innerHeight / scale);
+    this.ctx.imageSmoothingEnabled = false;
+  }
+
+  resizeTreeCanvas() {
+    const container = document.getElementById('tree-canvas-container');
+    if (container && this.treeCanvas) {
+      this.treeCanvas.width = container.clientWidth;
+      this.treeCanvas.height = container.clientHeight;
+      this.treeCtx.imageSmoothingEnabled = false;
+    }
+  }
+
+  getWorldMouse() {
+    const cx = this.canvas.width / 2;
+    const cy = this.canvas.height / 2;
+    return {
+      x: (this.mouseX - cx) / this.gameZoom + cx + this.camera.x,
+      y: (this.mouseY - cy) / this.gameZoom + cy + this.camera.y
+    };
+  }
+
+  // ----------------------------------------------------
+  // INPUT LISTENERS
+  // ----------------------------------------------------
+  initInputListeners() {
+    window.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase();
+      this.keys[key] = true;
+      
+      // State transitions via buttons
+      if (key === 'escape' || key === 'p') {
+        if (this.state === 'PLAYING') {
+          this.setState('PAUSED');
+        } else if (this.state === 'PAUSED') {
+          this.setState('PLAYING');
+        } else if (this.state === 'UPGRADE_TREE') {
+          this.setState('PLAYING');
+        }
+      }
+      
+      // Quick skills hotkeys triggers
+      if (this.state === 'PLAYING') {
+        const worldMouse = this.getWorldMouse();
+        const playerAngle = Math.atan2(
+          worldMouse.y - this.player.y,
+          worldMouse.x - this.player.x
+        );
+
+        if (key === ' ' || key === 'spacebar') {
+          e.preventDefault();
+          this.player.castSpell('utility', playerAngle);
+        } else if (key === 'q') {
+          this.player.castSpell('ultimate', playerAngle);
+        } else if (key === 'e') {
+          this.player.castSpell('extra', playerAngle);
+        } else if (key === '1' && this.player.maxSpellSlots >= 6) {
+          this.player.castSpell('slot6', playerAngle);
+        } else if (key === '2' && this.player.maxSpellSlots >= 7) {
+          this.player.castSpell('slot7', playerAngle);
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      this.keys[e.key.toLowerCase()] = false;
+    });
+
+    // Add blur listener to reset input keys so player doesn't stick move on focus lose
+    window.addEventListener('blur', () => {
+      this.keys = {};
+      this.isLeftMouseDown = false;
+      this.isRightMouseDown = false;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      const rect = this.canvas.getBoundingClientRect();
+      // Map mouse coordinates to match the virtual canvas downscaled dimensions
+      this.mouseX = (e.clientX - rect.left) / (rect.width / this.canvas.width);
+      this.mouseY = (e.clientY - rect.top) / (rect.height / this.canvas.height);
+    });
+
+    window.addEventListener('mousedown', (e) => {
+      if (this.state !== 'PLAYING') return;
+      if (e.button === 0) this.isLeftMouseDown = true;
+      if (e.button === 2) this.isRightMouseDown = true;
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 0) this.isLeftMouseDown = false;
+      if (e.button === 2) this.isRightMouseDown = false;
+    });
+
+    // Disable context menu on right click inside game screen
+    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Mouse wheel zoom handler
+    window.addEventListener('wheel', (e) => {
+      if (this.state !== 'PLAYING') return;
+      const zoomSpeed = 0.05;
+      if (e.deltaY < 0) {
+        this.gameZoom = Math.min(1.5, this.gameZoom + zoomSpeed);
+      } else {
+        this.gameZoom = Math.max(0.6, this.gameZoom - zoomSpeed);
+      }
+    }, { passive: true });
+  }
+
+  // ----------------------------------------------------
+  // HTML UI CLICKS LISTENERS
+  // ----------------------------------------------------
+  initUIListeners() {
+    // Mute Buttons Binding
+    const toggleMuteAll = () => {
+      const isMuted = this.audio.toggleMute();
+      const text = isMuted ? "UNMUTE AUDIO" : "MUTE AUDIO";
+      const menuMute = document.getElementById('btn-menu-mute');
+      const toggleMute = document.getElementById('btn-toggle-mute');
+      if (menuMute) menuMute.innerText = text;
+      if (toggleMute) toggleMute.innerText = text;
+    };
+    const menuMuteBtn = document.getElementById('btn-menu-mute');
+    if (menuMuteBtn) {
+      menuMuteBtn.addEventListener('click', () => toggleMuteAll());
+    }
+    const toggleMuteBtn = document.getElementById('btn-toggle-mute');
+    if (toggleMuteBtn) {
+      toggleMuteBtn.addEventListener('click', () => toggleMuteAll());
+    }
+
+    // Main Menu Buttons
+    document.getElementById('btn-start-game').addEventListener('click', () => {
+      this.startNewGame();
+    });
+    document.getElementById('btn-how-to').addEventListener('click', () => {
+      this.showPanel('panel-how-to');
+    });
+    document.getElementById('btn-leaderboard').addEventListener('click', () => {
+      this.fetchLeaderboard();
+      this.showPanel('panel-leaderboard');
+    });
+    
+    // Close panels buttons
+    document.getElementById('btn-close-howto').addEventListener('click', () => {
+      this.showPanel(this.state === 'MENU' ? 'panel-main-menu' : '');
+    });
+    document.getElementById('btn-close-leaderboard').addEventListener('click', () => {
+      this.showPanel('panel-main-menu');
+    });
+    
+    // Ability Tree Button in HUD
+    document.getElementById('btn-open-tree-hud').addEventListener('click', () => {
+      this.setState('UPGRADE_TREE');
+    });
+    document.getElementById('btn-close-tree').addEventListener('click', () => {
+      this.setState('PLAYING');
+    });
+
+    // Pause Menu Buttons
+    document.getElementById('btn-resume-game').addEventListener('click', () => {
+      this.setState('PLAYING');
+    });
+    document.getElementById('btn-pause-tree').addEventListener('click', () => {
+      this.setState('UPGRADE_TREE');
+    });
+    document.getElementById('btn-pause-menu').addEventListener('click', () => {
+      this.setState('MENU');
+    });
+
+    // Game Over Buttons
+    document.getElementById('btn-restart-game').addEventListener('click', () => {
+      this.startNewGame();
+    });
+    document.getElementById('btn-go-to-menu').addEventListener('click', () => {
+      this.setState('MENU');
+    });
+
+    // Rebirth Button
+    document.getElementById('btn-rebirth').addEventListener('click', () => {
+      const success = this.player.performRebirth();
+      if (success) {
+        if (this.audio) this.audio.playRebirth();
+        // Update game-over screen to reflect new rebirth count
+        document.getElementById('rebirth-panel').classList.add('hidden');
+        this.particles.spawnText(
+          this.player.x, this.player.y - 50,
+          `✦ REBIRTH ${this.player.rebirthCount}! AETHER REBORN`, {
+            color: '#c39aff', fontSize: 14, fontPixel: true, life: 3.0
+          }
+        );
+      }
+    });
+
+    // Score Submission
+    document.getElementById('btn-submit-score').addEventListener('click', () => {
+      this.submitHighScore();
+    });
+
+    // Runic Shop Buttons
+    document.getElementById('btn-buy-hp').addEventListener('click', () => {
+      if (this.player.shards >= 15) {
+        if (this.player.hp >= this.player.getMaxHp()) {
+          this.particles.spawnText(this.player.x, this.player.y - 20, "ALREADY FULL HP", { color: '#ff4757', fontSize: 10, fontPixel: true });
+          return;
+        }
+        this.player.shards -= 15;
+        this.player.hp = Math.min(this.player.getMaxHp(), this.player.hp + 50);
+        this.player.saveGameState();
+        this.updateHUD();
+        const shopShards = document.getElementById('shop-shards-value');
+        if (shopShards) shopShards.innerText = this.player.shards;
+        this.particles.spawnText(this.player.x, this.player.y - 20, "+50 HP", { color: '#ff4757', fontSize: 10, fontPixel: true });
+      } else {
+        this.particles.spawnText(this.player.x, this.player.y - 20, "NEED SHARDS", { color: '#ff4757', fontSize: 10, fontPixel: true });
+      }
+    });
+
+    document.getElementById('btn-buy-mp').addEventListener('click', () => {
+      if (this.player.shards >= 15) {
+        if (this.player.mp >= this.player.getMaxMp()) {
+          this.particles.spawnText(this.player.x, this.player.y - 20, "ALREADY FULL MANA", { color: '#70a1ff', fontSize: 10, fontPixel: true });
+          return;
+        }
+        this.player.shards -= 15;
+        this.player.mp = Math.min(this.player.getMaxMp(), this.player.mp + 30);
+        this.player.saveGameState();
+        this.updateHUD();
+        const shopShards = document.getElementById('shop-shards-value');
+        if (shopShards) shopShards.innerText = this.player.shards;
+        this.particles.spawnText(this.player.x, this.player.y - 20, "+30 MANA", { color: '#70a1ff', fontSize: 10, fontPixel: true });
+      } else {
+        this.particles.spawnText(this.player.x, this.player.y - 20, "NEED SHARDS", { color: '#ff4757', fontSize: 10, fontPixel: true });
+      }
+    });
+
+    document.getElementById('btn-buy-vit').addEventListener('click', () => {
+      if (this.player.shards >= 40) {
+        this.player.shards -= 40;
+        this.player.shopMaxHp += 15;
+        this.player.hp += 15; // also heal by 15
+        this.player.recalculateModifiers(this.abilityTree);
+        this.player.saveGameState();
+        this.updateHUD();
+        const shopShards = document.getElementById('shop-shards-value');
+        if (shopShards) shopShards.innerText = this.player.shards;
+        this.particles.spawnText(this.player.x, this.player.y - 20, "+15 MAX HP", { color: '#ff4757', fontSize: 10, fontPixel: true });
+      } else {
+        this.particles.spawnText(this.player.x, this.player.y - 20, "NEED SHARDS", { color: '#ff4757', fontSize: 10, fontPixel: true });
+      }
+    });
+
+    document.getElementById('btn-buy-mana').addEventListener('click', () => {
+      if (this.player.shards >= 40) {
+        this.player.shards -= 40;
+        this.player.shopMaxMp += 10;
+        this.player.shopManaRegen += 0.3;
+        this.player.mp += 10; // also heal by 10
+        this.player.recalculateModifiers(this.abilityTree);
+        this.player.saveGameState();
+        this.updateHUD();
+        const shopShards = document.getElementById('shop-shards-value');
+        if (shopShards) shopShards.innerText = this.player.shards;
+        this.particles.spawnText(this.player.x, this.player.y - 20, "+10 MAX MP & REGEN", { color: '#70a1ff', fontSize: 10, fontPixel: true });
+      } else {
+        this.particles.spawnText(this.player.x, this.player.y - 20, "NEED SHARDS", { color: '#ff4757', fontSize: 10, fontPixel: true });
+      }
+    });
+
+    document.getElementById('btn-buy-relic').addEventListener('click', () => {
+      if (this.player.shards >= 50) {
+        if (this.player.inventory.length >= this.player.maxInventorySlots) {
+          this.particles.spawnText(this.player.x, this.player.y - 20, "SATCHEL FULL — BUY MORE SLOTS", { color: '#ff4757', fontSize: 10, fontPixel: true });
+          return;
+        }
+        this.player.shards -= 50;
+        const randomRelic = RELICS_CATALOG[Math.floor(Math.random() * RELICS_CATALOG.length)];
+        this.player.inventory.push(randomRelic);
+        this.player.recalculateModifiers(this.abilityTree);
+        this.player.saveGameState();
+        this.updateHUD();
+        const shopShards = document.getElementById('shop-shards-value');
+        if (shopShards) shopShards.innerText = this.player.shards;
+        this.particles.spawnText(this.player.x, this.player.y - 20, `+${randomRelic.name}`, { color: '#a55eea', fontSize: 10, fontPixel: true });
+      } else {
+        this.particles.spawnText(this.player.x, this.player.y - 20, "NEED SHARDS", { color: '#ff4757', fontSize: 10, fontPixel: true });
+      }
+    });
+
+    document.getElementById('btn-start-next-wave').addEventListener('click', () => {
+      this.levelManager.wave++;
+      this.levelManager.startNextWave();
+      this.setState('PLAYING');
+    });
+
+    // ── Inventory Panel ──────────────────────────────────────────────────
+    document.getElementById('btn-open-inventory').addEventListener('click', () => {
+      this._prevStateBeforeInventory = this.state;
+      this.setState('INVENTORY');
+      this.refreshInventoryPanel();
+    });
+
+    document.getElementById('btn-close-inventory').addEventListener('click', () => {
+      this._closeInventory();
+    });
+    document.getElementById('btn-inv-back').addEventListener('click', () => {
+      this._closeInventory();
+    });
+
+    // ── Spell Remap Panel ────────────────────────────────────────────────
+    document.getElementById('btn-pause-spellmap').addEventListener('click', () => {
+      this._prevStateBeforeSpellmap = this.state;
+      this.setState('SPELLMAP');
+    });
+    document.getElementById('btn-close-spellmap').addEventListener('click', () => this._closeSpellmap());
+    document.getElementById('btn-close-spellmap-bottom').addEventListener('click', () => this._closeSpellmap());
+    document.getElementById('btn-spellmap-reset').addEventListener('click', () => {
+      this.player.customSpellMap = { primary:null,secondary:null,utility:null,ultimate:null,extra:null,slot6:null,slot7:null };
+      this.player.recalculateModifiers(this.abilityTree);
+      this.player.saveGameState();
+      this.refreshSpellmapPanel();
+      this.updateHUD();
+      if (this.audio) this.audio.playClick();
+    });
+    document.getElementById('btn-spellmap-buy-slot').addEventListener('click', () => {
+      const cur = this.player.maxSpellSlots;
+      if (cur >= 7) return;
+      const cost = cur === 5 ? 80 : 120;
+      if (this.player.shards < cost) {
+        this.particles.spawnText(this.player.x, this.player.y - 20, 'NOT ENOUGH SHARDS', { color: '#ff4757', fontSize: 10, fontPixel: true });
+        return;
+      }
+      this.player.shards -= cost;
+      this.player.maxSpellSlots++;
+      this.player.recalculateModifiers(this.abilityTree);
+      this.player.saveGameState();
+      if (this.audio) this.audio.playBuy();
+      this.refreshSpellmapPanel();
+      this.updateHUD();
+    });
+
+    document.getElementById('btn-buy-inv-slot').addEventListener('click', () => {
+      const max = 10;
+      if (this.player.maxInventorySlots >= max) {
+        this.particles.spawnText(this.player.x, this.player.y - 20, 'MAX SLOTS REACHED', { color: '#ff4757', fontSize: 10, fontPixel: true });
+        return;
+      }
+      const cost = this._invSlotCost();
+      if (this.player.shards < cost) {
+        this.particles.spawnText(this.player.x, this.player.y - 20, 'NOT ENOUGH SHARDS', { color: '#ff4757', fontSize: 10, fontPixel: true });
+        return;
+      }
+      this.player.shards -= cost;
+      this.player.maxInventorySlots += 1;
+      this.player.saveGameState();
+      if (this.audio) this.audio.playBuy();
+      this.refreshInventoryPanel();
+      this.updateHUD();
+    });
+  }
+
+  _invSlotCost() {
+    // 60 shards for slot 5, +30 each after
+    return 60 + (this.player.maxInventorySlots - 4) * 30;
+  }
+
+  _closeSpellmap() {
+    const prev = this._prevStateBeforeSpellmap || 'PAUSED';
+    this.state = prev;
+    document.getElementById('hud').classList.toggle('hidden', prev !== 'PLAYING');
+    this.showPanel(prev === 'PAUSED' ? 'panel-pause' : '');
+  }
+
+  refreshSpellmapPanel() {
+    const p = this.player;
+    const SpellBook = this._getSpellBook();
+    const unlocked = p.unlockedSpellIds || new Set(['fireball']);
+
+    // Update header
+    document.getElementById('spellmap-slots-info').innerText =
+      `Slots: ${p.maxSpellSlots} / 7`;
+    const buyBtn = document.getElementById('btn-spellmap-buy-slot');
+    const costEl  = document.getElementById('spellmap-slot-cost');
+    if (p.maxSpellSlots >= 7) {
+      buyBtn.disabled = true;
+      buyBtn.textContent = 'MAX SLOTS';
+    } else {
+      buyBtn.disabled = false;
+      const cost = p.maxSpellSlots === 5 ? 80 : 120;
+      if (costEl) costEl.innerText = cost;
+    }
+
+    // Element colour map
+    const elemColor = { fire:'#ff4757', frost:'#10ac84', lightning:'#f1c40f',
+                        void:'#a55eea', time:'#ff9f43' };
+
+    // Helper: render a spell icon to a data-URL
+    const iconUrl = (id) => {
+      const c = document.createElement('canvas');
+      c.width = 32; c.height = 32;
+      const cx = c.getContext('2d'); cx.imageSmoothingEnabled = false;
+      this.assets.draw(cx, `icon_${id}`, 16, 16, 32);
+      return c.toDataURL();
+    };
+
+    // ── Palette (all unlocked spells) ────────────────────────────────────
+    const palette = document.getElementById('spellmap-palette');
+    palette.innerHTML = '';
+    let selectedSpellId = null;
+
+    const allSpellIds = Array.from(unlocked).concat(
+      [...unlocked].includes('fireball') ? [] : ['fireball']
+    );
+    // Ensure fireball is always available
+    if (!allSpellIds.includes('fireball')) allSpellIds.unshift('fireball');
+
+    allSpellIds.forEach(id => {
+      const spell = SpellBook[id];
+      if (!spell) return;
+      const card = document.createElement('div');
+      card.className = 'sm-spell-card';
+      card.dataset.spellId = id;
+      card.draggable = true;
+      const col = elemColor[spell.element] || '#aaa';
+      card.innerHTML = `
+        <img class="sm-spell-icon" src="${iconUrl(id)}" draggable="false">
+        <div class="sm-spell-name">${spell.name}</div>
+        <div class="sm-spell-elem" style="color:${col}">${spell.element}</div>
+      `;
+
+      // Drag start
+      card.addEventListener('dragstart', e => {
+        e.dataTransfer.setData('spellId', id);
+        card.classList.add('dragging');
+      });
+      card.addEventListener('dragend', () => card.classList.remove('dragging'));
+
+      // Click-to-select
+      card.addEventListener('click', () => {
+        if (selectedSpellId === id) {
+          selectedSpellId = null;
+          card.classList.remove('selected');
+        } else {
+          palette.querySelectorAll('.sm-spell-card').forEach(c => c.classList.remove('selected'));
+          selectedSpellId = id;
+          card.classList.add('selected');
+        }
+      });
+      palette.appendChild(card);
+    });
+
+    // ── Slot targets ─────────────────────────────────────────────────────
+    const slotDefs = [
+      { id: 'primary',   key: 'LMB',   label: 'Primary' },
+      { id: 'secondary', key: 'RMB',   label: 'Secondary' },
+      { id: 'utility',   key: 'Space', label: 'Utility' },
+      { id: 'ultimate',  key: 'Q',     label: 'Ultimate' },
+      { id: 'extra',     key: 'E',     label: 'Extra' },
+      { id: 'slot6',     key: '1',     label: 'Slot 6',  minSlots: 6 },
+      { id: 'slot7',     key: '2',     label: 'Slot 7',  minSlots: 7 },
+    ];
+
+    const slotsContainer = document.getElementById('spellmap-slots');
+    slotsContainer.innerHTML = '';
+
+    slotDefs.forEach(def => {
+      const locked = def.minSlots && p.maxSpellSlots < def.minSlots;
+      const currentId = p.spellSlots[def.id];
+      const currentSpell = currentId ? SpellBook[currentId] : null;
+
+      const row = document.createElement('div');
+      row.className = 'sm-slot' + (locked ? ' slot-locked' : '');
+      row.dataset.slotId = def.id;
+
+      const iconData = currentId ? iconUrl(currentId) : '';
+      const col = currentSpell ? (elemColor[currentSpell.element] || '#aaa') : '#555';
+      row.innerHTML = `
+        <div class="sm-slot-key">${locked ? '🔒' : def.key}</div>
+        ${currentId
+          ? `<img class="sm-slot-icon" src="${iconData}" draggable="false">`
+          : `<div class="sm-slot-icon" style="border:2px dashed #333;border-radius:2px;"></div>`
+        }
+        <div class="sm-slot-info">
+          <div class="sm-slot-name" style="color:${col}">${currentSpell ? currentSpell.name : (locked ? 'LOCKED' : '— empty —')}</div>
+          <div class="sm-slot-desc">${def.label}${locked ? ` (unlock at ${def.minSlots} slots)` : ''}</div>
+        </div>
+        ${currentId && !locked ? `<button class="sm-slot-clear" data-slot="${def.id}" title="Clear slot">✕</button>` : ''}
+      `;
+
+      if (!locked) {
+        // Drop target
+        row.addEventListener('dragover', e => { e.preventDefault(); row.classList.add('drag-over'); });
+        row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+        row.addEventListener('drop', e => {
+          e.preventDefault();
+          row.classList.remove('drag-over');
+          const spellId = e.dataTransfer.getData('spellId');
+          this._assignSpellToSlot(def.id, spellId);
+        });
+
+        // Click-to-assign (when a palette card is selected)
+        row.addEventListener('click', e => {
+          if (e.target.classList.contains('sm-slot-clear')) return;
+          if (selectedSpellId) {
+            this._assignSpellToSlot(def.id, selectedSpellId);
+            selectedSpellId = null;
+            palette.querySelectorAll('.sm-spell-card').forEach(c => c.classList.remove('selected'));
+          }
+        });
+      }
+      slotsContainer.appendChild(row);
+    });
+
+    // Wire clear buttons
+    slotsContainer.querySelectorAll('.sm-slot-clear').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const slotId = btn.dataset.slot;
+        this._assignSpellToSlot(slotId, null);
+      });
+    });
+  }
+
+  _assignSpellToSlot(slotId, spellId) {
+    this.player.customSpellMap[slotId] = spellId;
+    this.player.recalculateModifiers(this.abilityTree);
+    this.player.saveGameState();
+    if (this.audio) this.audio.playClick();
+    this.refreshSpellmapPanel();
+    this.updateHUD();
+  }
+
+  _getSpellBook() {
+    return SpellBook;
+  }
+
+  _closeInventory() {
+    const prev = this._prevStateBeforeInventory || 'PLAYING';
+    // Don't play stateChange sfx when returning to playing (too noisy)
+    this.state = prev;
+    document.getElementById('hud').classList.toggle('hidden', prev !== 'PLAYING');
+    this.showPanel(
+      prev === 'SHOP'         ? 'panel-shop' :
+      prev === 'PAUSED'       ? 'panel-pause' :
+      prev === 'UPGRADE_TREE' ? 'panel-ability-tree' :
+      ''
+    );
+  }
+
+  refreshInventoryPanel() {
+    const grid = document.getElementById('inv-relic-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    const slots  = this.player.maxInventorySlots;
+    const relics = this.player.inventory;
+    const maxAll = 10;
+
+    // Update header counts
+    document.getElementById('inv-shards-value').innerText = this.player.shards;
+    document.getElementById('inv-slots-used').innerText   = relics.length;
+    document.getElementById('inv-slots-max').innerText    = slots;
+
+    // Update buy-slot button
+    const costEl = document.getElementById('inv-slot-cost');
+    if (costEl) costEl.innerText = this._invSlotCost();
+    const buyBtn = document.getElementById('btn-buy-inv-slot');
+    if (buyBtn) buyBtn.disabled = slots >= maxAll;
+
+    // Draw icon into an off-screen canvas and return a data URL
+    const iconDataUrl = (spriteKey) => {
+      const c = document.createElement('canvas');
+      c.width = 32; c.height = 32;
+      const cx = c.getContext('2d');
+      cx.imageSmoothingEnabled = false;
+      this.assets.draw(cx, spriteKey, 16, 16, 32);
+      return c.toDataURL();
+    };
+
+    // Filled relic slots
+    for (let i = 0; i < slots; i++) {
+      const card = document.createElement('div');
+      if (i < relics.length) {
+        const relic = relics[i];
+        card.className = 'inv-relic-card';
+        card.innerHTML = `
+          <button class="btn-remove-relic" data-idx="${i}" title="Remove relic">✕</button>
+          <img class="inv-relic-sprite" src="${iconDataUrl(relic.sprite)}" alt="${relic.name}" draggable="false">
+          <div class="inv-relic-name">${relic.name}</div>
+          <div class="inv-relic-desc">${relic.desc}</div>
+        `;
+        card.querySelector('.btn-remove-relic').addEventListener('click', (e) => {
+          const idx = parseInt(e.currentTarget.dataset.idx, 10);
+          this.player.inventory.splice(idx, 1);
+          this.player.recalculateModifiers(this.abilityTree);
+          this.player.saveGameState();
+          if (this.audio) this.audio.playClick();
+          this.refreshInventoryPanel();
+          this.updateHUD();
+        });
+      } else {
+        card.className = 'inv-relic-card empty-slot';
+        card.innerHTML = `<div class="inv-slot-label">EMPTY</div>`;
+      }
+      grid.appendChild(card);
+    }
+
+    // Locked (not yet purchased) slots shown as ghost cards
+    for (let i = slots; i < maxAll; i++) {
+      const card = document.createElement('div');
+      card.className = 'inv-relic-card locked-slot';
+      card.innerHTML = `<div class="inv-slot-label">LOCKED</div>`;
+      grid.appendChild(card);
+    }
+
+    // Draw shard icon
+    this.drawHTMLIcon('icon-shard-inv', 'item_shard', 12);
+  }
+
+  // ----------------------------------------------------
+  // ABILITY TREE MOUSE INTERACTION (Pan / Zoom)
+  // ----------------------------------------------------
+  initTreeListeners() {
+    const container = document.getElementById('tree-canvas-container');
+    
+    container.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      this.abilityTree.isDragging = true;
+      this.abilityTree.dragStart.x = e.clientX - this.abilityTree.panX;
+      this.abilityTree.dragStart.y = e.clientY - this.abilityTree.panY;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (this.state !== 'UPGRADE_TREE') return;
+      
+      const rect = this.treeCanvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      if (this.abilityTree.isDragging) {
+        this.abilityTree.panX = e.clientX - this.abilityTree.dragStart.x;
+        this.abilityTree.panY = e.clientY - this.abilityTree.dragStart.y;
+      } else {
+        // Track hovered nodes
+        // Convert mouse viewport coord to canvas tree space (where center is 0,0)
+        const treeX = (mx - this.treeCanvas.width / 2 - this.abilityTree.panX) / this.abilityTree.zoom;
+        const treeY = (my - this.treeCanvas.height / 2 - this.abilityTree.panY) / this.abilityTree.zoom;
+        
+        let foundNode = null;
+        for (const key in this.abilityTree.nodes) {
+          const node = this.abilityTree.nodes[key];
+          const dist = Math.hypot(node.x - treeX, node.y - treeY);
+          const radius = node.type === 'root' ? 14 : node.type === 'keystone' ? 12 : 10;
+          
+          if (dist < radius + 4) {
+            foundNode = node;
+            break;
+          }
+        }
+        
+        this.hoveredNode = foundNode;
+        this.updateTreeTooltip(mx, my);
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      this.abilityTree.isDragging = false;
+    });
+
+    container.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const zoomFactor = 1.1;
+      if (e.deltaY < 0) {
+        // Zoom in
+        this.abilityTree.zoom = Math.min(this.abilityTree.maxZoom, this.abilityTree.zoom * zoomFactor);
+      } else {
+        // Zoom out
+        this.abilityTree.zoom = Math.max(this.abilityTree.minZoom, this.abilityTree.zoom / zoomFactor);
+      }
+    });
+
+    container.addEventListener('click', (e) => {
+      // Don't register click if dragging occurred
+      if (Math.hypot(e.clientX - this.abilityTree.dragStart.x - this.abilityTree.panX, e.clientY - this.abilityTree.dragStart.y - this.abilityTree.panY) > 8) {
+        return;
+      }
+      
+      if (this.hoveredNode) {
+        const unlocked = this.abilityTree.unlockNode(this.hoveredNode.id);
+        if (unlocked) {
+          this.updateHUD();
+          // Update tree stats display
+          document.getElementById('tree-shards').innerText = this.player.shards;
+          document.getElementById('tree-ap').innerText = this.player.ap;
+          
+          // Re-trigger tooltip update
+          const rect = this.treeCanvas.getBoundingClientRect();
+          this.updateTreeTooltip(e.clientX - rect.left, e.clientY - rect.top);
+        }
+      }
+    });
+
+    // Control buttons inside canvas
+    document.getElementById('btn-tree-zoom-in').addEventListener('click', () => {
+      this.abilityTree.zoom = Math.min(this.abilityTree.maxZoom, this.abilityTree.zoom * 1.2);
+    });
+    document.getElementById('btn-tree-zoom-out').addEventListener('click', () => {
+      this.abilityTree.zoom = Math.max(this.abilityTree.minZoom, this.abilityTree.zoom / 1.2);
+    });
+    document.getElementById('btn-tree-reset').addEventListener('click', () => {
+      this.abilityTree.zoom = 1.0;
+      this.abilityTree.panX = 0;
+      this.abilityTree.panY = 0;
+    });
+    document.getElementById('btn-refund-tree').addEventListener('click', () => {
+      // Refunding costs 10 shards as penalty
+      if (this.player.shards >= 10) {
+        this.player.shards -= 10;
+        const refundedPoints = this.abilityTree.refundAll();
+        this.player.ap += refundedPoints;
+        this.player.recalculateModifiers(this.abilityTree);
+        
+        document.getElementById('tree-shards').innerText = this.player.shards;
+        document.getElementById('tree-ap').innerText = this.player.ap;
+        this.updateHUD();
+        
+        if (this.audio) this.audio.playBuy();
+        this.player.saveGameState();
+        
+        this.particles.spawnText(this.player.x, this.player.y - 30, `REFUNDED ${refundedPoints} AP`, {
+          color: '#ff9f43',
+          fontSize: 12,
+          fontPixel: true
+        });
+      } else {
+        alert("Refunding requires 10 Aether Shards!");
+      }
+    });
+  }
+
+  updateTreeTooltip(mouseX, mouseY) {
+    const tooltip = document.getElementById('tree-tooltip');
+    
+    if (!this.hoveredNode) {
+      tooltip.classList.add('hidden');
+      return;
+    }
+
+    tooltip.classList.remove('hidden');
+    tooltip.style.left = `${mouseX + 15}px`;
+    tooltip.style.top = `${mouseY + 15}px`;
+
+    // Populate data
+    document.getElementById('node-tooltip-title').innerText = this.hoveredNode.name;
+    document.getElementById('node-tooltip-type').innerText = this.hoveredNode.type.toUpperCase();
+    document.getElementById('node-tooltip-desc').innerText = this.hoveredNode.desc;
+    document.getElementById('node-tooltip-cost').innerText = `Cost: ${this.hoveredNode.cost} AP`;
+
+    const statusEl = document.getElementById('node-tooltip-status');
+    if (this.hoveredNode.unlocked) {
+      statusEl.className = 'node-status-unlocked';
+      statusEl.innerText = 'UNLOCKED';
+    } else if (this.abilityTree.isUnlockable(this.hoveredNode)) {
+      statusEl.className = 'node-status-unlockable';
+      statusEl.innerText = 'UNLOCKABLE';
+    } else {
+      statusEl.className = 'node-status-locked';
+      statusEl.innerText = 'LOCKED (Prerequisite paths required / Insufficient AP)';
+    }
+  }
+
+  // ----------------------------------------------------
+  // GAME FLOW & STATE CONTROL
+  // ----------------------------------------------------
+  startNewGame() {
+    this.projectiles = [];
+    this.enemies = [];
+    this.items = [];
+    this.areaEffects = [];
+    this.score = 0;
+    this.kills = 0;
+    this.timeDilationTimer = 0;
+    
+    // Reset LevelManager to Wave 1
+    this.levelManager = new LevelManager(this);
+    
+    // Reset player transient states but preserve stats & inventory progression
+    this.player.x = this.levelManager.width / 2;
+    this.player.y = this.levelManager.height / 2;
+    this.player.vx = 0;
+    this.player.vy = 0;
+    this.player.hp = this.player.getMaxHp();
+    this.player.mp = this.player.getMaxMp();
+    this.player.iframeTimer = 0;
+    this.player.dashCooldownTimer = 0;
+    this.player.voltShieldTimer = 0;
+    this.player.voltShieldDamageTimer = 0;
+    this.player.wispAngle = 0;
+    this.player.wispShootTimer = 0;
+    this.player.dashSpeedBoostTimer = 0;
+    this.player.spellCooldowns = {
+      primary: 0,
+      secondary: 0,
+      utility: 0,
+      ultimate: 0,
+      extra: 0
+    };
+    this.player.buffs = {
+      haste: 0,
+      mana: 0,
+      damage: 0
+    };
+    
+    this.player.recalculateModifiers(this.abilityTree);
+    this.player.saveGameState();
+    
+    // Center camera on the player
+    this.camera = { x: this.player.x - this.canvas.width / 2, y: this.player.y - this.canvas.height / 2 };
+    
+    // Wave 1 start
+    this.levelManager.startNextWave();
+    
+    this.updateHUD();
+    
+    this.setState('PLAYING');
+  }
+
+  gameOver() {
+    this.setState('GAME_OVER');
+    document.getElementById('go-waves').innerText = this.levelManager.wave;
+    document.getElementById('go-kills').innerText = this.kills;
+    document.getElementById('go-score').innerText = this.score;
+    
+    this.player.saveGameState();
+
+    // Reset submission panel
+    document.getElementById('leaderboard-submission-box').classList.remove('hidden');
+    document.getElementById('submit-status').classList.add('hidden');
+    document.getElementById('player-name-input').value = '';
+
+    // Show rebirth panel if player is eligible (level 10+)
+    const rebirthPanel = document.getElementById('rebirth-panel');
+    const rebirthPreview = document.getElementById('rebirth-preview');
+    if (this.player.level >= 10) {
+      const nextRebirth = this.player.rebirthCount + 1;
+      rebirthPreview.innerHTML =
+        `Rebirth <strong style="color:#c39aff">#${nextRebirth}</strong> grants: ` +
+        `<span style="color:#f1c40f">+2 Starting AP</span> · ` +
+        `<span style="color:#ff4757">+5% Damage</span> · ` +
+        `<span style="color:#10ac84">+15% XP & Shards</span> · ` +
+        `<span style="color:#2ed573">+10 Max HP</span>` +
+        (this.player.rebirthCount > 0 ? `<br><span style="color:#b39dff">Current Rebirths: ${this.player.rebirthCount}</span>` : '');
+      rebirthPanel.classList.remove('hidden');
+    } else {
+      rebirthPanel.classList.add('hidden');
+    }
+  }
+
+  setState(newState) {
+    this.state = newState;
+    
+    if (this.audio) this.audio.playStateChange();
+    
+    // Keep HUD visible during inventory/spellmap so stats are readable
+    document.getElementById('hud').classList.toggle('hidden',
+      newState !== 'PLAYING' && newState !== 'INVENTORY' && newState !== 'SPELLMAP');
+    
+    this.showPanel(
+      newState === 'MENU'          ? 'panel-main-menu' :
+      newState === 'UPGRADE_TREE'  ? 'panel-ability-tree' :
+      newState === 'GAME_OVER'     ? 'panel-game-over' :
+      newState === 'PAUSED'        ? 'panel-pause' :
+      newState === 'SHOP'          ? 'panel-shop' :
+      newState === 'INVENTORY'     ? 'panel-inventory' :
+      newState === 'SPELLMAP'      ? 'panel-spellmap' : ''
+    );
+
+    if (newState === 'INVENTORY') {
+      this.refreshInventoryPanel();
+    }
+    if (newState === 'SPELLMAP') {
+      this.refreshSpellmapPanel();
+    }
+
+    if (newState === 'UPGRADE_TREE') {
+      this.resizeTreeCanvas();
+      document.getElementById('tree-shards').innerText = this.player.shards;
+      document.getElementById('tree-ap').innerText = this.player.ap;
+      const rebirthBadge = document.getElementById('tree-rebirth-badge');
+      const rebirthCountEl = document.getElementById('tree-rebirth-count');
+      if (this.player.rebirthCount > 0) {
+        rebirthBadge.classList.remove('hidden');
+        if (rebirthCountEl) rebirthCountEl.innerText = this.player.rebirthCount;
+      } else {
+        rebirthBadge.classList.add('hidden');
+      }
+    }
+
+    if (newState === 'SHOP') {
+      this.drawShopItems();
+      const shopShards = document.getElementById('shop-shards-value');
+      if (shopShards) {
+        shopShards.innerText = this.player.shards;
+      }
+    }
+  }
+
+  showPanel(panelId) {
+    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-how-to', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-spellmap'];
+    overlays.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.toggle('hidden', id !== panelId);
+      }
+    });
+  }
+
+  drawShopItems() {
+    const drawItem = (canvasId, assetKey) => {
+      const canvas = document.getElementById(canvasId);
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.imageSmoothingEnabled = false;
+        this.assets.draw(ctx, assetKey, canvas.width / 2, canvas.height / 2, canvas.width);
+      }
+    };
+    drawItem('shop-canvas-hp', 'item_hp');
+    drawItem('shop-canvas-mp', 'item_mp');
+    drawItem('shop-canvas-vit', 'item_heart');
+    drawItem('shop-canvas-mana', 'item_crystal');
+    drawItem('shop-canvas-relic', 'item_chest_relic');
+  }
+
+  // ----------------------------------------------------
+  // ENTITY SPAWNING AND ACTIONS
+  // ----------------------------------------------------
+  spawnProjectile(x, y, angle, spec, isPlayerOwned) {
+    let finalDmg = spec.damage;
+    if (isPlayerOwned) {
+      if (this.player.buffs.damage > 0) {
+        finalDmg *= 2; // Damage Buff active
+      }
+      // Apply player modifiers
+      if (spec.element === SPELL_TYPES.FIRE) finalDmg *= this.player.modifiers.fireDamage;
+      if (spec.element === SPELL_TYPES.FROST) finalDmg *= this.player.modifiers.frostDamage;
+      if (spec.element === SPELL_TYPES.LIGHTNING) finalDmg *= this.player.modifiers.lightningDamage;
+      if (spec.element === SPELL_TYPES.VOID) finalDmg *= this.player.modifiers.voidDamage;
+      if (spec.element === SPELL_TYPES.TIME) finalDmg *= this.player.modifiers.timeDamage;
+      finalDmg *= this.player.modifiers.allDamage;
+    }
+    
+    this.projectiles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * spec.speed,
+      vy: Math.sin(angle) * spec.speed,
+      damage: Math.round(finalDmg),
+      radius: spec.radius,
+      element: spec.element,
+      spriteKey: spec.sprite,
+      isPlayerOwned,
+      life: 3.0, // 3 seconds timeout
+      id: spec.id,
+      shootTimer: 0
+    });
+  }
+
+  spawnEnemy(x, y, type) {
+    let sx = x;
+    let sy = y;
+    if (this.levelManager) {
+      for (const obs of this.levelManager.obstacles) {
+        if (obs.type !== 'pillar') continue;
+        const dist = Math.hypot(sx - obs.x, sy - obs.y);
+        const minDistance = obs.radius + 10;
+        if (dist < minDistance) {
+          const angle = dist > 0.1 ? Math.atan2(sy - obs.y, sx - obs.x) : Math.random() * Math.PI * 2;
+          sx = obs.x + Math.cos(angle) * (minDistance + 2);
+          sy = obs.y + Math.sin(angle) * (minDistance + 2);
+        }
+      }
+    }
+    this.enemies.push(new Enemy(this, sx, sy, type));
+  }
+
+  spawnItem(x, y, type, value) {
+    this.items.push({
+      x,
+      y,
+      type, // 'shard', 'hp', 'mp'
+      value,
+      radius: 6,
+      vx: (Math.random() - 0.5) * 50,
+      vy: (Math.random() - 0.5) * 50,
+      friction: 0.9
+    });
+  }
+
+  spawnAreaEffect(x, y, radius, type, duration) {
+    this.areaEffects.push({
+      x,
+      y,
+      radius,
+      type, // 'fire_pool', 'steam_cloud', 'singularity', 'chrono_slow'
+      duration,
+      maxDuration: duration,
+      tickTimer: 0
+    });
+  }
+
+  // ----------------------------------------------------
+  // SPELL & COMBO TRIGGER HELPERS
+  // ----------------------------------------------------
+  /**
+   * Remove all enemies flagged .dead this frame, then apply pending spawns.
+   * Called once at the end of the update loop so no mid-iteration splice occurs.
+   */
+  flushDeadEnemies() {
+    // Remove dead enemies (filter preserves order, no index shifting during iteration)
+    this.enemies = this.enemies.filter(e => !e.dead);
+
+    // Apply pending enemy spawns (e.g. slime splits)
+    if (this.pendingEnemySpawns && this.pendingEnemySpawns.length > 0) {
+      for (const s of this.pendingEnemySpawns) {
+        this.spawnEnemy(s.x, s.y, s.type);
+        const mini = this.enemies[this.enemies.length - 1];
+        if (mini && s.kbx !== undefined) mini.applyKnockback(s.kbx, s.kby);
+      }
+      this.pendingEnemySpawns = [];
+    }
+  }
+
+  triggerChainLightning(startX, startY, damage, maxJumps, jumpRange) {
+    if (this.audio) this.audio.playLightning();
+    let currentX = startX;
+    let currentY = startY;
+    const jumpedTargets = new Set();
+
+    for (let j = 0; j < maxJumps; j++) {
+      let nearest = null;
+      let minDist = jumpRange;
+
+      this.enemies.forEach((enemy) => {
+        if (!enemy.dead && !jumpedTargets.has(enemy)) {
+          const dist = Math.hypot(enemy.x - currentX, enemy.y - currentY);
+          if (dist < minDist) {
+            minDist = dist;
+            nearest = enemy;
+          }
+        }
+      });
+
+      if (!nearest) break;
+
+      // Jump to target
+      jumpedTargets.add(nearest);
+      
+      // Draw lightning bolt path particle
+      const steps = 6;
+      let lx = currentX;
+      let ly = currentY;
+      for (let s = 1; s <= steps; s++) {
+        const ratio = s / steps;
+        const targetX = currentX + (nearest.x - currentX) * ratio + (Math.random() - 0.5) * 15;
+        const targetY = currentY + (nearest.y - currentY) * ratio + (Math.random() - 0.5) * 15;
+        
+        this.particles.spawn(lx, ly, {
+          vx: 0, vy: 0,
+          color: '#fff200',
+          size: 2,
+          life: 0.25,
+          glow: true,
+          shape: 'spark'
+        });
+        lx = targetX;
+        ly = targetY;
+      }
+
+      // Final step to enemy
+      this.particles.spawn(lx, ly, {
+        vx: 0, vy: 0,
+        color: '#fff200',
+        size: 3,
+        life: 0.2,
+        glow: true,
+        shape: 'spark'
+      });
+
+      // Apply shock damage — guard against enemy already dead this frame
+      if (nearest.hp <= 0) break;
+      nearest.takeDamage(damage, false, this);
+      if (nearest.hp > 0) nearest.applyStatus(SPELL_TYPES.LIGHTNING, 4.0);
+
+      currentX = nearest.x;
+      currentY = nearest.y;
+    }
+  }
+
+  triggerAoEFreeze(x, y, radius, duration) {
+    if (this.audio) this.audio.playFreeze();
+    this.enemies.forEach((enemy) => {
+      if (enemy.dead) return;
+      const dist = Math.hypot(enemy.x - x, enemy.y - y);
+      if (dist <= radius) {
+        enemy.applyStatus(SPELL_TYPES.FROST, duration);
+        this.particles.createExplosion(enemy.x, enemy.y, '#10ac84', 6, 40, 2);
+      }
+    });
+  }
+
+  uiNotifyCombo(comboName, comboClass) {
+    const alertBox = document.getElementById('combo-alert-container');
+    if (!alertBox) return;
+
+    const el = document.createElement('div');
+    el.className = `combo-popup ${comboClass}`;
+    el.innerText = comboName;
+    alertBox.appendChild(el);
+
+    // Remove element after animation completes
+    setTimeout(() => {
+      el.remove();
+    }, 1500);
+  }
+
+  // ----------------------------------------------------
+  // LEADERBOARD INTEGRATION
+  // ----------------------------------------------------
+  fetchLeaderboard() {
+    fetch('/api/leaderboard')
+      .then((res) => res.json())
+      .then((data) => {
+        const body = document.getElementById('leaderboard-body');
+        body.innerHTML = '';
+        data.forEach((entry, idx) => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>#${idx + 1}</td>
+            <td class="text-highlight">${entry.name}</td>
+            <td class="text-glow">${entry.score}</td>
+            <td>W${entry.wave}</td>
+            <td>Lvl ${entry.level}</td>
+          `;
+          body.appendChild(row);
+        });
+      })
+      .catch((e) => {
+        console.warn("Could not fetch leaderboard data, displaying fallback local values: ", e);
+        // Fallback local display
+        const body = document.getElementById('leaderboard-body');
+        body.innerHTML = '<tr><td colspan="5" class="text-center">Backend leaderboard offline. Play local mode!</td></tr>';
+      });
+  }
+
+  submitHighScore() {
+    const input = document.getElementById('player-name-input');
+    const name = input.value.trim();
+    if (!name) {
+      alert("Please enter a Rune Name!");
+      return;
+    }
+
+    const payload = {
+      name: name,
+      score: this.score,
+      wave: this.levelManager.wave,
+      level: this.player.level
+    };
+
+    const statusEl = document.getElementById('submit-status');
+    statusEl.innerText = "Submitting score to archives...";
+    statusEl.classList.remove('hidden');
+    
+    fetch('/api/leaderboard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then((res) => res.json())
+      .then(() => {
+        statusEl.innerText = "Highscore recorded! Legend saved.";
+        document.getElementById('leaderboard-submission-box').classList.add('hidden');
+      })
+      .catch((err) => {
+        console.warn("API submission error: ", err);
+        statusEl.innerText = "Error submitting score. Leaderboard backend is local-only.";
+        statusEl.style.color = '#ff4757';
+      });
+  }
+
+  drawHTMLIcon(canvasId, spriteKey, size = 12) {
+    const canvas = document.getElementById(canvasId);
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = false;
+      this.assets.draw(ctx, spriteKey, canvas.width / 2, canvas.height / 2, size);
+    }
+  }
+
+  drawHTMLIcons() {
+    this.drawHTMLIcon('icon-shard-hud', 'item_shard', 12);
+    this.drawHTMLIcon('icon-shard-shop', 'item_shard', 12);
+    this.drawHTMLIcon('icon-ap-hud', 'item_crystal', 12);
+    
+    // Combo lists
+    this.drawHTMLIcon('combo-fire-1', 'proj_fire', 10);
+    this.drawHTMLIcon('combo-fire-2', 'proj_fire', 10);
+    this.drawHTMLIcon('combo-frost-1', 'proj_frost', 10);
+    this.drawHTMLIcon('combo-frost-2', 'proj_frost', 10);
+    this.drawHTMLIcon('combo-lightning-1', 'proj_lightning', 10);
+    this.drawHTMLIcon('combo-lightning-2', 'proj_lightning', 10);
+    this.drawHTMLIcon('combo-void-1', 'proj_void', 10);
+    this.drawHTMLIcon('combo-time-1', 'item_wisp', 10);
+  }
+
+  // ----------------------------------------------------
+  // UPDATE HUD STATS DISPLAY
+  // ----------------------------------------------------
+  updateHUD() {
+    if (this.state !== 'PLAYING') return;
+
+    // HP / Mana values
+    const hpPct = (this.player.hp / this.player.getMaxHp()) * 100;
+    document.getElementById('hud-hp-fill').style.width = `${hpPct}%`;
+    document.getElementById('hud-hp-text').innerText = `${Math.ceil(this.player.hp)} / ${this.player.getMaxHp()}`;
+
+    const mpPct = (this.player.mp / this.player.getMaxMp()) * 100;
+    document.getElementById('hud-mp-fill').style.width = `${mpPct}%`;
+    document.getElementById('hud-mp-text').innerText = `${Math.ceil(this.player.mp)} / ${this.player.getMaxMp()}`;
+
+    // Level & XP
+    document.getElementById('hud-level-text').innerText = `Lvl ${this.player.level}`;
+    const xpPct = (this.player.xp / this.player.xpNeeded) * 100;
+    document.getElementById('hud-xp-fill').style.width = `${xpPct}%`;
+
+    // Wave countdown timer formatting
+    document.getElementById('hud-wave-title').innerText = `WAVE ${this.levelManager.wave}`;
+    const min = Math.floor(this.levelManager.waveTimer / 60);
+    const sec = Math.floor(this.levelManager.waveTimer % 60);
+    document.getElementById('hud-wave-timer').innerText = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+    document.getElementById('hud-enemies-left').innerText = `Enemies: ${this.enemies.length}`;
+
+    // Shards and Ability Points indicators
+    document.getElementById('hud-shards-value').innerText = this.player.shards;
+    
+    const apNotif = document.getElementById('hud-ap-notification');
+    if (this.player.ap > 0) {
+      apNotif.classList.remove('hidden');
+      document.getElementById('hud-ap-value').innerText = this.player.ap;
+    } else {
+      apNotif.classList.add('hidden');
+    }
+
+    // Show/hide extra slots based on maxSpellSlots
+    const slot6El = document.getElementById('spell-slot-6');
+    const slot7El = document.getElementById('spell-slot-7');
+    if (slot6El) slot6El.classList.toggle('hidden', this.player.maxSpellSlots < 6);
+    if (slot7El) slot7El.classList.toggle('hidden', this.player.maxSpellSlots < 7);
+
+    // Hotbar Quickslots setup
+    const spellSlotsMapping = [
+      { element: 'primary',   id: 1, key: 'LMB'   },
+      { element: 'secondary', id: 2, key: 'RMB'   },
+      { element: 'utility',   id: 3, key: 'Space' },
+      { element: 'ultimate',  id: 4, key: 'Q'     },
+      { element: 'extra',     id: 5, key: 'E'     },
+      { element: 'slot6',     id: 6, key: '1'     },
+      { element: 'slot7',     id: 7, key: '2'     },
+    ];
+
+    spellSlotsMapping.forEach((slot) => {
+      const spellId = this.player.spellSlots[slot.element];
+      const slotEl = document.getElementById(`spell-slot-${slot.id}`);
+      const canvas = document.getElementById(`spell-icon-${slot.id}`);
+      const tooltip = slotEl.querySelector('.tooltip');
+      const cdOverlay = document.getElementById(`cooldown-${slot.id}`);
+
+      if (spellId) {
+        slotEl.classList.remove('locked');
+        slotEl.className = `spell-slot ${SpellBook[spellId].element}`; // add color class fire/frost/lightning
+        
+        // Draw icon onto canvas
+        const iconCtx = canvas.getContext('2d');
+        iconCtx.clearRect(0, 0, 32, 32);
+        this.assets.draw(iconCtx, `icon_${spellId}`, 16, 16, 32);
+        
+        // Populate tooltips
+        const spell = SpellBook[spellId];
+        tooltip.innerHTML = `<strong>${spell.name}</strong><br>Mana: ${spell.manaCost}<br>${spell.description}`;
+        
+        // Cooldown height overlay scaling
+        const activeCD = this.player.spellCooldowns[slot.element];
+        const maxCD = this.player.getSpellCooldown(spellId);
+        
+        if (activeCD > 0 && maxCD > 0) {
+          const cdPct = (activeCD / maxCD) * 100;
+          cdOverlay.style.height = `${cdPct}%`;
+        } else {
+          cdOverlay.style.height = '0%';
+        }
+      } else {
+        slotEl.className = 'spell-slot locked';
+        const iconCtx = canvas.getContext('2d');
+        iconCtx.clearRect(0, 0, 32, 32);
+        tooltip.innerText = 'Spell slot locked. Research nodes in the Runic Web to equip magic.';
+        cdOverlay.style.height = '0%';
+      }
+    });
+
+    // Render HUD relic strip — dynamic, shows up to maxInventorySlots slots
+    const invContainer = document.getElementById('inventory-container');
+    if (invContainer) {
+      // Only rebuild DOM if slot count changed (avoids flicker every frame)
+      const currentSlotCount = invContainer.querySelectorAll('.inv-slot').length;
+      const neededSlots = Math.min(this.player.maxInventorySlots, 6); // HUD shows max 6 to stay compact
+      if (currentSlotCount !== neededSlots) {
+        invContainer.innerHTML = '';
+        for (let i = 0; i < neededSlots; i++) {
+          invContainer.innerHTML += `<div class="inv-slot empty" id="inv-slot-${i+1}">
+            <canvas class="inv-slot-canvas" id="inv-canvas-${i+1}" width="16" height="16"></canvas>
+            <div class="tooltip" id="tooltip-inv-${i+1}">Empty Slot</div>
+          </div>`;
+        }
+      }
+      for (let i = 0; i < neededSlots; i++) {
+        const relic   = this.player.inventory[i];
+        const slotEl  = document.getElementById(`inv-slot-${i+1}`);
+        const canvas  = document.getElementById(`inv-canvas-${i+1}`);
+        const tooltip = document.getElementById(`tooltip-inv-${i+1}`);
+        if (!slotEl || !canvas || !tooltip) continue;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (relic) {
+          slotEl.classList.remove('empty');
+          ctx.imageSmoothingEnabled = false;
+          this.assets.draw(ctx, relic.sprite, canvas.width / 2, canvas.height / 2, canvas.width);
+          tooltip.innerHTML = `<strong>${relic.name}</strong><br>${relic.desc}`;
+        } else {
+          slotEl.classList.add('empty');
+          tooltip.innerHTML = 'Empty Slot';
+        }
+      }
+    }
+
+    // Bottom visual XP bar
+    const bottomXpBar = document.getElementById('hud-bottom-xp-bar');
+    if (bottomXpBar) {
+      bottomXpBar.classList.remove('hidden');
+      const bottomXpFill = document.getElementById('hud-bottom-xp-fill');
+      const bottomXpText = document.getElementById('hud-bottom-xp-text');
+      if (bottomXpFill) {
+        bottomXpFill.style.width = `${xpPct}%`;
+      }
+      if (bottomXpText) {
+        bottomXpText.innerText = `XP: ${Math.ceil(this.player.xp)} / ${this.player.xpNeeded}`;
+      }
+    }
+  }
+
+  // ----------------------------------------------------
+  // THE GAME LOOP
+  // ----------------------------------------------------
+  loop(time) {
+    // Time delta step
+    let dt = (time - this.lastTime) / 1000.0;
+    this.lastTime = time;
+
+    // Prevent huge jumps when tabbing out
+    if (dt > 0.1) dt = 0.1;
+    this.frameIndex += dt;
+
+    if (this.state === 'PLAYING') {
+      this.update(dt);
+      this.draw();
+    } else if (this.state === 'SHOP') {
+      this.draw();
+    } else if (this.state === 'UPGRADE_TREE') {
+      this.abilityTree.draw(this.treeCanvas, this.treeCtx);
+    }
+    
+    requestAnimationFrame((t) => this.loop(t));
+  }
+
+  // ----------------------------------------------------
+  // ENTITY UPDATES
+  // ----------------------------------------------------
+  update(dt) {
+    // Check Chrono Shift speed dilation (Slows enemies/projectiles by 80%)
+    let enemyDt = dt;
+    if (this.timeDilationTimer > 0) {
+      this.timeDilationTimer -= dt;
+      enemyDt = dt * 0.20; // slow down updates
+      
+      // Spawn timeline warp particles
+      if (Math.random() < 0.25) {
+        this.particles.spawn(Math.random() * this.canvas.width + this.camera.x, Math.random() * this.canvas.height + this.camera.y, {
+          vx: 0, vy: 10,
+          color: '#ff9f43',
+          size: 1.5,
+          life: 0.8,
+          friction: 1.0
+        });
+      }
+    }
+
+    // Screen Shake decay
+    if (this.screenShake > 0) {
+      this.screenShake *= 0.9;
+      if (this.screenShake < 0.1) this.screenShake = 0;
+    }
+
+    // Update Player controller
+    this.player.vx = 0;
+    this.player.vy = 0;
+    if (this.keys['w'] || this.keys['arrowup']) this.player.vy -= 1;
+    if (this.keys['s'] || this.keys['arrowdown']) this.player.vy += 1;
+    if (this.keys['a'] || this.keys['arrowleft']) this.player.vx -= 1;
+    if (this.keys['d'] || this.keys['arrowright']) this.player.vx += 1;
+    
+    // Normalize diagonal velocity vectors
+    if (this.player.vx !== 0 && this.player.vy !== 0) {
+      const len = Math.hypot(this.player.vx, this.player.vy);
+      this.player.vx /= len;
+      this.player.vy /= len;
+    }
+
+    this.player.update(dt);
+
+    // Auto cast primary/secondary mouse spells on hold
+    const worldMouse = this.getWorldMouse();
+    const targetAngle = Math.atan2(
+      worldMouse.y - this.player.y,
+      worldMouse.x - this.player.x
+    );
+
+    if (this.isLeftMouseDown) this.player.castSpell('primary', targetAngle);
+    if (this.isRightMouseDown) this.player.castSpell('secondary', targetAngle);
+
+    // Smooth Camera Follow
+    const cameraSpeed = 0.08;
+    const targetCamX = this.player.x - this.canvas.width / 2;
+    const targetCamY = this.player.y - this.canvas.height / 2;
+    this.camera.x += (targetCamX - this.camera.x) * cameraSpeed;
+    this.camera.y += (targetCamY - this.camera.y) * cameraSpeed;
+
+    // Bound Camera inside Level borders
+    this.camera.x = Math.max(0, Math.min(this.levelManager.width - this.canvas.width, this.camera.x));
+    this.camera.y = Math.max(0, Math.min(this.levelManager.height - this.canvas.height, this.camera.y));
+
+    // Update Level waves and events
+    this.levelManager.update(dt);
+
+    // Update Projectiles
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const proj = this.projectiles[i];
+      proj.life -= dt;
+      
+      // Update coordinates
+      // Projectiles are slowed during Chrono Dilation if enemy-owned
+      const projDt = proj.isPlayerOwned ? dt : enemyDt;
+      proj.x += proj.vx * projDt;
+      proj.y += proj.vy * projDt;
+
+      // Blizzard Orb continuous shards emission
+      if (proj.id === 'blizzard_orb') {
+        proj.shootTimer += projDt;
+        if (proj.shootTimer >= 0.2) {
+          proj.shootTimer = 0;
+          
+          let nearest = null;
+          let minDist = 150;
+          this.enemies.forEach((enemy) => {
+            const dist = Math.hypot(enemy.x - proj.x, enemy.y - proj.y);
+            if (dist < minDist) {
+              minDist = dist;
+              nearest = enemy;
+            }
+          });
+          
+          if (nearest) {
+            const angle = Math.atan2(nearest.y - proj.y, nearest.x - proj.x);
+            this.projectiles.push({
+              x: proj.x,
+              y: proj.y,
+              vx: Math.cos(angle) * 300,
+              vy: Math.sin(angle) * 300,
+              damage: Math.round(proj.damage * 0.75),
+              radius: 4,
+              element: SPELL_TYPES.FROST,
+              spriteKey: 'proj_frost_spike',
+              isPlayerOwned: true,
+              life: 1.5,
+              id: 'blizzard_shard'
+            });
+          }
+        }
+      }
+
+      // Projectile particles tail
+      if (Math.random() < 0.4) {
+        const colors = {
+          [SPELL_TYPES.FIRE]: '#ff4757',
+          [SPELL_TYPES.FROST]: '#10ac84',
+          [SPELL_TYPES.LIGHTNING]: '#f1c40f',
+          [SPELL_TYPES.VOID]: '#a55eea'
+        };
+        this.particles.spawn(proj.x, proj.y, {
+          vx: -proj.vx * 0.15,
+          vy: -proj.vy * 0.15,
+          color: colors[proj.element] || '#ffffff',
+          size: Math.random() * 2 + 1.5,
+          life: 0.35,
+          glow: true
+        });
+      }
+
+      // Check level obstacles collisions
+      let hitObstacle = false;
+      this.levelManager.obstacles.forEach((obs) => {
+        const dist = Math.hypot(proj.x - obs.x, proj.y - obs.y);
+        if (dist <= proj.radius + obs.radius) {
+          hitObstacle = true;
+          
+          // Explode barrel
+          if (obs.type === 'explosive_barrel') {
+            this.triggerExplosiveBarrel(obs);
+          }
+        }
+      });
+
+      const insideLevel = proj.x >= 0 && proj.x <= this.levelManager.width &&
+                          proj.y >= 0 && proj.y <= this.levelManager.height;
+
+      if (proj.life <= 0 || hitObstacle || !insideLevel) {
+        this.projectiles.splice(i, 1);
+        continue;
+      }
+
+      // Check entity collisions
+      if (proj.isPlayerOwned) {
+        // Player spell vs Enemies
+        for (let e = 0; e < this.enemies.length; e++) {
+          const enemy = this.enemies[e];
+          if (enemy.dead) continue;
+          const dist = Math.hypot(proj.x - enemy.x, proj.y - enemy.y);
+          
+          if (dist <= proj.radius + enemy.radius) {
+            // Check if projectile has already hit this enemy
+            if (!proj.hitEnemies) proj.hitEnemies = new Set();
+            if (proj.hitEnemies.has(enemy)) {
+              continue;
+            }
+            proj.hitEnemies.add(enemy);
+
+            // Apply damage & statuses combos
+            const isCrit = Math.random() < this.player.modifiers.critChance;
+            const finalDmg = isCrit ? Math.round(proj.damage * 2) : proj.damage;
+            
+            // Check elemental status combos
+            processCombo(enemy, proj.element, this);
+            
+            enemy.takeDamage(finalDmg, isCrit, this);
+            enemy.applyKnockback(proj.vx * 0.25, proj.vy * 0.25);
+
+            // Tesla Bolt Chain Lightning jumps
+            if (proj.id === 'tesla_bolt') {
+              const jumps = 3 + (this.player.modifiers.teslaJumps || 0);
+              this.triggerChainLightning(enemy.x, enemy.y, proj.damage, jumps, 120);
+              if (this.audio) this.audio.playLightning();
+              if (this.player.modifiers.teslaManaGain > 0) {
+                this.player.mp = Math.min(this.player.getMaxMp(), this.player.mp + this.player.modifiers.teslaManaGain);
+              }
+            }
+
+            // Storm Call chain hit SFX
+            if (proj.element === SPELL_TYPES.LIGHTNING && proj.id === 'wisp_shot') {
+              // wisp shots are silent individually to avoid spam
+            } else if (proj.element === SPELL_TYPES.LIGHTNING) {
+              if (this.audio) this.audio.playLightning();
+            }
+
+            // Frost hit SFX
+            if (proj.element === SPELL_TYPES.FROST && Math.random() < 0.4) {
+              if (this.audio) this.audio.playFreeze();
+            }
+
+            // Fireball Explosion Keystone modifier
+            if (proj.element === SPELL_TYPES.FIRE && this.player.modifiers.fireballExplode) {
+              this.spawnAreaEffect(enemy.x, enemy.y, 60, 'fireball_burst', 0.1);
+              this.particles.createExplosion(enemy.x, enemy.y, '#ffa502', 12, 100, 3);
+              if (this.audio) this.audio.playExplosion();
+            }
+
+            // Absolute Zero keystone: Ice Nova fully freezes instead of chills
+            if (proj.id === 'ice_nova_shard' && this.player.modifiers.iceNovaFreeze) {
+              enemy.applyStatus(SPELL_TYPES.FROST, 3.0); // hard freeze
+              this.particles.createExplosion(enemy.x, enemy.y, '#7ed6df', 6, 40, 1.5);
+            }
+
+            // Shadow Blink keystone: explosion does double damage (handled in spell cast, flag used there)
+            // timeWarpHaste keystone: handled in spell cast
+
+            // Piercing Frost Spike, Blizzard Orb, and Ice Nova check
+            const isPiercing = this.player.modifiers.frostPierce
+              || proj.id === 'blizzard_orb'
+              || proj.id === 'ice_nova_shard';
+            if (proj.element === SPELL_TYPES.FROST && isPiercing) {
+              // Pierce: do not destroy, reduce life to limit total hits
+              proj.life -= 0.3;
+            } else {
+              this.projectiles.splice(i, 1);
+              break;
+            }
+          }
+        }
+      } else {
+        // Enemy projectile vs Player
+        const dist = Math.hypot(proj.x - this.player.x, proj.y - this.player.y);
+        if (dist <= proj.radius + this.player.radius) {
+          if (this.player.iframeTimer > 0) {
+            // Deflect enemy projectiles during active dash frames
+            this.projectiles.splice(i, 1);
+            this.particles.createExplosion(proj.x, proj.y, '#ff9f43', 6, 60, 1.5);
+            this.particles.spawnText(proj.x, proj.y - 12, "DEFLECTED", {
+              color: '#ff9f43',
+              fontSize: 8,
+              fontPixel: true,
+              life: 0.6
+            });
+          } else {
+            this.player.takeDamage(proj.damage, this);
+            this.projectiles.splice(i, 1);
+          }
+        }
+      }
+    }
+
+    // Update Area Effects (Singularities, Steam clouds, slow zones)
+    for (let i = this.areaEffects.length - 1; i >= 0; i--) {
+      const ae = this.areaEffects[i];
+      ae.duration -= dt;
+      if (ae.duration <= 0) {
+        this.areaEffects.splice(i, 1);
+        continue;
+      }
+
+      // Ticks damage / status effects every 0.2s
+      ae.tickTimer += dt;
+      const isTick = ae.tickTimer >= 0.25;
+      if (isTick) ae.tickTimer = 0;
+
+      // Effect behaviors
+      if (ae.type === 'singularity') {
+        // Pull enemies into vortex center
+        this.enemies.forEach((enemy) => {
+          if (enemy.dead) return;
+          const dx = ae.x - enemy.x;
+          const dy = ae.y - enemy.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < ae.radius) {
+            const pullForce = (1.0 - dist / ae.radius) * 160;
+            enemy.x += (dx / dist) * pullForce * enemyDt;
+            enemy.y += (dy / dist) * pullForce * enemyDt;
+          }
+        });
+
+        // Pull player into vortex center
+        const pDx = ae.x - this.player.x;
+        const pDy = ae.y - this.player.y;
+        const pDist = Math.hypot(pDx, pDy);
+        if (pDist < ae.radius) {
+          const pullForce = (1.0 - pDist / ae.radius) * 70;
+          this.player.x += (pDx / pDist) * pullForce * dt;
+          this.player.y += (pDy / pDist) * pullForce * dt;
+        }
+
+        // Pull player fire projectiles and ignite singularity (Supernova Combo!)
+        if (this.player.modifiers.supernovaEnabled) {
+          for (let p = this.projectiles.length - 1; p >= 0; p--) {
+            const proj = this.projectiles[p];
+            if (proj.isPlayerOwned && proj.element === SPELL_TYPES.FIRE) {
+              const dist = Math.hypot(proj.x - ae.x, proj.y - ae.y);
+              if (dist < ae.radius) {
+                // Ignite Nova! Remove projectile
+                this.projectiles.splice(p, 1);
+                
+                // Explode Singularity! Replace this area effect with a supernova blast
+                this.areaEffects.splice(i, 1);
+                this.triggerSupernova(ae.x, ae.y);
+                break;
+              }
+            }
+          }
+        }
+
+        // Singularity visual particles
+        if (Math.random() < 0.7) {
+          const pAngle = Math.random() * Math.PI * 2;
+          const px = ae.x + Math.cos(pAngle) * ae.radius;
+          const py = ae.y + Math.sin(pAngle) * ae.radius;
+          this.particles.spawn(px, py, {
+            vx: -Math.cos(pAngle) * 90,
+            vy: -Math.sin(pAngle) * 90,
+            color: '#a55eea',
+            size: 2,
+            life: 0.45,
+            glow: true
+          });
+        }
+      } 
+      
+      else if (ae.type === 'steam_cloud') {
+        if (isTick) {
+          this.enemies.forEach((enemy) => {
+            if (enemy.dead) return;
+            const dist = Math.hypot(enemy.x - ae.x, enemy.y - ae.y);
+            if (dist <= ae.radius) enemy.takeDamage(5, false, this);
+          });
+        }
+        
+        // Steam steam particle loops
+        if (Math.random() < 0.2) {
+          this.particles.spawn(ae.x + (Math.random() - 0.5) * ae.radius, ae.y + (Math.random() - 0.5) * ae.radius, {
+            vx: (Math.random() - 0.5) * 10,
+            vy: -20 - Math.random() * 20,
+            color: '#f5f6fa',
+            size: Math.random() * 8 + 6,
+            life: 0.5
+          });
+        }
+      }
+
+      else if (ae.type === 'fire_pool' || ae.type === 'fireball_burst') {
+        if (isTick) {
+          this.enemies.forEach((enemy) => {
+            if (enemy.dead) return;
+            const dist = Math.hypot(enemy.x - ae.x, enemy.y - ae.y);
+            if (dist <= ae.radius) {
+              enemy.takeDamage(6, false, this);
+              if (!enemy.dead) enemy.applyStatus(SPELL_TYPES.FIRE, 3.0);
+            }
+          });
+        }
+      }
+
+      else if (ae.type === 'chrono_slow') {
+        // Slow down enemies in zone
+        this.enemies.forEach((enemy) => {
+          if (enemy.type !== 'warden') {
+            const dist = Math.hypot(enemy.x - ae.x, enemy.y - ae.y);
+            if (dist <= ae.radius) {
+              enemy.applyStatus(SPELL_TYPES.FROST, 0.4); // apply brief freezing slow
+            }
+          }
+        });
+      }
+
+      else if (ae.type === 'frost_slow') {
+        // Slow down enemies in zone
+        this.enemies.forEach((enemy) => {
+          const dist = Math.hypot(enemy.x - ae.x, enemy.y - ae.y);
+          if (dist <= ae.radius) {
+            enemy.applyStatus(SPELL_TYPES.FROST, 0.4);
+          }
+        });
+
+        // Spawn some frost particles on floor
+        if (Math.random() < 0.15) {
+          this.particles.spawn(ae.x + (Math.random() - 0.5) * ae.radius * 1.5, ae.y + (Math.random() - 0.5) * ae.radius * 1.5, {
+            vx: 0,
+            vy: (Math.random() - 0.5) * 5,
+            color: '#7ed6df',
+            size: Math.random() * 2 + 1,
+            life: 0.4
+          });
+        }
+      }
+    }
+
+    // Update Enemies AI — skip enemies already marked dead this frame
+    for (let i = 0; i < this.enemies.length; i++) {
+      if (!this.enemies[i].dead) {
+        this.enemies[i].update(enemyDt, this.player);
+      }
+    }
+
+    // Flush dead enemies + process pending spawns in one safe batch
+    this.flushDeadEnemies();
+
+    // Update Loot Items & Magnets
+    for (let i = this.items.length - 1; i >= 0; i--) {
+      const item = this.items[i];
+      
+      // Decay explosion velocity forces
+      item.vx *= item.friction;
+      item.vy *= item.friction;
+      item.x += item.vx * dt;
+      item.y += item.vy * dt;
+
+      // Magnet pull to player if close
+      const dist = Math.hypot(this.player.x - item.x, this.player.y - item.y);
+      const pullRange = 120;
+      
+      if (dist <= pullRange) {
+        const pullSpeed = (1.0 - dist / pullRange) * 220 + 60;
+        item.x += ((this.player.x - item.x) / dist) * pullSpeed * dt;
+        item.y += ((this.player.y - item.y) / dist) * pullSpeed * dt;
+      }
+
+      // Collect item check
+      if (dist < this.player.radius + item.radius) {
+        let collected = true;
+        if (item.type === 'shard') {
+          this.player.gainXp(item.value); // shard value is xp amount
+          // Apply rebirth shard bonus
+          const shardBonus = 1 + (this.player.rebirthBonuses.shardGain || 0);
+          this.player.shards += Math.floor(shardBonus);
+          if (Math.random() < (shardBonus % 1)) this.player.shards += 1; // fractional bonus
+          if (this.audio) this.audio.playCollect();
+        } else if (item.type === 'hp') {
+          this.player.hp = Math.min(this.player.getMaxHp(), this.player.hp + item.value);
+          this.particles.spawnText(this.player.x, this.player.y - 20, `+${item.value} HP`, {
+            color: '#ff4757',
+            fontSize: 10,
+            fontPixel: true
+          });
+        } else if (item.type === 'mp') {
+          this.player.mp = Math.min(this.player.getMaxMp(), this.player.mp + item.value);
+          this.particles.spawnText(this.player.x, this.player.y - 20, `+${item.value} MP`, {
+            color: '#1e90ff',
+            fontSize: 10,
+            fontPixel: true
+          });
+        } else if (item.type === 'relic') {
+          if (this.player.inventory.length < this.player.maxInventorySlots) {
+            const relicData = item.value;
+            this.player.inventory.push(relicData);
+            this.player.recalculateModifiers(this.abilityTree);
+            this.player.saveGameState();
+            this.particles.spawnText(this.player.x, this.player.y - 20, `+${relicData.name}`, {
+              color: '#a55eea',
+              fontSize: 10,
+              fontPixel: true
+            });
+            this.particles.createExplosion(item.x, item.y, '#a55eea', 8, 80, 2.5);
+          } else {
+            collected = false;
+            if (!this._lastInvFullTextTime || Date.now() - this._lastInvFullTextTime > 1500) {
+              this.particles.spawnText(this.player.x, this.player.y - 20, "INVENTORY FULL", {
+                color: '#ff4757',
+                fontSize: 10,
+                fontPixel: true
+              });
+              this._lastInvFullTextTime = Date.now();
+            }
+          }
+        }
+        
+        if (collected) {
+          if (item.type !== 'relic') {
+            this.particles.createExplosion(item.x, item.y, '#eccc68', 6, 60, 2);
+          }
+          this.items.splice(i, 1);
+          this.updateHUD();
+        }
+      }
+    }
+
+    // Update Particles
+    this.particles.update(dt);
+
+    // Keep HUD synchronized
+    this.updateHUD();
+  }
+
+  // ----------------------------------------------------
+  // SPECIAL COMBO DYNAMICS TRIGGERS
+  // ----------------------------------------------------
+  triggerSupernova(x, y) {
+    this.screenShake = 20;
+    if (this.audio) this.audio.playExplosion();
+    this.uiNotifyCombo("SUPERNOVA SINGULARITY!", "supernova");
+
+    // Spawn massive fiery shockwave
+    this.spawnAreaEffect(x, y, 180, 'fire_pool', 2.5);
+
+    // Apply high burst critical damage to enemies caught in blast
+    this.enemies.forEach((enemy) => {
+      if (enemy.dead) return;
+      const dist = Math.hypot(enemy.x - x, enemy.y - y);
+      if (dist <= 180) {
+        enemy.takeDamage(100, true, this);
+        if (!enemy.dead) {
+          const angle = Math.atan2(enemy.y - y, enemy.x - x);
+          enemy.applyKnockback(Math.cos(angle) * 350, Math.sin(angle) * 350);
+        }
+      }
+    });
+
+    // Spawn rich fire particles
+    const particleCount = 40;
+    for (let i = 0; i < particleCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 100 + Math.random() * 220;
+      this.particles.spawn(x, y, {
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        color: '#ffa502',
+        size: Math.random() * 6 + 4,
+        life: 0.6 + Math.random() * 0.4,
+        friction: 0.92,
+        glow: true
+      });
+    }
+  }
+
+  triggerExplosiveBarrel(obs) {
+    const idx = this.levelManager.obstacles.indexOf(obs);
+    if (idx !== -1) {
+      this.levelManager.obstacles.splice(idx, 1);
+    }
+
+    this.screenShake = 15;
+    if (this.audio) this.audio.playExplosion();
+    this.particles.createExplosion(obs.x, obs.y, '#ff6348', 25, 200, 5);
+
+    // Blast radius damage
+    const radius = 100;
+    
+    // Player damage check
+    const pdist = Math.hypot(this.player.x - obs.x, this.player.y - obs.y);
+    if (pdist <= radius) {
+      this.player.takeDamage(25, this);
+    }
+
+    // Enemy damage check
+    this.enemies.forEach((enemy) => {
+      if (enemy.dead) return;
+      const dist = Math.hypot(enemy.x - obs.x, enemy.y - obs.y);
+      if (dist <= radius) {
+        enemy.takeDamage(80, true, this);
+        if (!enemy.dead) {
+          enemy.applyStatus(SPELL_TYPES.FIRE, 4.0);
+          const angle = Math.atan2(enemy.y - obs.y, enemy.x - obs.x);
+          enemy.applyKnockback(Math.cos(angle) * 200, Math.sin(angle) * 200);
+        }
+      }
+    });
+  }
+
+  // ----------------------------------------------------
+  // DRAW CORE COORDINATES
+  // ----------------------------------------------------
+  draw() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    this.ctx.save();
+
+    // Center zoom viewport transformation
+    if (this.gameZoom !== 1.0) {
+      const cx = this.canvas.width / 2;
+      const cy = this.canvas.height / 2;
+      this.ctx.translate(cx, cy);
+      this.ctx.scale(this.gameZoom, this.gameZoom);
+      this.ctx.translate(-cx, -cy);
+    }
+    
+    // Apply camera shake translation
+    if (this.screenShake > 0) {
+      const dx = (Math.random() - 0.5) * this.screenShake;
+      const dy = (Math.random() - 0.5) * this.screenShake;
+      this.ctx.translate(dx, dy);
+    }
+
+    // Render floor details / grid sand texture
+    this.drawFloorGrid();
+
+    // Draw active area effect circles (e.g. fire/steam clouds)
+    this.areaEffects.forEach((ae) => {
+      const rx = ae.x - this.camera.x;
+      const ry = ae.y - this.camera.y;
+      
+      this.ctx.save();
+      if (ae.type === 'singularity') {
+        // Glowing purple vortex ring
+        this.ctx.strokeStyle = 'rgba(165, 94, 234, 0.45)';
+        this.ctx.lineWidth = 4;
+        this.ctx.shadowBlur = 15;
+        this.ctx.shadowColor = '#a55eea';
+        this.ctx.beginPath();
+        this.ctx.arc(rx, ry, ae.radius, 0, Math.PI * 2);
+        this.ctx.stroke();
+
+        // Singularity core
+        this.ctx.fillStyle = '#06070d';
+        this.ctx.beginPath();
+        this.ctx.arc(rx, ry, 15, 0, Math.PI * 2);
+        this.ctx.fill();
+      } else if (ae.type === 'steam_cloud') {
+        this.ctx.fillStyle = 'rgba(245, 246, 250, 0.12)';
+        this.ctx.beginPath();
+        this.ctx.arc(rx, ry, ae.radius, 0, Math.PI * 2);
+        this.ctx.fill();
+      } else if (ae.type === 'fire_pool') {
+        this.ctx.fillStyle = 'rgba(255, 71, 87, 0.15)';
+        this.ctx.beginPath();
+        this.ctx.arc(rx, ry, ae.radius, 0, Math.PI * 2);
+        this.ctx.fill();
+      } else if (ae.type === 'chrono_slow') {
+        this.ctx.fillStyle = 'rgba(255, 159, 67, 0.08)';
+        this.ctx.beginPath();
+        this.ctx.arc(rx, ry, ae.radius, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.strokeStyle = 'rgba(255, 159, 67, 0.2)';
+        this.ctx.stroke();
+      } else if (ae.type === 'frost_slow') {
+        this.ctx.fillStyle = 'rgba(0, 210, 213, 0.08)';
+        this.ctx.beginPath();
+        this.ctx.arc(rx, ry, ae.radius, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.strokeStyle = 'rgba(0, 210, 213, 0.2)';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.arc(rx, ry, ae.radius, 0, Math.PI * 2);
+        this.ctx.stroke();
+      }
+      this.ctx.restore();
+    });
+
+    // Draw Loot Items on ground
+    this.items.forEach((item) => {
+      let assetKey = 'item_shard';
+      if (item.type === 'hp') assetKey = 'item_hp';
+      else if (item.type === 'mp') assetKey = 'item_mp';
+      else if (item.type === 'relic') assetKey = item.value.sprite;
+      this.assets.draw(this.ctx, assetKey, item.x - this.camera.x, item.y - this.camera.y, 16);
+    });
+
+    // Draw Obstacles (Pillars, walls)
+    this.levelManager.draw(this.ctx, this.camera);
+
+    // Draw Player wizard
+    this.player.draw(this.ctx, this.assets, this.frameIndex);
+
+    // Draw Enemies AI characters
+    this.enemies.forEach((enemy) => {
+      if (!enemy.dead) enemy.draw(this.ctx, this.assets);
+    });
+
+    // Draw spell projectiles
+    this.projectiles.forEach((proj) => {
+      this.assets.draw(this.ctx, proj.spriteKey, proj.x - this.camera.x, proj.y - this.camera.y, proj.radius * 2);
+    });
+
+    // Draw graphical particle impacts & damage text
+    this.particles.draw(this.ctx, this.camera);
+
+    this.ctx.restore();
+
+    // Draw Boss Health Bar on top-center if Boss active
+    const boss = this.enemies.find((enemy) => enemy.type === 'archon');
+    if (boss) {
+      this.drawBossHealthBar(boss);
+    }
+  }
+
+  drawFloorGrid() {
+    this.ctx.strokeStyle = 'rgba(125, 95, 255, 0.04)';
+    this.ctx.lineWidth = 1;
+    const size = 64;
+    
+    // Draw grid coordinate lines relative to camera
+    const startX = Math.floor(this.camera.x / size) * size;
+    const startY = Math.floor(this.camera.y / size) * size;
+    
+    for (let x = startX; x < startX + this.canvas.width + size; x += size) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(x - this.camera.x, 0);
+      this.ctx.lineTo(x - this.camera.x, this.canvas.height);
+      this.ctx.stroke();
+    }
+    
+    for (let y = startY; y < startY + this.canvas.height + size; y += size) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(0, y - this.camera.y);
+      this.ctx.lineTo(this.canvas.width, y - this.camera.y);
+      this.ctx.stroke();
+    }
+  }
+
+  drawBossHealthBar(boss) {
+    const bw = 240;
+    const bh = 10;
+    const bx = (this.canvas.width - bw) / 2;
+    const by = 48; // offset below wave timer
+    
+    this.ctx.save();
+    
+    // Background frame
+    this.ctx.fillStyle = 'rgba(10, 14, 28, 0.85)';
+    this.ctx.strokeStyle = 'rgba(255, 71, 87, 0.4)';
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(bx, by, bw, bh);
+    this.ctx.fillRect(bx, by, bw, bh);
+
+    // HP Fill
+    const fillWidth = (boss.hp / boss.maxHp) * bw;
+    const grad = this.ctx.createLinearGradient(bx, 0, bx + bw, 0);
+    grad.addColorStop(0, '#ff4757');
+    grad.addColorStop(1, '#ff6b81');
+    this.ctx.fillStyle = grad;
+    this.ctx.fillRect(bx, by, fillWidth, bh);
+
+    // Text Label
+    this.ctx.font = 'bold 6px "Press Start 2P", monospace';
+    this.ctx.fillStyle = '#fff';
+    this.ctx.textAlign = 'center';
+    this.ctx.shadowBlur = 4;
+    this.ctx.shadowColor = '#ff4757';
+    this.ctx.fillText(`${boss.name} (${Math.round(boss.hp)} / ${boss.maxHp})`, bx + bw/2, by + 8);
+    
+    this.ctx.restore();
+  }
+}
