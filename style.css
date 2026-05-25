@@ -109,15 +109,15 @@ body {
 
 .hud-profile {
   position: relative;
-  width: 50px;
-  height: 50px;
-  background: rgba(125, 95, 255, 0.15);
-  border: 4px solid var(--color-aether);
+  width: 52px;
+  height: 52px;
+  background: rgba(10, 11, 22, 0.85);
+  border: 3px double var(--color-aether);
   border-radius: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  box-shadow: 4px 4px 0 rgba(0,0,0,0.5);
+  box-shadow: 4px 4px 0 rgba(0,0,0,0.6);
 }
 
 .avatar-glow {
@@ -127,15 +127,32 @@ body {
   width: 100%;
   height: 100%;
   border-radius: 0;
-  animation: pulse-glow 2s infinite ease-in-out;
+  animation: pulse-glow 2.5s infinite ease-in-out;
+  pointer-events: none;
+}
+
+#hud-avatar-canvas {
+  image-rendering: pixelated;
+  display: block;
 }
 
 .hud-level-badge {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0d0e1b;
+  border: 2px solid #eccc68;
+  color: #eccc68;
   font-family: var(--font-pixel);
   font-weight: 700;
   font-size: 8px;
-  color: #fff;
-  text-shadow: 0 0 5px var(--color-aether);
+  padding: 3px 6px;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.8), inset 0 0 4px rgba(236,204,104,0.35);
+  text-shadow: 1px 1px 0px #000;
+  z-index: 5;
+  letter-spacing: 0.5px;
 }
 
 .hud-bars-container {
@@ -1285,23 +1302,30 @@ tr:hover td {
 /* Bottom XP Bar */
 #hud-bottom-xp-bar {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100vw;
-  height: 12px;
-  background: #000;
-  border-top: 4px solid #fff;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 380px;
+  height: 18px;
+  background: rgba(10, 11, 22, 0.95);
+  border: 3px double var(--color-void);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8), 0 0 10px rgba(165, 94, 234, 0.3);
   z-index: 15;
   box-sizing: border-box;
   display: flex;
   align-items: center;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 #hud-bottom-xp-fill {
   height: 100%;
   width: 0%;
-  background: #a55eea;
-  transition: width 0.15s ease-out;
+  background: linear-gradient(90deg, #8c7ae6, #a55eea, #8c7ae6);
+  background-size: 200% auto;
+  animation: xpBarMove 4s linear infinite;
+  box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.35), inset 0 4px 0 rgba(255, 255, 255, 0.15);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #hud-bottom-xp-text {
@@ -1309,11 +1333,17 @@ tr:hover td {
   left: 50%;
   transform: translateX(-50%);
   font-family: var(--font-pixel);
-  font-size: 6px;
-  color: #fff;
-  font-weight: bold;
-  text-shadow: 1px 1px 2px #000;
+  font-size: 7px;
+  color: #f1f2f6;
+  font-weight: 700;
+  text-shadow: 1px 1px 1px #000;
   white-space: nowrap;
+  letter-spacing: 0.5px;
+}
+
+@keyframes xpBarMove {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
 }
 
 /* Inline Icon Styling & Drag Selection Disable */

@@ -591,8 +591,8 @@ export class Player {
 
     // Boundary check inside Arena level
     const lvl = this.game.levelManager;
-    this.x = Math.max(this.radius + 10, Math.min(lvl.width - this.radius - 10, this.x));
-    this.y = Math.max(this.radius + 10, Math.min(lvl.height - this.radius - 10, this.y));
+    this.x = Math.max(this.radius + 40, Math.min(lvl.width - this.radius - 40, this.x));
+    this.y = Math.max(this.radius + 40, Math.min(lvl.height - this.radius - 40, this.y));
 
     // Handle collision with stone pillar obstacles
     lvl.obstacles.forEach((obs) => {

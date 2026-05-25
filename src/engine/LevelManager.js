@@ -44,11 +44,27 @@ export class LevelManager {
   generateObstacles() {
     this.obstacles = [];
     
-    const cols = 10;
-    const rows = 10;
+    // Scale columns and rows based on wave
+    // Starts at 10x10, increases by 1 cell every 2 waves
+    const cols = 10 + Math.floor((this.wave - 1) / 2);
+    const rows = 10 + Math.floor((this.wave - 1) / 2);
     const cellSize = 200;
     
-    // Create grid cells with walls: north, south, east, west
+    this.navCols = cols;
+    this.navRows = rows;
+    this.navCellSize = cellSize;
+    this.width = cols * cellSize;
+    this.height = rows * cellSize;
+
+    // 40x40 pixel tiles, so 5 tiles per 200px cell
+    this.tileWidth = cols * 5;
+    this.tileHeight = rows * 5;
+    this.tileGrid = [];
+    for (let x = 0; x < this.tileWidth; x++) {
+      this.tileGrid[x] = new Array(this.tileHeight).fill(0);
+    }
+    
+    // Create grid cells with walls for the DFS maze generator
     const cells = [];
     for (let c = 0; c < cols; c++) {
       cells[c] = [];
@@ -115,8 +131,7 @@ export class LevelManager {
       }
     }
     
-    // Now we have a perfect maze. To make it more open (loops & chambers),
-    // we randomly remove 35% of all remaining walls.
+    // To make it more open (loops & chambers), randomly remove 35% of all remaining walls.
     const hWalls = [];
     const vWalls = [];
     
@@ -145,41 +160,64 @@ export class LevelManager {
       }
     }
     
-    // ── Store nav graph (cell adjacency) ──────────────────────────────────
-    // Build AFTER the 35% wall-removal so the graph matches the actual maze.
-    this.navCells = cells; // keep reference — walls are already trimmed above
+    // Store nav graph (cell adjacency) for pathfinding
+    this.navCells = cells;
 
-    // Now compile walls into overlapping stone pillars
-    const addPillarsAlongWall = (startX, startY, endX, endY) => {
-      const dist = Math.hypot(endX - startX, endY - startY);
-      const steps = Math.floor(dist / 22); // spacing of 22px
-      for (let i = 0; i <= steps; i++) {
-        const t = i / steps;
-        const px = startX + (endX - startX) * t;
-        const py = startY + (endY - startY) * t;
-        
-        // Skip player spawn center check (120px)
-        if (Math.hypot(px - 1000, py - 1000) < 120) {
-          continue;
-        }
-        
-        this.obstacles.push({
-          x: px,
-          y: py,
-          radius: 16,
-          type: 'pillar'
-        });
-      }
-    };
-    
-    // Draw cells
+    // Compile boundary tiles to solid walls
+    for (let x = 0; x < this.tileWidth; x++) {
+      this.tileGrid[x][0] = 1;
+      this.tileGrid[x][this.tileHeight - 1] = 1;
+    }
+    for (let y = 0; y < this.tileHeight; y++) {
+      this.tileGrid[0][y] = 1;
+      this.tileGrid[this.tileWidth - 1][y] = 1;
+    }
+
+    // Compile inner cell walls into solid tiles
     for (let c = 0; c < cols; c++) {
       for (let r = 0; r < rows; r++) {
-        if (r > 0 && cells[c][r].walls.north) {
-          addPillarsAlongWall(c * cellSize, r * cellSize, (c + 1) * cellSize, r * cellSize);
+        const cell = cells[c][r];
+        if (r > 0 && cell.walls.north) {
+          const ty = r * 5;
+          const startTx = c * 5;
+          const endTx = Math.min(this.tileWidth - 1, (c + 1) * 5);
+          for (let tx = startTx; tx <= endTx; tx++) {
+            this.tileGrid[tx][ty] = 1;
+          }
         }
-        if (c > 0 && cells[c][r].walls.west) {
-          addPillarsAlongWall(c * cellSize, r * cellSize, c * cellSize, (r + 1) * cellSize);
+        if (c > 0 && cell.walls.west) {
+          const tx = c * 5;
+          const startTy = r * 5;
+          const endTy = Math.min(this.tileHeight - 1, (r + 1) * 5);
+          for (let ty = startTy; ty <= endTy; ty++) {
+            this.tileGrid[tx][ty] = 1;
+          }
+        }
+      }
+    }
+
+    // Clear inner walls in a 3-tile radius around player spawn (middle of the grid)
+    const spawnCenterX = Math.floor(this.tileWidth / 2);
+    const spawnCenterY = Math.floor(this.tileHeight / 2);
+    const spawnRadius = 3;
+    for (let x = spawnCenterX - spawnRadius; x <= spawnCenterX + spawnRadius; x++) {
+      for (let y = spawnCenterY - spawnRadius; y <= spawnCenterY + spawnRadius; y++) {
+        if (x > 0 && x < this.tileWidth - 1 && y > 0 && y < this.tileHeight - 1) {
+          this.tileGrid[x][y] = 0;
+        }
+      }
+    }
+
+    // Place physics pillars at the center of all solid inner wall tiles
+    for (let tx = 1; tx < this.tileWidth - 1; tx++) {
+      for (let ty = 1; ty < this.tileHeight - 1; ty++) {
+        if (this.tileGrid[tx][ty] === 1) {
+          this.obstacles.push({
+            x: tx * 40 + 20,
+            y: ty * 40 + 20,
+            radius: 20, // aligns perfectly with tile width (diameter 40)
+            type: 'pillar'
+          });
         }
       }
     }
@@ -187,13 +225,15 @@ export class LevelManager {
     // Add some random explosive barrels in chambers
     for (let c = 0; c < cols; c++) {
       for (let r = 0; r < rows; r++) {
-        if (Math.hypot((c + 0.5) * cellSize - 1000, (r + 0.5) * cellSize - 1000) < 200) {
+        const cx = (c + 0.5) * cellSize;
+        const cy = (r + 0.5) * cellSize;
+        if (Math.hypot(cx - this.width / 2, cy - this.height / 2) < 200) {
           continue;
         }
         
         if (Math.random() < 0.12) {
-          const bx = (c + 0.5) * cellSize + (Math.random() - 0.5) * 60;
-          const by = (r + 0.5) * cellSize + (Math.random() - 0.5) * 60;
+          const bx = cx + (Math.random() - 0.5) * 60;
+          const by = cy + (Math.random() - 0.5) * 60;
           
           let overlap = false;
           for (const obs of this.obstacles) {
@@ -214,6 +254,9 @@ export class LevelManager {
       }
     }
   }
+
+
+
 
   // ── Navigation helpers ──────────────────────────────────────────────────
 
@@ -316,6 +359,23 @@ export class LevelManager {
   }
 
   startNextWave() {
+    // Regenerate obstacles for the new wave size
+    this.generateObstacles();
+
+    // Reset player position to center of the new map
+    this.game.player.x = this.width / 2;
+    this.game.player.y = this.height / 2;
+    this.game.player.vx = 0;
+    this.game.player.vy = 0;
+
+    // Reset camera instantly to player center
+    this.game.camera.x = this.game.player.x - this.game.canvas.width / 2;
+    this.game.camera.y = this.game.player.y - this.game.canvas.height / 2;
+
+    // Clear active projectiles and area effects
+    this.game.projectiles = [];
+    this.game.areaEffects = [];
+
     this.waveInProgress = true;
     this.waveTimer = 30.0;
     this.enemiesSpawnedThisWave = 0;
@@ -581,8 +641,8 @@ export class LevelManager {
     }
 
     // Constrain inside bounds
-    sx = Math.max(50, Math.min(this.width - 50, sx));
-    sy = Math.max(50, Math.min(this.height - 50, sy));
+    sx = Math.max(60, Math.min(this.width - 60, sx));
+    sy = Math.max(60, Math.min(this.height - 60, sy));
 
     // Choose enemy archetype based on wave
     let type = 'slime';
@@ -634,8 +694,8 @@ export class LevelManager {
     }
 
     // Double-check constraints
-    sx = Math.max(50, Math.min(this.width - 50, sx));
-    sy = Math.max(50, Math.min(this.height - 50, sy));
+    sx = Math.max(60, Math.min(this.width - 60, sx));
+    sy = Math.max(60, Math.min(this.height - 60, sy));
 
     // Spawn the enemy
     this.game.spawnEnemy(sx, sy, type);
@@ -844,18 +904,77 @@ export class LevelManager {
   }
 
   /**
+   * Draw procedurally-generated ground flagstones with detail variation
+   */
+  drawFloor(ctx, camera, canvasWidth, canvasHeight) {
+    if (!this.tileGrid) return;
+    
+    const tileSize = 40;
+    
+    // Determine range of visible tiles
+    const startTx = Math.max(0, Math.floor(camera.x / tileSize));
+    const endTx = Math.min(this.tileWidth - 1, Math.ceil((camera.x + canvasWidth) / tileSize));
+    const startTy = Math.max(0, Math.floor(camera.y / tileSize));
+    const endTy = Math.min(this.tileHeight - 1, Math.ceil((camera.y + canvasHeight) / tileSize));
+    
+    for (let tx = startTx; tx <= endTx; tx++) {
+      for (let ty = startTy; ty <= endTy; ty++) {
+        // Only draw floor if it's a floor tile (0)
+        if (this.tileGrid[tx][ty] === 0) {
+          const rx = tx * tileSize - camera.x;
+          const ry = ty * tileSize - camera.y;
+          
+          // Draw base flagstone color
+          ctx.fillStyle = '#121320';
+          ctx.fillRect(rx, ry, tileSize, tileSize);
+          
+          // Draw faint borders between floor tiles
+          ctx.strokeStyle = '#0e0f18';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(rx, ry, tileSize, tileSize);
+          
+          // Add deterministic variety using a hash
+          const hash = (tx * 17 + ty * 31) % 100;
+          if (hash < 12) {
+            // Draw a diagonal crack
+            ctx.strokeStyle = '#08090f';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(rx + 8, ry + 8);
+            ctx.lineTo(rx + 16, ry + 16);
+            ctx.lineTo(rx + 12, ry + 26);
+            ctx.stroke();
+          } else if (hash < 20) {
+            // Tiny stone/debris dot details
+            ctx.fillStyle = '#1d1e2f';
+            ctx.fillRect(rx + 24, ry + 12, 3, 3);
+            ctx.fillRect(rx + 10, ry + 28, 2, 2);
+          } else if (hash < 26) {
+            // Vertical split lines to simulate smaller brick pavers
+            ctx.strokeStyle = '#0e0f18';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(rx + 20, ry);
+            ctx.lineTo(rx + 20, ry + tileSize);
+            ctx.stroke();
+          }
+        }
+      }
+    }
+  }
+
+  /**
    * Draw borders, obstacles, hazard indicators
    */
   draw(ctx, camera) {
-    // Draw boundary walls
-    ctx.strokeStyle = '#7d5fff';
-    ctx.lineWidth = 10;
-    ctx.strokeRect(-camera.x, -camera.y, this.width, this.height);
+    if (!this.tileGrid) return;
     
-    // Draw warning hashes near walls
-    ctx.strokeStyle = 'rgba(255, 71, 87, 0.15)';
-    ctx.lineWidth = 40;
-    ctx.strokeRect(-camera.x + 20, -camera.y + 20, this.width - 40, this.height - 40);
+    const tileSize = 40;
+    
+    // Draw outer boundary line
+    ctx.strokeStyle = '#1e1f2f';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(-camera.x, -camera.y, this.width, this.height);
 
     // Draw Shrines
     this.shrines.forEach((shrine) => {
@@ -912,51 +1031,97 @@ export class LevelManager {
       }
     });
 
-    // Draw obstacles
+    // Draw wall tiles (connected textures) and explosive barrels
+    const startTx = Math.max(0, Math.floor(camera.x / tileSize));
+    const endTx = Math.min(this.tileWidth - 1, Math.ceil((camera.x + this.game.canvas.width) / tileSize));
+    const startTy = Math.max(0, Math.floor(camera.y / tileSize));
+    const endTy = Math.min(this.tileHeight - 1, Math.ceil((camera.y + this.game.canvas.height) / tileSize));
+    
+    // First pass: Draw drop shadows on the ground for any wall that has floor below it
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    for (let tx = startTx; tx <= endTx; tx++) {
+      for (let ty = startTy; ty <= endTy; ty++) {
+        if (this.tileGrid[tx][ty] === 1) {
+          const rx = tx * tileSize - camera.x;
+          const ry = ty * tileSize - camera.y;
+          // Check if there is floor below this wall
+          const S = (ty < this.tileHeight - 1) ? this.tileGrid[tx][ty + 1] === 1 : true;
+          if (!S) {
+            ctx.fillRect(rx, ry + tileSize, tileSize, 8);
+          }
+        }
+      }
+    }
+
+    // Second pass: Draw the wall tiles themselves with connected textures
+    for (let tx = startTx; tx <= endTx; tx++) {
+      for (let ty = startTy; ty <= endTy; ty++) {
+        if (this.tileGrid[tx][ty] === 1) {
+          const rx = tx * tileSize - camera.x;
+          const ry = ty * tileSize - camera.y;
+          
+          // Check neighbors
+          const N = (ty > 0) ? this.tileGrid[tx][ty - 1] === 1 : true;
+          const S = (ty < this.tileHeight - 1) ? this.tileGrid[tx][ty + 1] === 1 : true;
+          const W = (tx > 0) ? this.tileGrid[tx - 1][ty] === 1 : true;
+          const E = (tx < this.tileWidth - 1) ? this.tileGrid[tx + 1][ty] === 1 : true;
+          
+          // Base wall background color (cool dark slate)
+          ctx.fillStyle = '#3f4756';
+          ctx.fillRect(rx, ry, tileSize, tileSize);
+          
+          // Draw procedural horizontal brick line textures
+          const xStart = W ? rx : rx + 4;
+          const xEnd = E ? rx + tileSize : rx + tileSize - 4;
+          ctx.fillStyle = '#1c202a';
+          ctx.fillRect(xStart, ry + 13, xEnd - xStart, 2);
+          ctx.fillRect(xStart, ry + 26, xEnd - xStart, 2);
+          
+          // Draw vertical joints deterministically for brick look
+          const hash = (tx * 19 + ty * 23) % 100;
+          if (hash < 50) {
+            ctx.fillRect(rx + 20, ry, 2, 13);
+            ctx.fillRect(rx + 10, ry + 13, 2, 13);
+            ctx.fillRect(rx + 30, ry + 26, 2, 14);
+          } else {
+            ctx.fillRect(rx + 10, ry, 2, 13);
+            ctx.fillRect(rx + 30, ry + 13, 2, 13);
+            ctx.fillRect(rx + 20, ry + 26, 2, 14);
+          }
+          
+          // Connected highlights (top/left) and shadows (bottom/right)
+          ctx.fillStyle = '#5c677c'; // Highlight color
+          if (!N) ctx.fillRect(rx, ry, tileSize, 3);
+          if (!W) ctx.fillRect(rx, ry, 3, tileSize);
+          
+          ctx.fillStyle = '#161922'; // Shadow color
+          if (!S) ctx.fillRect(rx, ry + tileSize - 3, tileSize, 3);
+          if (!E) ctx.fillRect(rx + tileSize - 3, ry, 3, tileSize);
+        }
+      }
+    }
+
+    // Draw explosive barrels (which are obstacles, but not walls)
     this.obstacles.forEach((obs) => {
+      if (obs.type !== 'explosive_barrel') return;
       const rx = obs.x - camera.x;
       const ry = obs.y - camera.y;
+
+      // Barrel shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fillRect(rx - obs.radius, ry - obs.radius + 5, obs.radius*2, obs.radius*2);
+
+      ctx.fillStyle = '#ea8214'; // Orange barrel
+      ctx.fillRect(rx - obs.radius, ry - obs.radius, obs.radius*2, obs.radius*2);
       
-      if (obs.type === 'pillar') {
-        // Draw pillar base shadow (flat dark rect)
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-        ctx.fillRect(rx - obs.radius, ry - obs.radius + 6, obs.radius * 2, obs.radius * 2);
+      // Bands
+      ctx.fillStyle = '#374151';
+      ctx.fillRect(rx - obs.radius, ry - obs.radius + 4, obs.radius*2, 3);
+      ctx.fillRect(rx - obs.radius, ry + obs.radius - 7, obs.radius*2, 3);
 
-        // Draw the stone block (solid fill)
-        ctx.fillStyle = '#4b5563';
-        ctx.fillRect(rx - obs.radius, ry - obs.radius, obs.radius * 2, obs.radius * 2);
-
-        // Highlight top & left borders (crevice highlights)
-        ctx.fillStyle = '#788290';
-        ctx.fillRect(rx - obs.radius, ry - obs.radius, obs.radius * 2, 3);
-        ctx.fillRect(rx - obs.radius, ry - obs.radius, 3, obs.radius * 2);
-
-        // Shadow bottom & right borders (crevice shadows)
-        ctx.fillStyle = '#1c1f26';
-        ctx.fillRect(rx - obs.radius, ry + obs.radius - 3, obs.radius * 2, 3);
-        ctx.fillRect(rx + obs.radius - 3, ry - obs.radius, 3, obs.radius * 2);
-
-        // Add some pixel crevices lines inside
-        ctx.fillStyle = '#22252c';
-        ctx.fillRect(rx - obs.radius + 4, ry - obs.radius + 6, obs.radius, 2);
-        ctx.fillRect(rx, ry + 2, obs.radius - 2, 2);
-      } else if (obs.type === 'explosive_barrel') {
-        // Barrel
-        ctx.fillStyle = 'rgba(0,0,0,0.4)';
-        ctx.fillRect(rx - obs.radius, ry - obs.radius + 5, obs.radius*2, obs.radius*2);
-
-        ctx.fillStyle = '#ea8214'; // Orange barrel
-        ctx.fillRect(rx - obs.radius, ry - obs.radius, obs.radius*2, obs.radius*2);
-        
-        // Bands
-        ctx.fillStyle = '#374151';
-        ctx.fillRect(rx - obs.radius, ry - obs.radius + 4, obs.radius*2, 3);
-        ctx.fillRect(rx - obs.radius, ry + obs.radius - 7, obs.radius*2, 3);
-
-        ctx.strokeStyle = '#1e293b';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(rx - obs.radius, ry - obs.radius, obs.radius*2, obs.radius*2);
-      }
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(rx - obs.radius, ry - obs.radius, obs.radius*2, obs.radius*2);
     });
 
     // Draw Event Warning Indicators
@@ -970,16 +1135,13 @@ export class LevelManager {
       // Select indicator color based on type
       let strokeColor = 'rgba(255, 71, 87, 0.7)'; // red
       let fillColor = 'rgba(255, 71, 87, 0.15)';
-      let textColor = '#ff4757';
       
       if (met.type === 'frost') {
         strokeColor = 'rgba(0, 210, 213, 0.7)'; // cyan
         fillColor = 'rgba(0, 210, 213, 0.15)';
-        textColor = '#00d2d3';
       } else if (met.type === 'void') {
         strokeColor = 'rgba(165, 94, 234, 0.7)'; // purple
         fillColor = 'rgba(165, 94, 234, 0.15)';
-        textColor = '#a55eea';
       }
       
       // Outer warning circle
@@ -997,22 +1159,21 @@ export class LevelManager {
       ctx.arc(rx, ry, met.radius * scale, 0, Math.PI * 2);
       ctx.fill();
       
-      // Draw retro warning triangle instead of unicode emoji
+      // Draw warning triangle
       ctx.save();
       ctx.beginPath();
-      ctx.moveTo(rx, ry - 10); // top point
-      ctx.lineTo(rx + 10, ry + 8); // bottom right
-      ctx.lineTo(rx - 10, ry + 8); // bottom left
+      ctx.moveTo(rx, ry - 10);
+      ctx.lineTo(rx + 10, ry + 8);
+      ctx.lineTo(rx - 10, ry + 8);
       ctx.closePath();
       
-      ctx.fillStyle = '#ff9f43'; // Yellow-orange warning triangle
+      ctx.fillStyle = '#ff9f43';
       ctx.fill();
       
       ctx.strokeStyle = '#1e293b';
       ctx.lineWidth = 1.5;
       ctx.stroke();
       
-      // Black exclamation mark "!" in the center
       ctx.font = 'bold 8px monospace';
       ctx.fillStyle = '#1e293b';
       ctx.textAlign = 'center';
@@ -1021,3 +1182,4 @@ export class LevelManager {
     });
   }
 }
+

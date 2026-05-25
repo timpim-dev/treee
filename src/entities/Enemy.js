@@ -575,8 +575,8 @@ export class Enemy {
     if (Math.hypot(this.kbX, this.kbY) < 1) { this.kbX = 0; this.kbY = 0; }
 
     // Hard boundary clamp
-    this.x = Math.max(this.radius + 10, Math.min(lvl.width  - this.radius - 10, this.x));
-    this.y = Math.max(this.radius + 10, Math.min(lvl.height - this.radius - 10, this.y));
+    this.x = Math.max(this.radius + 40, Math.min(lvl.width  - this.radius - 40, this.x));
+    this.y = Math.max(this.radius + 40, Math.min(lvl.height - this.radius - 40, this.y));
 
     // Post-move push-out — two passes to resolve corner cases
     for (let pass = 0; pass < 2; pass++) {

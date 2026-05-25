@@ -1303,6 +1303,16 @@ export class Game {
     document.getElementById('hud-mp-fill').style.width = `${mpPct}%`;
     document.getElementById('hud-mp-text').innerText = `${Math.ceil(this.player.mp)} / ${this.player.getMaxMp()}`;
 
+    // Draw animated avatar in HUD
+    const avatarCanvas = document.getElementById('hud-avatar-canvas');
+    if (avatarCanvas) {
+      const actx = avatarCanvas.getContext('2d');
+      actx.clearRect(0, 0, avatarCanvas.width, avatarCanvas.height);
+      actx.imageSmoothingEnabled = false;
+      const avatarFrame = Math.floor(this.frameIndex * 4) % 3; // Cycle idle/walk frames (0, 1, 2)
+      this.assets.draw(actx, 'player', avatarCanvas.width / 2, avatarCanvas.height / 2 + 1, 36, avatarFrame, 0, 1.0);
+    }
+
     // Level & XP
     document.getElementById('hud-level-text').innerText = `Lvl ${this.player.level}`;
     const xpPct = (this.player.xp / this.player.xpNeeded) * 100;
@@ -2140,28 +2150,9 @@ export class Game {
   }
 
   drawFloorGrid() {
-    this.ctx.strokeStyle = 'rgba(125, 95, 255, 0.04)';
-    this.ctx.lineWidth = 1;
-    const size = 64;
-    
-    // Draw grid coordinate lines relative to camera
-    const startX = Math.floor(this.camera.x / size) * size;
-    const startY = Math.floor(this.camera.y / size) * size;
-    
-    for (let x = startX; x < startX + this.canvas.width + size; x += size) {
-      this.ctx.beginPath();
-      this.ctx.moveTo(x - this.camera.x, 0);
-      this.ctx.lineTo(x - this.camera.x, this.canvas.height);
-      this.ctx.stroke();
-    }
-    
-    for (let y = startY; y < startY + this.canvas.height + size; y += size) {
-      this.ctx.beginPath();
-      this.ctx.moveTo(0, y - this.camera.y);
-      this.ctx.lineTo(this.canvas.width, y - this.camera.y);
-      this.ctx.stroke();
-    }
+    this.levelManager.drawFloor(this.ctx, this.camera, this.canvas.width, this.canvas.height);
   }
+
 
   drawBossHealthBar(boss) {
     const bw = 240;
