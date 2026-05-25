@@ -1,7 +1,7 @@
 /**
  * Player - The wizard entity controlled by the user
  */
-import { SpellBook } from '../engine/Spells.js';
+import { SpellBook, SPELL_TYPES } from '../engine/Spells.js';
 
 export const RELICS_CATALOG = [
   // Elemental damage
