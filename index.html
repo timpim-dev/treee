@@ -380,13 +380,20 @@
 
         <!-- Tab bar -->
         <div class="inv-tab-bar">
-          <button class="inv-tab-btn active" data-tab="runes">RUNES (<span id="inv-rune-count">0</span>)</button>
+          <button class="inv-tab-btn active" data-tab="runes">RUNES <span id="inv-rune-count" style="font-size:6px; opacity:0.7;"></span></button>
           <button class="inv-tab-btn" data-tab="gear">GEAR &amp; ARMOR (<span id="inv-gear-count">0</span>)</button>
         </div>
 
         <!-- RUNES TAB -->
         <div class="inv-tab-pane" data-tab="runes">
-          <p class="inv-tab-desc">Runes are passive — all collected runes are always active. Pick up runes to power up your wizard permanently.</p>
+          <p class="inv-tab-desc">Equip runes to activate their bonuses. Click a rune from storage to equip it. Click an equipped rune to unequip.</p>
+
+          <div class="inv-rune-section-label">EQUIPPED RUNES</div>
+          <div id="inv-equipped-rune-grid" class="inv-relic-grid inv-equipped-rune-grid">
+            <!-- injected by JS -->
+          </div>
+
+          <div class="inv-rune-section-label" style="margin-top:14px;">RUNE STORAGE</div>
           <div id="inv-rune-grid" class="inv-relic-grid">
             <!-- injected by JS -->
           </div>

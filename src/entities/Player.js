@@ -76,10 +76,13 @@ export class Player {
     this.shopManaRegen = 0;
 
     // Storage system — both are unlimited, no slot cap
-    // runeStorage: passive relics that auto-apply all their stats when collected
-    // gearStorage: armor/weapons/rings that must be manually equipped
-    this.runeStorage = [];
-    this.gearStorage = [];
+    // runeStorage: collected runes waiting to be equipped
+    // equippedRunes: active rune slots (only these apply stats), max maxRuneSlots
+    // gearStorage: armor/weapons/rings that must be manually equipped to equipment slots
+    this.runeStorage   = [];
+    this.equippedRunes = []; // array of rune objects currently active
+    this.maxRuneSlots  = 6;  // starts at 6, could be expanded later
+    this.gearStorage   = [];
     // Keep inventory as a deprecated alias so any old references don't crash
     Object.defineProperty(this, 'inventory', {
       get: () => [...this.runeStorage, ...this.gearStorage],
@@ -314,8 +317,8 @@ export class Player {
       // shardGain is used directly in Game.js when collecting shards
     }
 
-    // Apply all rune stats passively (all relics in runeStorage are always active)
-    this.runeStorage.forEach((item) => {
+    // Apply stats from equipped runes only (runes in storage do nothing until equipped)
+    (this.equippedRunes || []).forEach((item) => {
       if (item && item.stats) {
         for (const statKey in item.stats) {
           const value = item.stats[statKey];
@@ -741,6 +744,7 @@ export class Player {
     this.shopMaxMp     = 0;
     this.shopManaRegen = 0;
     this.runeStorage   = [];
+    this.equippedRunes = [];
     this.gearStorage   = [];
     this.equipment     = {
       helmet: null,
@@ -786,6 +790,7 @@ export class Player {
       shopMaxMp: this.shopMaxMp,
       shopManaRegen: this.shopManaRegen,
       runeStorage: this.runeStorage.map(r => r.id),
+      equippedRunes: this.equippedRunes.map(r => r.id),
       gearStorage: this.gearStorage.map(g => g.id),
       equipment: {
         helmet: this.equipment?.helmet?.id || null,
@@ -844,6 +849,9 @@ export class Player {
           const all = progress.inventory.map(id => findItem(id)).filter(Boolean);
           this.runeStorage = all.filter(item => !item.type);
           this.gearStorage = all.filter(item => !!item.type);
+        }
+        if (progress.equippedRunes) {
+          this.equippedRunes = progress.equippedRunes.map(id => findItem(id)).filter(Boolean);
         }
         if (progress.gearStorage) {
           this.gearStorage = progress.gearStorage.map(id => findItem(id)).filter(Boolean);

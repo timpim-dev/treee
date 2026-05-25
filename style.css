@@ -1240,6 +1240,32 @@ tr:hover td {
   font-size: 5.5px;
 }
 
+/* Rune section labels */
+.inv-rune-section-label {
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  color: var(--color-aether);
+  letter-spacing: 0.08em;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed rgba(125,95,255,0.3);
+}
+
+/* Equipped rune grid — golden border accent */
+.inv-equipped-rune-grid .inv-relic-card {
+  border-color: rgba(125,95,255,0.6);
+}
+.inv-equipped-rune-grid .inv-relic-card.rune-equipped {
+  border-color: var(--color-aether);
+  box-shadow: 0 0 8px rgba(125,95,255,0.35);
+}
+.inv-relic-card.rune-empty-slot {
+  border-style: dashed;
+  border-color: rgba(125,95,255,0.2);
+  min-height: 80px;
+  justify-content: center;
+  opacity: 0.5;
+}
+
 /* Empty message */
 .inv-empty-msg {
   font-family: var(--font-clean);

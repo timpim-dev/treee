@@ -773,16 +773,76 @@ export class Game {
 
     // ── RUNES TAB ──────────────────────────────────────────────────────────
     if (activeTab === 'runes') {
+      const equippedRunes = this.player.equippedRunes;
+      const maxSlots      = this.player.maxRuneSlots;
+
+      // ── Equipped rune slots ─────────────────────────────────────────────
+      const equippedGrid = document.getElementById('inv-equipped-rune-grid');
+      if (equippedGrid) {
+        equippedGrid.innerHTML = '';
+        for (let i = 0; i < maxSlots; i++) {
+          const rune = equippedRunes[i];
+          if (rune) {
+            const card = this._makeItemCard(rune, {
+              removeTitle: 'Unequip rune',
+              clickHint: 'CLICK TO UNEQUIP',
+              onClick: () => {
+                this.player.equippedRunes.splice(i, 1);
+                this.player.runeStorage.push(rune);
+                this.player.recalculateModifiers(this.abilityTree);
+                this.player.saveGameState();
+                if (this.audio) this.audio.playClick();
+                this.refreshInventoryPanel();
+                this.updateHUD();
+              },
+              onRemove: () => {
+                this.player.equippedRunes.splice(i, 1);
+                this.player.runeStorage.push(rune);
+                this.player.recalculateModifiers(this.abilityTree);
+                this.player.saveGameState();
+                if (this.audio) this.audio.playClick();
+                this.refreshInventoryPanel();
+                this.updateHUD();
+              }
+            });
+            card.classList.add('rune-equipped');
+            equippedGrid.appendChild(card);
+          } else {
+            // Empty slot
+            const empty = document.createElement('div');
+            empty.className = 'inv-relic-card empty-slot rune-empty-slot';
+            empty.innerHTML = `<div class="inv-slot-label">RUNE SLOT ${i + 1}</div>`;
+            equippedGrid.appendChild(empty);
+          }
+        }
+      }
+
+      // ── Rune storage ────────────────────────────────────────────────────
       const runeGrid = document.getElementById('inv-rune-grid');
       if (runeGrid) {
         runeGrid.innerHTML = '';
         const runes = this.player.runeStorage;
         if (runes.length === 0) {
-          runeGrid.innerHTML = '<div class="inv-empty-msg">No runes collected yet.<br>Defeat enemies and open chests!</div>';
+          runeGrid.innerHTML = '<div class="inv-empty-msg">No runes in storage.<br>Defeat enemies and open chests!</div>';
         } else {
           runes.forEach((item, idx) => {
+            const isFull = equippedRunes.length >= maxSlots;
             const card = this._makeItemCard(item, {
-              removeTitle: 'Drop rune',
+              removeTitle: 'Discard rune',
+              clickHint: isFull ? 'SLOTS FULL — UNEQUIP ONE FIRST' : 'CLICK TO EQUIP',
+              onClick: () => {
+                if (this.player.equippedRunes.length >= this.player.maxRuneSlots) {
+                  this.particles.spawnText(this.player.x, this.player.y - 20, 'RUNE SLOTS FULL', { color: '#ff4757', fontSize: 10, fontPixel: true });
+                  return;
+                }
+                this.player.runeStorage.splice(idx, 1);
+                this.player.equippedRunes.push(item);
+                this.player.recalculateModifiers(this.abilityTree);
+                this.player.saveGameState();
+                if (this.audio) this.audio.playBuy();
+                this.refreshInventoryPanel();
+                this.updateHUD();
+              },
               onRemove: () => {
                 this.player.runeStorage.splice(idx, 1);
                 this.player.recalculateModifiers(this.abilityTree);
@@ -792,12 +852,14 @@ export class Game {
                 this.updateHUD();
               }
             });
+            if (isFull) card.style.opacity = '0.6';
             runeGrid.appendChild(card);
           });
         }
       }
+
       const runeCount = document.getElementById('inv-rune-count');
-      if (runeCount) runeCount.innerText = this.player.runeStorage.length;
+      if (runeCount) runeCount.innerText = `${equippedRunes.length}/${maxSlots} equipped, ${this.player.runeStorage.length} in storage`;
     }
 
     // ── GEAR TAB ───────────────────────────────────────────────────────────
@@ -838,23 +900,26 @@ export class Game {
         if (!slotEl || !canvas || !tooltip) return;
 
         const item = this.player.equipment[slot];
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.imageSmoothingEnabled = false;
 
-        // Replace element to clear old listeners
+        // Replace element to clear old listeners, then get fresh canvas from the new node
         const newSlotEl = slotEl.cloneNode(true);
         slotEl.parentNode.replaceChild(newSlotEl, slotEl);
+        const newCanvas = newSlotEl.querySelector('.equip-slot-canvas');
+        const newTooltip = newSlotEl.querySelector('.tooltip');
+        if (!newCanvas || !newTooltip) return;
+        const ctx = newCanvas.getContext('2d');
+        ctx.clearRect(0, 0, newCanvas.width, newCanvas.height);
+        ctx.imageSmoothingEnabled = false;
 
         if (item) {
           newSlotEl.classList.add('filled');
           this.assets.draw(ctx, item.sprite, 16, 16, 32);
-          tooltip.innerHTML = `<strong style="color:#eccc68">${item.name}</strong><br>${this._statsToString(item.stats)}<br><span style="color:#ff4757;font-size:8px;font-family:var(--font-pixel);display:block;margin-top:4px">(CLICK TO UNEQUIP)</span>`;
+          newTooltip.innerHTML = `<strong style="color:#eccc68">${item.name}</strong><br>${this._statsToString(item.stats)}<br><span style="color:#ff4757;font-size:8px;font-family:var(--font-pixel);display:block;margin-top:4px">(CLICK TO UNEQUIP)</span>`;
           newSlotEl.addEventListener('click', () => this.unequipGear(slot));
         } else {
           newSlotEl.classList.remove('filled');
           const label = slot === 'chestplate' ? 'ROBE' : slot.toUpperCase();
-          tooltip.innerHTML = `<strong style="color:#57606f">EMPTY ${label} SLOT</strong>`;
+          newTooltip.innerHTML = `<strong style="color:#57606f">EMPTY ${label} SLOT</strong>`;
         }
       });
     }
@@ -1714,23 +1779,23 @@ export class Game {
       }
     });
 
-    // Render HUD rune strip — shows the last 6 collected runes
+    // Render HUD rune strip — shows equipped runes
     const invContainer = document.getElementById('inventory-container');
     if (invContainer) {
-      const runes = this.player.runeStorage;
-      const showCount = Math.min(runes.length, 6);
+      const runes = this.player.equippedRunes || [];
+      const maxSlots = this.player.maxRuneSlots || 6;
       const currentSlotCount = invContainer.querySelectorAll('.inv-slot').length;
-      if (currentSlotCount !== 6) {
+      if (currentSlotCount !== maxSlots) {
         invContainer.innerHTML = '';
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < maxSlots; i++) {
           invContainer.innerHTML += `<div class="inv-slot empty" id="inv-slot-${i+1}">
             <canvas class="inv-slot-canvas" id="inv-canvas-${i+1}" width="16" height="16"></canvas>
-            <div class="tooltip" id="tooltip-inv-${i+1}">Empty</div>
+            <div class="tooltip" id="tooltip-inv-${i+1}">Empty Rune Slot</div>
           </div>`;
         }
       }
-      for (let i = 0; i < 6; i++) {
-        const rune    = runes[runes.length - 6 + i]; // show latest 6
+      for (let i = 0; i < maxSlots; i++) {
+        const rune    = runes[i];
         const slotEl  = document.getElementById(`inv-slot-${i+1}`);
         const canvas  = document.getElementById(`inv-canvas-${i+1}`);
         const tooltip = document.getElementById(`tooltip-inv-${i+1}`);
@@ -1744,7 +1809,7 @@ export class Game {
           tooltip.innerHTML = `<strong>${rune.name}</strong><br>${rune.desc}`;
         } else {
           slotEl.classList.add('empty');
-          tooltip.innerHTML = 'Empty';
+          tooltip.innerHTML = 'Empty Rune Slot';
         }
       }
     }
