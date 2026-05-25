@@ -128,7 +128,7 @@ export class Game {
           this.setState('PAUSED');
         } else if (this.state === 'PAUSED') {
           this.setState('PLAYING');
-        } else if (this.state === 'UPGRADE_TREE' || this.state === 'INVENTORY' || this.state === 'SPELLMAP' || this.state === 'WORLD_MAP') {
+        } else if (this.state === 'UPGRADE_TREE' || this.state === 'INVENTORY' || this.state === 'SPELLMAP' || this.state === 'WORLD_MAP' || this.state === 'CHEST') {
           this.setState('PLAYING');
         }
       }
@@ -421,6 +421,11 @@ export class Game {
     });
     document.getElementById('btn-inv-back').addEventListener('click', () => {
       this._closeInventory();
+    });
+
+    // ── Chest GUI ────────────────────────────────────────────────────────
+    document.getElementById('btn-close-chest').addEventListener('click', () => {
+      this._closeChestGUI();
     });
 
     // ── Spell Remap Panel ────────────────────────────────────────────────
@@ -732,7 +737,14 @@ export class Game {
     const costEl = document.getElementById('inv-slot-cost');
     if (costEl) costEl.innerText = this._invSlotCost();
     const buyBtn = document.getElementById('btn-buy-inv-slot');
-    if (buyBtn) buyBtn.disabled = slots >= maxAll;
+    const expandRow = document.querySelector('.inv-expand-row');
+    if (slots >= maxAll) {
+      if (buyBtn) { buyBtn.disabled = true; buyBtn.textContent = 'MAX SLOTS REACHED'; }
+      if (expandRow) expandRow.style.display = 'none';
+    } else {
+      if (buyBtn) { buyBtn.disabled = false; buyBtn.innerHTML = `BUY SLOT (<span id="inv-slot-cost">${this._invSlotCost()}</span> Shards)`; }
+      if (expandRow) expandRow.style.display = '';
+    }
 
     // Draw icon into an off-screen canvas and return a data URL
     const iconDataUrl = (spriteKey) => {
@@ -754,7 +766,7 @@ export class Game {
         card.style.cursor = isGear ? 'pointer' : 'default';
         
         card.innerHTML = `
-          <button class="btn-remove-relic" data-idx="${i}" title="Discard item">✕</button>
+          <button class="btn-remove-relic" data-idx="${i}" title="Drop item on ground">✕</button>
           <img class="inv-relic-sprite" src="${iconDataUrl(item.sprite)}" alt="${item.name}" draggable="false">
           <div class="inv-relic-name">${item.name}</div>
           <div class="inv-relic-desc">
@@ -766,7 +778,15 @@ export class Game {
         card.querySelector('.btn-remove-relic').addEventListener('click', (e) => {
           e.stopPropagation(); // prevent triggering equipGear click
           const idx = parseInt(e.currentTarget.dataset.idx, 10);
-          this.player.inventory.splice(idx, 1);
+          const dropped = this.player.inventory.splice(idx, 1)[0];
+          // Drop item on the ground near player so it can be picked up again
+          if (dropped) {
+            this.spawnItem(
+              this.player.x + (Math.random() - 0.5) * 40,
+              this.player.y + (Math.random() - 0.5) * 40,
+              'relic', dropped
+            );
+          }
           this.player.recalculateModifiers(this.abilityTree);
           this.player.saveGameState();
           if (this.audio) this.audio.playClick();
@@ -883,30 +903,31 @@ export class Game {
   unequipGear(slot) {
     const gear = this.player.equipment[slot];
     if (!gear) return;
-    
-    if (this.player.inventory.length >= this.player.maxInventorySlots) {
-      this.particles.spawnText(this.player.x, this.player.y - 20, "SATCHEL FULL", {
-        color: '#ff4757',
-        fontSize: 10,
-        fontPixel: true
-      });
-      return;
-    }
-    
+
     this.player.equipment[slot] = null;
-    this.player.inventory.push(gear);
-    
+
+    if (this.player.inventory.length < this.player.maxInventorySlots) {
+      this.player.inventory.push(gear);
+      this.particles.spawnText(this.player.x, this.player.y - 20, `UNEQUIPPED: ${gear.name}`, {
+        color: '#a55eea', fontSize: 10, fontPixel: true
+      });
+    } else {
+      // Bag full — drop the item on the ground near the player
+      this.spawnItem(
+        this.player.x + (Math.random() - 0.5) * 30,
+        this.player.y + (Math.random() - 0.5) * 30,
+        'relic', gear
+      );
+      this.particles.spawnText(this.player.x, this.player.y - 20, `BAG FULL — ${gear.name} DROPPED`, {
+        color: '#eccc68', fontSize: 9, fontPixel: true
+      });
+    }
+
     this.player.recalculateModifiers(this.abilityTree);
     this.player.saveGameState();
     if (this.audio) this.audio.playClick();
     this.refreshInventoryPanel();
     this.updateHUD();
-    
-    this.particles.spawnText(this.player.x, this.player.y - 20, `UNEQUIPPED: ${gear.name}`, {
-      color: '#a55eea',
-      fontSize: 10,
-      fontPixel: true
-    });
   }
 
   drawInventoryPlayer() {
@@ -966,6 +987,75 @@ export class Game {
     }
 
     ctx.restore();
+  }
+
+  // ----------------------------------------------------
+  // CHEST GUI
+  // ----------------------------------------------------
+  openChestGUI(lootItems) {
+    // lootItems: array of item objects (relics/gear) to display
+    this._prevStateBeforeChest = this.state;
+    this.setState('CHEST');
+
+    const grid = document.getElementById('chest-loot-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    const iconDataUrl = (spriteKey) => {
+      const c = document.createElement('canvas');
+      c.width = 32; c.height = 32;
+      const cx = c.getContext('2d');
+      cx.imageSmoothingEnabled = false;
+      this.assets.draw(cx, spriteKey, 16, 16, 32);
+      return c.toDataURL();
+    };
+
+    lootItems.forEach((item) => {
+      const card = document.createElement('div');
+      card.className = 'inv-relic-card' + (item.type ? ' gear-item' : '');
+      card.style.width = '120px';
+      card.style.cursor = 'pointer';
+      const isFull = this.player.inventory.length >= this.player.maxInventorySlots;
+      card.innerHTML = `
+        <img class="inv-relic-sprite" src="${iconDataUrl(item.sprite)}" alt="${item.name}" draggable="false">
+        <div class="inv-relic-name">${item.name}</div>
+        <div class="inv-relic-desc">${item.desc}</div>
+        <button class="btn-menu small" style="margin-top:6px; font-size:7px;" ${isFull ? 'disabled title="Inventory full"' : ''}>
+          ${isFull ? 'BAG FULL' : 'TAKE'}
+        </button>
+      `;
+      const takeBtn = card.querySelector('button');
+      takeBtn.addEventListener('click', () => {
+        if (this.player.inventory.length >= this.player.maxInventorySlots) {
+          this.particles.spawnText(this.player.x, this.player.y - 20, "INVENTORY FULL", { color: '#ff4757', fontSize: 10, fontPixel: true });
+          return;
+        }
+        this.player.inventory.push(item);
+        this.player.recalculateModifiers(this.abilityTree);
+        this.player.saveGameState();
+        if (this.audio) this.audio.playBuy();
+        this.particles.spawnText(this.player.x, this.player.y - 20, `+${item.name}`, { color: '#a55eea', fontSize: 10, fontPixel: true });
+        this.updateHUD();
+        // Remove from grid
+        card.remove();
+        // Refresh remaining take buttons in case inventory just filled
+        grid.querySelectorAll('button').forEach(btn => {
+          if (this.player.inventory.length >= this.player.maxInventorySlots) {
+            btn.disabled = true;
+            btn.textContent = 'BAG FULL';
+          }
+        });
+      });
+      grid.appendChild(card);
+    });
+
+    if (lootItems.length === 0) {
+      grid.innerHTML = '<p style="color: #57606f; font-size: 0.8rem;">The chest was empty.</p>';
+    }
+  }
+
+  _closeChestGUI() {
+    this.setState('PLAYING');
   }
 
   // ----------------------------------------------------
@@ -1212,9 +1302,9 @@ export class Game {
     
     if (this.audio) this.audio.playStateChange();
     
-    // Keep HUD visible during inventory/spellmap/worldmap so stats are readable
+    // Keep HUD visible during inventory/spellmap/worldmap/chest so stats are readable
     document.getElementById('hud').classList.toggle('hidden',
-      newState !== 'PLAYING' && newState !== 'INVENTORY' && newState !== 'SPELLMAP' && newState !== 'WORLD_MAP');
+      newState !== 'PLAYING' && newState !== 'INVENTORY' && newState !== 'SPELLMAP' && newState !== 'WORLD_MAP' && newState !== 'CHEST');
     
     this.showPanel(
       newState === 'MENU'          ? 'panel-main-menu' :
@@ -1224,7 +1314,8 @@ export class Game {
       newState === 'SHOP'          ? 'panel-shop' :
       newState === 'INVENTORY'     ? 'panel-inventory' :
       newState === 'SPELLMAP'      ? 'panel-spellmap' :
-      newState === 'WORLD_MAP'     ? 'panel-worldmap' : ''
+      newState === 'WORLD_MAP'     ? 'panel-worldmap' :
+      newState === 'CHEST'         ? 'panel-chest' : ''
     );
 
     if (newState === 'INVENTORY') {
@@ -1270,7 +1361,7 @@ export class Game {
   }
 
   showPanel(panelId) {
-    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-how-to', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-spellmap', 'panel-worldmap'];
+    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-how-to', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-spellmap', 'panel-worldmap', 'panel-chest'];
     overlays.forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
@@ -1736,6 +1827,8 @@ export class Game {
       this.drawWorldmap();
     } else if (this.state === 'INVENTORY') {
       this.drawInventoryPlayer();
+    } else if (this.state === 'CHEST') {
+      this.draw();
     }
     
     requestAnimationFrame((t) => this.loop(t));
@@ -2206,9 +2299,9 @@ export class Game {
           } else {
             collected = false;
             if (!this._lastInvFullTextTime || Date.now() - this._lastInvFullTextTime > 1500) {
-              this.particles.spawnText(this.player.x, this.player.y - 20, "INVENTORY FULL", {
+              this.particles.spawnText(this.player.x, this.player.y - 20, "BAG FULL — PRESS I TO MANAGE", {
                 color: '#ff4757',
-                fontSize: 10,
+                fontSize: 9,
                 fontPixel: true
               });
               this._lastInvFullTextTime = Date.now();

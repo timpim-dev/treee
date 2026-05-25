@@ -1292,6 +1292,15 @@ tr:hover td {
   color: rgba(255,255,255,0.18);
 }
 
+/* Gear item in inventory/chest (golden border) */
+.inv-relic-card.gear-item {
+  border-color: rgba(236,204,104,0.5);
+}
+.inv-relic-card.gear-item:hover {
+  border-color: #eccc68;
+  box-shadow: 0 0 12px rgba(236,204,104,0.4);
+}
+
 /* Buy-slot row */
 .inv-expand-row {
   display: flex;

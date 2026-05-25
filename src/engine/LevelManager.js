@@ -723,21 +723,9 @@ export class LevelManager {
         }
 
         if (chest.unlockTimer <= 0) {
-          // Open chest!
+          // Open chest — give shards immediately, then show GUI for item selection
           this.game.player.shards += 40;
           this.game.score += 400;
-          
-          // Explode shards loot around chest
-          for (let s = 0; s < 6; s++) {
-            this.game.spawnItem(chest.x + (Math.random()-0.5)*15, chest.y + (Math.random()-0.5)*15, 'shard', 25);
-          }
-
-          // 50% chance to drop relic/gear from chest
-          if (Math.random() < 0.50) {
-            const combinedPool = [...RELICS_CATALOG, ...EQUIPMENT_CATALOG];
-            const randomRelic = combinedPool[Math.floor(Math.random() * combinedPool.length)];
-            this.game.spawnItem(chest.x, chest.y, 'relic', randomRelic);
-          }
 
           if (this.game.audio) this.game.audio.playBuy();
 
@@ -746,8 +734,25 @@ export class LevelManager {
             fontSize: 10,
             fontPixel: true
           });
-
           this.game.particles.createExplosion(chest.x, chest.y, '#eccc68', 25, 120, 3);
+
+          // Build loot pool: always 2 random items (relic or gear) to choose from
+          const combinedPool = [...RELICS_CATALOG, ...EQUIPMENT_CATALOG];
+          const loot = [];
+          const used = new Set();
+          const numOffers = chest.isSpecial ? 3 : 2;
+          for (let n = 0; n < numOffers; n++) {
+            let idx;
+            let attempts = 0;
+            do { idx = Math.floor(Math.random() * combinedPool.length); attempts++; }
+            while (used.has(idx) && attempts < 20);
+            used.add(idx);
+            loot.push(combinedPool[idx]);
+          }
+
+          // Open chest GUI panel
+          this.game.openChestGUI(loot);
+
           this.chests.splice(i, 1);
         }
       } else {
