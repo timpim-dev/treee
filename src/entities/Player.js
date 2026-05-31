@@ -52,6 +52,7 @@ export class Player {
     this.game = game;
     this.x = x;
     this.y = y;
+    this.hueShift = 0;
     this.vx = 0;
     this.vy = 0;
     this.radius = 12; // Collision box size
@@ -463,6 +464,7 @@ export class Player {
   }
 
   takeDamage(amount, game) {
+    if (this.game.isTutorial) return;
     if (this.iframeTimer > 0) return; // Immune during dash
     
     const dr = Math.min(0.75, this.modifiers.damageReduction || 0);
@@ -786,6 +788,7 @@ export class Player {
       xpNeeded: this.xpNeeded,
       ap: this.ap,
       shards: this.shards,
+      hueShift: this.hueShift,
       shopMaxHp: this.shopMaxHp,
       shopMaxMp: this.shopMaxMp,
       shopManaRegen: this.shopManaRegen,
@@ -824,6 +827,7 @@ export class Player {
         this.xpNeeded = progress.xpNeeded || 50;
         this.ap = progress.ap || 0;
         this.shards = progress.shards || 0;
+        this.hueShift = progress.hueShift || 0;
         this.shopMaxHp = progress.shopMaxHp || 0;
         this.shopMaxMp = progress.shopMaxMp || 0;
         this.shopManaRegen = progress.shopManaRegen || 0;
@@ -897,6 +901,9 @@ export class Player {
     }
 
     ctx.save();
+    if (this.hueShift) {
+      ctx.filter = `hue-rotate(${this.hueShift}deg)`;
+    }
     
     // Draw Volt Shield orbs (drawn before player so player renders on top)
     if (this.voltShieldTimer > 0) {

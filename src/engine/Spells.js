@@ -443,12 +443,14 @@ export function processCombo(enemy, spellType, game) {
 
   // Record combo visual indicator
   if (comboTriggered) {
+    game.lastTriggeredComboClass = comboTriggered.class;
+
     // Spawn floating combo label on screen
     game.particles.spawnText(enemy.x, enemy.y - 20, comboTriggered.name, {
       color: comboTriggered.color,
       fontSize: 14,
       fontPixel: true,
-      life: 1.2
+      weight: 'bold'
     });
 
     // Notify UI (which triggers combo notification popping)

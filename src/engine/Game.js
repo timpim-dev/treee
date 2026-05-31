@@ -128,7 +128,7 @@ export class Game {
           this.setState('PAUSED');
         } else if (this.state === 'PAUSED') {
           this.setState('PLAYING');
-        } else if (this.state === 'UPGRADE_TREE' || this.state === 'INVENTORY' || this.state === 'SPELLMAP' || this.state === 'WORLD_MAP' || this.state === 'CHEST') {
+        } else if (this.state === 'UPGRADE_TREE' || this.state === 'INVENTORY' || this.state === 'WORLD_MAP' || this.state === 'CHEST') {
           this.setState('PLAYING');
         }
       }
@@ -245,24 +245,135 @@ export class Game {
     }
 
     // Main Menu Buttons
-    document.getElementById('btn-start-game').addEventListener('click', () => {
-      this.startNewGame();
-    });
-    document.getElementById('btn-how-to').addEventListener('click', () => {
-      this.showPanel('panel-how-to');
-    });
-    document.getElementById('btn-leaderboard').addEventListener('click', () => {
-      this.fetchLeaderboard();
-      this.showPanel('panel-leaderboard');
-    });
-    
-    // Close panels buttons
-    document.getElementById('btn-close-howto').addEventListener('click', () => {
-      this.showPanel(this.state === 'MENU' ? 'panel-main-menu' : '');
-    });
-    document.getElementById('btn-close-leaderboard').addEventListener('click', () => {
-      this.showPanel('panel-main-menu');
-    });
+    const btnPlayMenu = document.getElementById('btn-play-menu');
+    if (btnPlayMenu) {
+      btnPlayMenu.addEventListener('click', () => {
+        this.setState('PLAY_MENU');
+        this.drawGameModePreviews();
+      });
+    }
+    const btnCustomizeMenu = document.getElementById('btn-customize-menu');
+    if (btnCustomizeMenu) {
+      btnCustomizeMenu.addEventListener('click', () => {
+        this.setState('CUSTOMIZE');
+        // Find matching preset index for current player hueShift
+        const currentHue = this.player.hueShift || 0;
+        const presets = [
+          { name: 'Aether Blue', hue: 0 },
+          { name: 'Void Purple', hue: 50 },
+          { name: 'Pyro Red', hue: 135 },
+          { name: 'Chrono Orange', hue: 175 },
+          { name: 'Verdant Green', hue: 255 },
+          { name: 'Frost Cyan', hue: 315 }
+        ];
+        const matchIdx = presets.findIndex(p => p.hue === currentHue);
+        this.customPresetIdx = matchIdx !== -1 ? matchIdx : 0;
+        document.getElementById('customize-preset-name').innerText = presets[this.customPresetIdx].name;
+      });
+    }
+    const btnHowTo = document.getElementById('btn-how-to');
+    if (btnHowTo) {
+      btnHowTo.addEventListener('click', () => {
+        this.showPanel('panel-how-to');
+      });
+    }
+    const btnCreditsMenu = document.getElementById('btn-credits-menu');
+    if (btnCreditsMenu) {
+      btnCreditsMenu.addEventListener('click', () => {
+        this.setState('CREDITS');
+      });
+    }
+    const btnContactMenu = document.getElementById('btn-contact-menu');
+    if (btnContactMenu) {
+      btnContactMenu.addEventListener('click', () => {
+        this.setState('CONTACT');
+      });
+    }
+
+    // Play Selector Menu Buttons
+    const btnStartWeaver = document.getElementById('btn-start-weaver');
+    if (btnStartWeaver) {
+      btnStartWeaver.addEventListener('click', () => {
+        this.isTutorial = false;
+        document.getElementById('tutorial-guide').classList.add('hidden');
+        this.startNewGame();
+      });
+    }
+    const btnStartTutorial = document.getElementById('btn-start-tutorial');
+    if (btnStartTutorial) {
+      btnStartTutorial.addEventListener('click', () => {
+        this.startTutorial();
+      });
+    }
+    const btnPlayBack = document.getElementById('btn-play-back');
+    if (btnPlayBack) {
+      btnPlayBack.addEventListener('click', () => {
+        this.setState('MENU');
+      });
+    }
+
+    // Customize Selector Buttons
+    const presets = [
+      { name: 'Aether Blue', hue: 0 },
+      { name: 'Void Purple', hue: 50 },
+      { name: 'Pyro Red', hue: 135 },
+      { name: 'Chrono Orange', hue: 175 },
+      { name: 'Verdant Green', hue: 255 },
+      { name: 'Frost Cyan', hue: 315 }
+    ];
+    const btnPrevPreset = document.getElementById('btn-prev-preset');
+    if (btnPrevPreset) {
+      btnPrevPreset.addEventListener('click', () => {
+        this.customPresetIdx = (this.customPresetIdx - 1 + presets.length) % presets.length;
+        document.getElementById('customize-preset-name').innerText = presets[this.customPresetIdx].name;
+        if (this.audio) this.audio.playClick();
+      });
+    }
+    const btnNextPreset = document.getElementById('btn-next-preset');
+    if (btnNextPreset) {
+      btnNextPreset.addEventListener('click', () => {
+        this.customPresetIdx = (this.customPresetIdx + 1) % presets.length;
+        document.getElementById('customize-preset-name').innerText = presets[this.customPresetIdx].name;
+        if (this.audio) this.audio.playClick();
+      });
+    }
+    const btnSaveCustomize = document.getElementById('btn-save-customize');
+    if (btnSaveCustomize) {
+      btnSaveCustomize.addEventListener('click', () => {
+        this.player.hueShift = presets[this.customPresetIdx].hue;
+        this.player.saveGameState();
+        if (this.audio) this.audio.playBuy();
+        this.setState('MENU');
+      });
+    }
+
+    // Credits/Contact/How-To back buttons
+    const btnCreditsClose = document.getElementById('btn-credits-close');
+    if (btnCreditsClose) {
+      btnCreditsClose.addEventListener('click', () => {
+        this.setState('MENU');
+      });
+    }
+    const btnContactClose = document.getElementById('btn-contact-close');
+    if (btnContactClose) {
+      btnContactClose.addEventListener('click', () => {
+        this.setState('MENU');
+      });
+    }
+    const btnCloseHowTo = document.getElementById('btn-close-howto');
+    if (btnCloseHowTo) {
+      btnCloseHowTo.addEventListener('click', () => {
+        this.setState('MENU');
+      });
+    }
+
+    // Tutorial Finish button listener
+    const btnFinishTutorial = document.getElementById('btn-finish-tutorial');
+    if (btnFinishTutorial) {
+      btnFinishTutorial.addEventListener('click', () => {
+        this.endTutorial();
+      });
+    }
     
     // Ability Tree Button in HUD
     document.getElementById('btn-open-tree-hud').addEventListener('click', () => {
@@ -440,11 +551,11 @@ export class Game {
 
     // ── Spell Remap Panel ────────────────────────────────────────────────
     document.getElementById('btn-pause-spellmap').addEventListener('click', () => {
-      this._prevStateBeforeSpellmap = this.state;
-      this.setState('SPELLMAP');
+      this._prevStateBeforeInventory = this.state;
+      this._invActiveTab = 'spells';
+      this.setState('INVENTORY');
+      this.refreshInventoryPanel();
     });
-    document.getElementById('btn-close-spellmap').addEventListener('click', () => this._closeSpellmap());
-    document.getElementById('btn-close-spellmap-bottom').addEventListener('click', () => this._closeSpellmap());
     document.getElementById('btn-spellmap-reset').addEventListener('click', () => {
       this.player.customSpellMap = { primary:null,secondary:null,utility:null,ultimate:null,extra:null,slot6:null,slot7:null };
       this.player.recalculateModifiers(this.abilityTree);
@@ -529,12 +640,7 @@ export class Game {
     return 60 + (this.player.maxInventorySlots - 4) * 30;
   }
 
-  _closeSpellmap() {
-    const prev = this._prevStateBeforeSpellmap || 'PAUSED';
-    this.state = prev;
-    document.getElementById('hud').classList.toggle('hidden', prev !== 'PLAYING');
-    this.showPanel(prev === 'PAUSED' ? 'panel-pause' : '');
-  }
+
 
   refreshSpellmapPanel() {
     const p = this.player;
@@ -924,6 +1030,11 @@ export class Game {
       });
     }
 
+    // ── SPELLS TAB ─────────────────────────────────────────────────────────
+    if (activeTab === 'spells') {
+      this.refreshSpellmapPanel();
+    }
+
     // Refresh the player preview on gear tab
     this.drawInventoryPlayer();
   }
@@ -990,6 +1101,9 @@ export class Game {
     const fIdx = Math.floor(this.frameIndex * 3) % 2; // 0 or 1 for idle breathing effect!
 
     ctx.save();
+    if (this.player && this.player.hueShift) {
+      ctx.filter = `hue-rotate(${this.player.hueShift}deg)`;
+    }
     
     // Draw trail shadow at feet
     ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
@@ -1327,27 +1441,37 @@ export class Game {
     
     if (this.audio) this.audio.playStateChange();
     
-    // Keep HUD visible during inventory/spellmap/worldmap/chest so stats are readable
+    if (newState === 'MENU') {
+      if (this.isTutorial) {
+        this.endTutorial();
+        return;
+      }
+      this.isTutorial = false;
+      const tg = document.getElementById('tutorial-guide');
+      if (tg) tg.classList.add('hidden');
+    }
+    
+    // Keep HUD visible during inventory/worldmap/chest so stats are readable
     document.getElementById('hud').classList.toggle('hidden',
-      newState !== 'PLAYING' && newState !== 'INVENTORY' && newState !== 'SPELLMAP' && newState !== 'WORLD_MAP' && newState !== 'CHEST');
+      newState !== 'PLAYING' && newState !== 'INVENTORY' && newState !== 'WORLD_MAP' && newState !== 'CHEST');
     
     this.showPanel(
       newState === 'MENU'          ? 'panel-main-menu' :
+      newState === 'PLAY_MENU'     ? 'panel-play-menu' :
+      newState === 'CUSTOMIZE'     ? 'panel-customize' :
+      newState === 'CREDITS'       ? 'panel-credits' :
+      newState === 'CONTACT'       ? 'panel-contact' :
       newState === 'UPGRADE_TREE'  ? 'panel-ability-tree' :
       newState === 'GAME_OVER'     ? 'panel-game-over' :
       newState === 'PAUSED'        ? 'panel-pause' :
       newState === 'SHOP'          ? 'panel-shop' :
       newState === 'INVENTORY'     ? 'panel-inventory' :
-      newState === 'SPELLMAP'      ? 'panel-spellmap' :
       newState === 'WORLD_MAP'     ? 'panel-worldmap' :
       newState === 'CHEST'         ? 'panel-chest' : ''
     );
 
     if (newState === 'INVENTORY') {
       this.refreshInventoryPanel();
-    }
-    if (newState === 'SPELLMAP') {
-      this.refreshSpellmapPanel();
     }
     if (newState === 'WORLD_MAP') {
       const btn = document.getElementById('btn-reveal-map');
@@ -1386,7 +1510,7 @@ export class Game {
   }
 
   showPanel(panelId) {
-    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-how-to', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-spellmap', 'panel-worldmap', 'panel-chest'];
+    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-how-to', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-worldmap', 'panel-chest', 'panel-play-menu', 'panel-customize', 'panel-credits', 'panel-contact'];
     overlays.forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
@@ -1843,7 +1967,23 @@ export class Game {
 
     if (this.state === 'PLAYING') {
       this.update(dt);
+      if (this.isTutorial) {
+        this.updateTutorial(dt);
+      }
       this.draw();
+    } else if (this.state === 'MENU' || this.state === 'PLAY_MENU' || this.state === 'CREDITS' || this.state === 'CONTACT') {
+      this.drawMenuPlayer('main-menu-player-canvas');
+    } else if (this.state === 'CUSTOMIZE') {
+      const presets = [
+        { name: 'Aether Blue', hue: 0 },
+        { name: 'Void Purple', hue: 50 },
+        { name: 'Pyro Red', hue: 135 },
+        { name: 'Chrono Orange', hue: 175 },
+        { name: 'Verdant Green', hue: 255 },
+        { name: 'Frost Cyan', hue: 315 }
+      ];
+      const selectedHue = presets[this.customPresetIdx || 0]?.hue || 0;
+      this.drawMenuPlayer('customize-player-canvas', selectedHue);
     } else if (this.state === 'SHOP') {
       this.draw();
     } else if (this.state === 'UPGRADE_TREE') {
@@ -1852,6 +1992,9 @@ export class Game {
       this.drawWorldmap();
     } else if (this.state === 'INVENTORY') {
       this.drawInventoryPlayer();
+      if (this.isTutorial) {
+        this.updateTutorial(dt);
+      }
     } else if (this.state === 'CHEST') {
       this.draw();
     }
@@ -2762,5 +2905,348 @@ export class Game {
     ctx.stroke();
     
     ctx.restore();
+  }
+
+  drawMenuPlayer(canvasId, hueShift) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.imageSmoothingEnabled = false;
+
+    const px = canvas.width / 2;
+    const py = canvas.height / 2;
+
+    const fIdx = Math.floor(this.frameIndex * 4) % 3; // idle / walk animation frames
+
+    ctx.save();
+    if (hueShift !== undefined) {
+      if (hueShift) ctx.filter = `hue-rotate(${hueShift}deg)`;
+    } else if (this.player && this.player.hueShift) {
+      ctx.filter = `hue-rotate(${this.player.hueShift}deg)`;
+    }
+    
+    // Draw trail shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+    ctx.beginPath();
+    ctx.arc(px, py + 16, 12, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw player base sprite (scaled to 48px or 64px)
+    this.assets.draw(ctx, 'player', px, py, 48, fIdx, 0);
+
+    ctx.restore();
+  }
+
+  drawGameModePreviews() {
+    const drawOnCanvas = (canvasId, drawFn) => {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = false;
+      drawFn(ctx, canvas.width, canvas.height);
+    };
+
+    drawOnCanvas('canvas-mode-weaver', (ctx, w, h) => {
+      ctx.save();
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#a55eea';
+      ctx.fillStyle = 'rgba(165, 94, 234, 0.4)';
+      ctx.beginPath();
+      ctx.arc(w / 2, h / 2, 24, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      
+      this.assets.draw(ctx, 'icon_fireball', w / 2, h / 2, 40);
+    });
+
+    drawOnCanvas('canvas-mode-tutorial', (ctx, w, h) => {
+      ctx.save();
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#2ed573';
+      ctx.fillStyle = 'rgba(46, 213, 115, 0.3)';
+      ctx.beginPath();
+      ctx.arc(w / 2, h / 2, 24, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      this.assets.draw(ctx, 'enemy_slime', w / 2, h / 2, 32, 0);
+    });
+  }
+
+  startTutorial() {
+    this.isTutorial = true;
+    this.tutorialStep = 1;
+    this.tutorialMovedDistance = 0;
+    this.tutorialDummy = null;
+    this.tutorialPrevX = 0;
+    this.tutorialPrevY = 0;
+    this.lastTriggeredComboClass = null;
+    this.tutorialOpenedInventory = false;
+
+    // Backup actual save state
+    this.preTutorialBackup = localStorage.getItem('aetherweaver_save');
+    // Disable saving by mocking player.saveGameState to a no-op
+    this.player.saveGameState = () => {};
+
+    // Reset game entities
+    this.projectiles = [];
+    this.enemies = [];
+    this.items = [];
+    this.areaEffects = [];
+    this.score = 0;
+    this.kills = 0;
+    this.timeDilationTimer = 0;
+
+    // Reset player progression to blank-slate
+    this.player.level = 1;
+    this.player.xp = 0;
+    this.player.xpNeeded = 50;
+    this.player.ap = 0;
+    this.player.shards = 0;
+    this.player.shopMaxHp = 0;
+    this.player.shopMaxMp = 0;
+    this.player.shopManaRegen = 0;
+    this.player.runeStorage = [];
+    this.player.equippedRunes = [];
+    this.player.gearStorage = [];
+    this.player.equipment = { helmet: null, chestplate: null, boots: null, weapon: null, ring: null };
+    this.player.maxSpellSlots = 5;
+    this.player.customSpellMap = { primary:null,secondary:null,utility:null,ultimate:null,extra:null,slot6:null,slot7:null };
+    this.player.rebirthCount = 0;
+    this.player.rebirthBonuses = { maxHp: 0, maxMp: 0, damage: 0, speed: 0, shardMultiplier: 1 };
+
+    // Reset ability tree upgrades (keep root node unlocked)
+    if (this.abilityTree && this.abilityTree.nodes) {
+      for (const key in this.abilityTree.nodes) {
+        this.abilityTree.nodes[key].unlocked = (key === 'root');
+      }
+    }
+
+    this.player.recalculateModifiers(this.abilityTree);
+
+    // Set level manager to standard size
+    this.levelManager = new LevelManager(this);
+    this.levelManager.wave = 1;
+    this.levelManager.generateObstacles();
+
+    // Spawn player in center
+    this.player.x = this.levelManager.width / 2;
+    this.player.y = this.levelManager.height / 2;
+    this.player.vx = 0;
+    this.player.vy = 0;
+    this.player.hp = this.player.getMaxHp();
+    this.player.mp = this.player.getMaxMp();
+
+    // Restrict spells: only fireball at start
+    this.player.spellSlots.primary = 'fireball';
+    this.player.spellSlots.secondary = null;
+    this.player.spellSlots.utility = null;
+    this.player.spellSlots.ultimate = null;
+    this.player.spellSlots.extra = null;
+
+    this.tutorialPrevX = this.player.x;
+    this.tutorialPrevY = this.player.y;
+
+    // Show Guide overlay
+    const tg = document.getElementById('tutorial-guide');
+    if (tg) tg.classList.remove('hidden');
+    const tfbc = document.getElementById('tutorial-finish-btn-container');
+    if (tfbc) tfbc.classList.add('hidden');
+
+    this.setTutorialStep(1);
+
+    // Center camera
+    this.camera = { x: this.player.x - this.canvas.width / 2, y: this.player.y - this.canvas.height / 2 };
+
+    this.setState('PLAYING');
+    this.updateHUD();
+  }
+
+  setTutorialStep(step) {
+    this.tutorialStep = step;
+    const progressFill = document.getElementById('tutorial-progress-fill');
+    const stepIndicator = document.getElementById('tutorial-step-indicator');
+    const titleEl = document.getElementById('tutorial-title');
+    const textEl = document.getElementById('tutorial-text');
+
+    if (progressFill) progressFill.style.width = `${(step / 7) * 100}%`;
+    if (stepIndicator) stepIndicator.innerText = `STEP ${step}/7`;
+
+    // Clear old tutorial dummy if exists
+    if (this.tutorialDummy) {
+      this.tutorialDummy.dead = true;
+      this.tutorialDummy = null;
+    }
+
+    if (step === 1) {
+      if (titleEl) titleEl.innerText = "MOVE YOUR WIZARD";
+      if (textEl) textEl.innerText = "Use WASD or Arrow Keys to walk around the training arena.";
+      this.tutorialMovedDistance = 0;
+      this.tutorialPrevX = this.player.x;
+      this.tutorialPrevY = this.player.y;
+    } else if (step === 2) {
+      if (titleEl) titleEl.innerText = "CAST FIREBALL";
+      if (textEl) textEl.innerText = "A training slime has appeared. Target it with your mouse cursor and press Left Click (LMB) to launch Fireballs.";
+      
+      this.spawnEnemy(this.player.x, this.player.y - 120, 'slime');
+      this.tutorialDummy = this.enemies[this.enemies.length - 1];
+      if (this.tutorialDummy) {
+        this.tutorialDummy.isPassive = true;
+        this.tutorialDummy.hp = 30;
+        this.tutorialDummy.maxHp = 30;
+      }
+    } else if (step === 3) {
+      if (titleEl) titleEl.innerText = "STEAM COMBO";
+      if (textEl) textEl.innerText = "A tougher training slime has appeared. Click Right Click (RMB) to cast Frost Spike and CHILL it, then quickly Left Click (LMB) to trigger a scalding Steam Combo reaction!";
+      
+      // Equip Frost Spike in secondary slot
+      this.player.spellSlots.secondary = 'frost_spike';
+      this.updateHUD();
+
+      // Spawn a second dummy
+      this.spawnEnemy(this.player.x, this.player.y - 120, 'slime');
+      this.tutorialDummy = this.enemies[this.enemies.length - 1];
+      if (this.tutorialDummy) {
+        this.tutorialDummy.isPassive = true;
+        this.tutorialDummy.hp = 60;
+        this.tutorialDummy.maxHp = 60;
+      }
+      this.lastTriggeredComboClass = null;
+    } else if (step === 4) {
+      if (titleEl) titleEl.innerText = "CHRONO DASH";
+      if (textEl) textEl.innerText = "We've equipped Chrono Dash in your Utility slot. Press Spacebar while moving to dash quickly and dodge attacks.";
+      
+      // Equip Chrono Dash in utility slot
+      this.player.spellSlots.utility = 'aether_dash';
+      this.updateHUD();
+    } else if (step === 5) {
+      if (titleEl) titleEl.innerText = "EQUIP GEAR & RUNES";
+      if (textEl) textEl.innerText = "We've placed a Rune and Pyromancer Staff in your bag. Press 'I' or click the HUD SATCHEL, click to equip them, then close the inventory.";
+      
+      // Pushes items to inventory
+      const iceRune = RELICS_CATALOG.find(r => r.id === 'relic_frost');
+      const pyStaff = EQUIPMENT_CATALOG.find(e => e.id === 'equip_staff_fire');
+      if (iceRune && !this.player.runeStorage.includes(iceRune)) {
+        this.player.runeStorage.push(iceRune);
+      }
+      if (pyStaff && !this.player.gearStorage.includes(pyStaff)) {
+        this.player.gearStorage.push(pyStaff);
+      }
+      this.tutorialOpenedInventory = false;
+    } else if (step === 6) {
+      if (titleEl) titleEl.innerText = "THE AETHER WEB";
+      if (textEl) textEl.innerText = "You gained 5 AP. Click the '⚡ Tree (5 AP)' notification at the top-right, unlock any node upgrade, then close the tree to proceed.";
+      
+      // Give AP points and update HUD
+      this.player.ap = 5;
+      this.updateHUD();
+    } else if (step === 7) {
+      if (titleEl) titleEl.innerText = "TUTORIAL COMPLETE";
+      if (textEl) textEl.innerText = "Incredible work! You are now ready to weave runes, equip equipment, build your web, and face the onslaught. Click below to begin!";
+      
+      const finishBtnContainer = document.getElementById('tutorial-finish-btn-container');
+      if (finishBtnContainer) {
+        finishBtnContainer.classList.remove('hidden');
+      }
+    }
+  }
+
+  updateTutorial(dt) {
+    if (this.tutorialStep === 1) {
+      const distMoved = Math.hypot(this.player.x - this.tutorialPrevX, this.player.y - this.tutorialPrevY);
+      this.tutorialMovedDistance += distMoved;
+      this.tutorialPrevX = this.player.x;
+      this.tutorialPrevY = this.player.y;
+      
+      if (this.tutorialMovedDistance >= 120) {
+        if (this.audio) this.audio.playUnlock();
+        this.setTutorialStep(2);
+      }
+    } 
+    
+    else if (this.tutorialStep === 2) {
+      if (!this.tutorialDummy || this.tutorialDummy.dead || !this.enemies.includes(this.tutorialDummy)) {
+        if (this.audio) this.audio.playUnlock();
+        this.setTutorialStep(3);
+      }
+    } 
+    
+    else if (this.tutorialStep === 3) {
+      const comboHappened = this.lastTriggeredComboClass === 'steam';
+      const dummyDead = !this.tutorialDummy || this.tutorialDummy.dead || !this.enemies.includes(this.tutorialDummy);
+      
+      if (comboHappened || dummyDead) {
+        if (this.audio) this.audio.playUnlock();
+        this.setTutorialStep(4);
+      }
+    } 
+    
+    else if (this.tutorialStep === 4) {
+      if (this.player.spellCooldowns.utility > 0) {
+        if (this.audio) this.audio.playUnlock();
+        this.setTutorialStep(5);
+      }
+    }
+
+    else if (this.tutorialStep === 5) {
+      if (this.state === 'INVENTORY') {
+        this.tutorialOpenedInventory = true;
+      }
+      // Check if player has equipped a rune or a weapon, and is back in PLAYING state
+      const hasEquipped = this.player.equippedRunes.length > 0 || this.player.equipment.weapon !== null;
+      if (this.tutorialOpenedInventory && hasEquipped && this.state === 'PLAYING') {
+        if (this.audio) this.audio.playUnlock();
+        this.setTutorialStep(6);
+      }
+    }
+
+    else if (this.tutorialStep === 6) {
+      // Check if they unlocked any node in abilityTree and closed the tree
+      let unlockedNodeCount = 0;
+      if (this.abilityTree && this.abilityTree.nodes) {
+        for (const key in this.abilityTree.nodes) {
+          if (this.abilityTree.nodes[key].unlocked) unlockedNodeCount++;
+        }
+      }
+      if (unlockedNodeCount > 0 && this.state === 'PLAYING') {
+        if (this.audio) this.audio.playUnlock();
+        this.setTutorialStep(7);
+      }
+    }
+  }
+
+  endTutorial() {
+    if (!this.isTutorial) return;
+    this.isTutorial = false;
+    document.getElementById('tutorial-guide').classList.add('hidden');
+    
+    // Clear entities
+    this.projectiles = [];
+    this.enemies = [];
+    this.items = [];
+    this.areaEffects = [];
+    
+    // Restore saveGameState method from prototype
+    delete this.player.saveGameState;
+
+    // Restore pre-tutorial save state
+    if (this.preTutorialBackup) {
+      localStorage.setItem('aetherweaver_save', this.preTutorialBackup);
+    } else {
+      localStorage.removeItem('aetherweaver_save');
+    }
+
+    // Load actual game progress back into player
+    this.player.loadGameState();
+    this.player.recalculateModifiers(this.abilityTree);
+
+    // Fully heal player
+    this.player.hp = this.player.getMaxHp();
+    this.player.mp = this.player.getMaxMp();
+
+    this.setState('MENU');
+    this.updateHUD();
   }
 }

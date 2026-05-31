@@ -259,6 +259,100 @@ export class LevelManager {
     const activeCols = Math.min(30, 10 + Math.floor((this.wave - 1) / 2));
     const activeRows = Math.min(30, 10 + Math.floor((this.wave - 1) / 2));
     
+    // --- CONNECTIVITY HEALING ---
+    // Since we truncate the 30x30 maze to activeCols x activeRows, cell paths that loop 
+    // outside the boundary will be closed, which can leave active cells isolated.
+    // We run a BFS from cell (5, 5) (the player spawn cell) to find and heal isolated cells.
+    const visited = [];
+    for (let c = 0; c < activeCols; c++) {
+      visited[c] = new Array(activeRows).fill(false);
+    }
+    
+    const queue = [];
+    const startC = Math.min(activeCols - 1, 5);
+    const startR = Math.min(activeRows - 1, 5);
+    visited[startC][startR] = true;
+    queue.push({ c: startC, r: startR });
+    
+    const getNeighbors = (c, r) => {
+      const cell = this.fullNavCells[c][r];
+      const list = [];
+      if (r > 0 && !cell.walls.north) list.push({ c, r: r - 1 });
+      if (r < activeRows - 1 && !cell.walls.south) list.push({ c, r: r + 1 });
+      if (c < activeCols - 1 && !cell.walls.east) list.push({ c: c + 1, r });
+      if (c > 0 && !cell.walls.west) list.push({ c: c - 1, r });
+      return list;
+    };
+    
+    const runBFS = () => {
+      while (queue.length > 0) {
+        const curr = queue.shift();
+        const neighbors = getNeighbors(curr.c, curr.r);
+        for (const n of neighbors) {
+          if (!visited[n.c][n.r]) {
+            visited[n.c][n.r] = true;
+            queue.push(n);
+          }
+        }
+      }
+    };
+    
+    runBFS();
+    
+    // Find unvisited active cells and connect them to visited neighbors
+    let healedAny = true;
+    while (healedAny) {
+      healedAny = false;
+      for (let c = 0; c < activeCols; c++) {
+        for (let r = 0; r < activeRows; r++) {
+          if (!visited[c][r]) {
+            // Find a neighbor that IS visited and carve a path
+            const choices = [];
+            if (r > 0 && visited[c][r - 1]) choices.push({ dir: 'north', tc: c, tr: r - 1 });
+            if (r < activeRows - 1 && visited[c][r + 1]) choices.push({ dir: 'south', tc: c, tr: r + 1 });
+            if (c > 0 && visited[c - 1][r]) choices.push({ dir: 'west', tc: c - 1, tr: r });
+            if (c < activeCols - 1 && visited[c + 1][r]) choices.push({ dir: 'east', tc: c + 1, tr: r });
+            
+            if (choices.length > 0) {
+              const choice = choices[Math.floor(Math.random() * choices.length)];
+              const cell = this.fullNavCells[c][r];
+              const neighborCell = this.fullNavCells[choice.tc][choice.tr];
+              
+              if (choice.dir === 'north') {
+                cell.walls.north = false;
+                neighborCell.walls.south = false;
+                const ty = r * 5;
+                for (let tx = c * 5 + 1; tx < (c + 1) * 5; tx++) this.fullTileGrid[tx][ty] = 0;
+              } else if (choice.dir === 'south') {
+                cell.walls.south = false;
+                neighborCell.walls.north = false;
+                const ty = (r + 1) * 5;
+                for (let tx = c * 5 + 1; tx < (c + 1) * 5; tx++) this.fullTileGrid[tx][ty] = 0;
+              } else if (choice.dir === 'west') {
+                cell.walls.west = false;
+                neighborCell.walls.east = false;
+                const tx = c * 5;
+                for (let ty = r * 5 + 1; ty < (r + 1) * 5; ty++) this.fullTileGrid[tx][ty] = 0;
+              } else if (choice.dir === 'east') {
+                cell.walls.east = false;
+                neighborCell.walls.west = false;
+                const tx = (c + 1) * 5;
+                for (let ty = r * 5 + 1; ty < (r + 1) * 5; ty++) this.fullTileGrid[tx][ty] = 0;
+              }
+              
+              // Add the newly connected cell to BFS queue to cascade updates
+              visited[c][r] = true;
+              queue.push({ c, r });
+              runBFS();
+              healedAny = true;
+              break; // Break loop to scan from top-left again
+            }
+          }
+        }
+        if (healedAny) break;
+      }
+    }
+    
     this.navCols = activeCols;
     this.navRows = activeRows;
     this.navCellSize = 200;
@@ -766,38 +860,53 @@ export class LevelManager {
    * Spawn a random enemy based on the current wave difficulty
    */
   spawnEnemy() {
-    // Choose spawn location outside the player's view viewport to prevent pop-in
-    const pad = 100;
-    const viewWidth = this.game.canvas.width;
-    const viewHeight = this.game.canvas.height;
-    
     let sx = 0;
     let sy = 0;
     
-    // Choose a side to spawn (0: Top, 1: Right, 2: Bottom, 3: Left)
-    const side = Math.floor(Math.random() * 4);
-    switch (side) {
-      case 0: // Top
-        sx = this.game.camera.x + Math.random() * viewWidth;
-        sy = this.game.camera.y - pad;
-        break;
-      case 1: // Right
-        sx = this.game.camera.x + viewWidth + pad;
-        sy = this.game.camera.y + Math.random() * viewHeight;
-        break;
-      case 2: // Bottom
-        sx = this.game.camera.x + Math.random() * viewWidth;
-        sy = this.game.camera.y + viewHeight + pad;
-        break;
-      case 3: // Left
-        sx = this.game.camera.x - pad;
-        sy = this.game.camera.y + Math.random() * viewHeight;
-        break;
+    // Gather all floor tile candidates outside the player's immediate vicinity
+    const candidates = [];
+    const playerX = this.game.player.x;
+    const playerY = this.game.player.y;
+    
+    for (let tx = 0; tx < this.tileWidth; tx++) {
+      for (let ty = 0; ty < this.tileHeight; ty++) {
+        if (this.tileGrid[tx][ty] === 0) {
+          const wx = tx * 40 + 20;
+          const wy = ty * 40 + 20;
+          const dist = Math.hypot(wx - playerX, wy - playerY);
+          if (dist > 220) {
+            candidates.push({ x: wx, y: wy });
+          }
+        }
+      }
     }
-
-    // Constrain inside bounds
-    sx = Math.max(60, Math.min(this.width - 60, sx));
-    sy = Math.max(60, Math.min(this.height - 60, sy));
+    
+    let spawnPos = null;
+    if (candidates.length > 0) {
+      spawnPos = candidates[Math.floor(Math.random() * candidates.length)];
+    } else {
+      // Fallback: search for any floor tile
+      const allFloor = [];
+      for (let tx = 0; tx < this.tileWidth; tx++) {
+        for (let ty = 0; ty < this.tileHeight; ty++) {
+          if (this.tileGrid[tx][ty] === 0) {
+            allFloor.push({ x: tx * 40 + 20, y: ty * 40 + 20 });
+          }
+        }
+      }
+      if (allFloor.length > 0) {
+        spawnPos = allFloor[Math.floor(Math.random() * allFloor.length)];
+      }
+    }
+    
+    if (spawnPos) {
+      sx = spawnPos.x;
+      sy = spawnPos.y;
+    } else {
+      // Last resort fallback
+      sx = this.width / 2;
+      sy = this.height / 2;
+    }
 
     // Choose enemy archetype based on wave
     let type = 'slime';

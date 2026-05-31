@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-Bgxp9xb3.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-Bv3IBxYd.css">
+  <script type="module" crossorigin src="/assets/index-C9ZjcceD.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-BzfcFeNy.css">
 </head>
 <body>
   <!-- Main Game Canvas Container -->
@@ -142,18 +142,29 @@
     <!-- UI Overlay Panels -->
     <!-- 1. MAIN MENU -->
     <div id="panel-main-menu" class="panel-overlay">
-      <div class="menu-content text-center">
-        <h1 id="menu-title" class="glitch-title" data-text="AETHERWEAVER">AETHERWEAVER</h1>
-        <h2 id="menu-subtitle">RUNE ODYSSEY</h2>
-        <div class="menu-decor"></div>
-        <div class="menu-buttons">
-          <button id="btn-start-game" class="btn-menu">START ODYSSEY</button>
-          <button id="btn-how-to" class="btn-menu">HOW TO PLAY</button>
-          <button id="btn-leaderboard" class="btn-menu">HALL OF RUNES</button>
-          <button id="btn-menu-mute" class="btn-menu secondary">MUTE AUDIO</button>
+      <div class="menu-content main-menu-split">
+        <!-- Left Column: Title and Player Preview -->
+        <div class="main-menu-left">
+          <div class="main-menu-title-box">
+            <h1 id="menu-title" class="glitch-title" data-text="AETHERWEAVER">AETHERWEAVER</h1>
+            <h2 id="menu-subtitle">RUNE ODYSSEY</h2>
+          </div>
+          <div class="player-preview-box">
+            <canvas id="main-menu-player-canvas" width="128" height="128"></canvas>
+          </div>
+          <div class="menu-version-indicator" id="menu-version">v0.3.0Beta</div>
         </div>
-        <div class="menu-footer">
-          Use Keyboard WASD & Mouse to Weave Magic
+        
+        <!-- Right Column: Navigation Buttons -->
+        <div class="main-menu-right">
+          <div class="menu-buttons vertical-buttons">
+            <button id="btn-play-menu" class="btn-menu">PLAY</button>
+            <button id="btn-customize-menu" class="btn-menu">CHARACTER CUSTOMIZATION</button>
+            <button id="btn-how-to" class="btn-menu">HOW TO PLAY</button>
+            <button id="btn-credits-menu" class="btn-menu">CREDITS</button>
+            <button id="btn-contact-menu" class="btn-menu">CONTACT</button>
+            <button id="btn-menu-mute" class="btn-menu secondary">MUTE AUDIO</button>
+          </div>
         </div>
       </div>
     </div>
@@ -275,7 +286,6 @@
               <li><canvas class="inline-icon" id="combo-time-1" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-time">Time</span> + <canvas class="inline-icon" id="combo-lightning-2" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-lightning">Lightning</span> = <strong class="text-overload">Temporal Overload</strong>: Speeds up your cooldowns and grants lightning velocity.</li>
             </ul>
           </div>
-        </div>
         
         <div style="text-align: left; margin-top: 15px;">
           <h3>Core Mechanics</h3>
@@ -366,85 +376,139 @@
       </div>
     </div>
 
-    <!-- 8. RUNE SATCHEL & EQUIPMENT — Full Inventory Management Panel -->
+    <!-- 8. STORAGE & EQUIPMENT — Full Inventory Management Panel -->
     <div id="panel-inventory" class="panel-overlay hidden">
       <div class="inv-panel-content">
+
+        <!-- Header -->
         <div class="inv-panel-header">
-          <h2>WIZARD BAG & GEAR</h2>
+          <h2>COLLECTION &amp; GEAR</h2>
           <div class="inv-panel-meta">
             <span>Shards: <canvas class="inline-icon" id="icon-shard-inv" width="12" height="12" draggable="false"></canvas> <strong id="inv-shards-value">0</strong></span>
-            <span>Slots: <strong id="inv-slots-used">0</strong> / <strong id="inv-slots-max">4</strong></span>
           </div>
           <button id="btn-close-inventory" class="btn-close">&times;</button>
         </div>
 
-        <div class="inv-layout-split">
-          <!-- Left: Equipment Paper Doll -->
-          <div class="inv-equip-section">
-            <h3>EQUIPPED GEAR</h3>
-            <div class="equip-slots-container">
-              <!-- Helmet Slot -->
-              <div class="equip-slot" id="equip-slot-helmet" data-slot="helmet" style="grid-column: 1; grid-row: 1;">
-                <div class="equip-slot-label">HELMET</div>
-                <canvas class="equip-slot-canvas" id="equip-canvas-helmet" width="32" height="32"></canvas>
-                <div class="tooltip" id="tooltip-equip-helmet">Empty Helmet Slot</div>
-              </div>
-              
-              <!-- Robe Slot -->
-              <div class="equip-slot" id="equip-slot-chestplate" data-slot="chestplate" style="grid-column: 1; grid-row: 2;">
-                <div class="equip-slot-label">ROBE</div>
-                <canvas class="equip-slot-canvas" id="equip-canvas-chestplate" width="32" height="32"></canvas>
-                <div class="tooltip" id="tooltip-equip-chestplate">Empty Robe Slot</div>
-              </div>
+        <!-- Tab bar -->
+        <div class="inv-tab-bar">
+          <button class="inv-tab-btn active" data-tab="runes">RUNES <span id="inv-rune-count" style="font-size:6px; opacity:0.7;"></span></button>
+          <button class="inv-tab-btn" data-tab="gear">GEAR &amp; ARMOR (<span id="inv-gear-count">0</span>)</button>
+          <button class="inv-tab-btn" data-tab="spells">SPELLS &amp; HOTBAR</button>
+        </div>
 
-              <!-- Boots Slot -->
-              <div class="equip-slot" id="equip-slot-boots" data-slot="boots" style="grid-column: 1; grid-row: 3;">
-                <div class="equip-slot-label">BOOTS</div>
-                <canvas class="equip-slot-canvas" id="equip-canvas-boots" width="32" height="32"></canvas>
-                <div class="tooltip" id="tooltip-equip-boots">Empty Boots Slot</div>
-              </div>
+        <!-- RUNES TAB -->
+        <div class="inv-tab-pane" data-tab="runes">
+          <p class="inv-tab-desc">Equip runes to activate their bonuses. Click a rune from storage to equip it. Click an equipped rune to unequip.</p>
 
-              <!-- Player Character Preview -->
-              <div class="equip-player-preview">
-                <canvas class="equip-player-canvas" id="inv-player-canvas" width="48" height="48"></canvas>
-              </div>
-
-              <!-- Weapon Slot -->
-              <div class="equip-slot" id="equip-slot-weapon" data-slot="weapon" style="grid-column: 3; grid-row: 1;">
-                <div class="equip-slot-label">WEAPON</div>
-                <canvas class="equip-slot-canvas" id="equip-canvas-weapon" width="32" height="32"></canvas>
-                <div class="tooltip" id="tooltip-equip-weapon">Empty Weapon Slot</div>
-              </div>
-
-              <!-- Ring Slot -->
-              <div class="equip-slot" id="equip-slot-ring" data-slot="ring" style="grid-column: 3; grid-row: 2;">
-                <div class="equip-slot-label">RING</div>
-                <canvas class="equip-slot-canvas" id="equip-canvas-ring" width="32" height="32"></canvas>
-                <div class="tooltip" id="tooltip-equip-ring">Empty Ring Slot</div>
-              </div>
-            </div>
+          <div class="inv-rune-section-label">EQUIPPED RUNES</div>
+          <div id="inv-equipped-rune-grid" class="inv-relic-grid inv-equipped-rune-grid">
+            <!-- injected by JS -->
           </div>
 
-          <!-- Right: Satchel Bag Grid -->
-          <div class="inv-bag-section">
-            <h3>SATCHEL BAG</h3>
-            <div id="inv-relic-grid" class="inv-relic-grid">
-              <!-- slots injected by JS -->
-            </div>
-
-            <!-- Buy extra slot -->
-            <div class="inv-expand-row" style="margin-top: 12px;">
-              <button id="btn-buy-inv-slot" class="btn-menu small">
-                BUY SLOT (<span id="inv-slot-cost">60</span> Shards)
-              </button>
-              <span class="inv-expand-note">Max 10 slots. Cost increases with each purchase.</span>
-            </div>
+          <div class="inv-rune-section-label" style="margin-top:14px;">RUNE STORAGE</div>
+          <div id="inv-rune-grid" class="inv-relic-grid">
+            <!-- injected by JS -->
           </div>
         </div>
 
-        <!-- Close / back -->
-        <div class="menu-buttons" style="margin-top:18px;">
+        <!-- GEAR TAB -->
+        <div class="inv-tab-pane hidden" data-tab="gear">
+          <div class="inv-gear-layout">
+
+            <!-- Left: Paper Doll (equipped) -->
+            <div class="inv-equip-section">
+              <h3>EQUIPPED</h3>
+              <div class="equip-slots-container">
+                <div class="equip-slot" id="equip-slot-helmet" data-slot="helmet" style="grid-column:1;grid-row:1;">
+                  <div class="equip-slot-label">HELMET</div>
+                  <canvas class="equip-slot-canvas" id="equip-canvas-helmet" width="32" height="32"></canvas>
+                  <div class="tooltip" id="tooltip-equip-helmet">Empty Helmet Slot</div>
+                </div>
+                <div class="equip-slot" id="equip-slot-chestplate" data-slot="chestplate" style="grid-column:1;grid-row:2;">
+                  <div class="equip-slot-label">ROBE</div>
+                  <canvas class="equip-slot-canvas" id="equip-canvas-chestplate" width="32" height="32"></canvas>
+                  <div class="tooltip" id="tooltip-equip-chestplate">Empty Robe Slot</div>
+                </div>
+                <div class="equip-slot" id="equip-slot-boots" data-slot="boots" style="grid-column:1;grid-row:3;">
+                  <div class="equip-slot-label">BOOTS</div>
+                  <canvas class="equip-slot-canvas" id="equip-canvas-boots" width="32" height="32"></canvas>
+                  <div class="tooltip" id="tooltip-equip-boots">Empty Boots Slot</div>
+                </div>
+                <div class="equip-player-preview">
+                  <canvas class="equip-player-canvas" id="inv-player-canvas" width="48" height="48"></canvas>
+                </div>
+                <div class="equip-slot" id="equip-slot-weapon" data-slot="weapon" style="grid-column:3;grid-row:1;">
+                  <div class="equip-slot-label">WEAPON</div>
+                  <canvas class="equip-slot-canvas" id="equip-canvas-weapon" width="32" height="32"></canvas>
+                  <div class="tooltip" id="tooltip-equip-weapon">Empty Weapon Slot</div>
+                </div>
+                <div class="equip-slot" id="equip-slot-ring" data-slot="ring" style="grid-column:3;grid-row:2;">
+                  <div class="equip-slot-label">RING</div>
+                  <canvas class="equip-slot-canvas" id="equip-canvas-ring" width="32" height="32"></canvas>
+                  <div class="tooltip" id="tooltip-equip-ring">Empty Ring Slot</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Gear storage -->
+            <div class="inv-bag-section">
+              <h3>GEAR STORAGE</h3>
+              <p class="inv-tab-desc" style="margin-bottom:8px;">Click a piece of gear to equip it. Click an equipped slot to unequip.</p>
+              <div id="inv-gear-grid" class="inv-relic-grid">
+                <!-- injected by JS -->
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- SPELLS TAB -->
+        <div class="inv-tab-pane hidden" data-tab="spells">
+          <p class="inv-tab-desc">Configure your active hotbar assignments. Click an unlocked spell, then click an active slot to assign it.</p>
+          <div class="spellmap-meta" style="margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+            <span id="spellmap-slots-info" style="font-family:var(--font-pixel); font-size:10px; color:#fff;">Slots: 5 / 7</span>
+            <button id="btn-spellmap-buy-slot" class="btn-menu small" style="margin: 0;">UNLOCK SLOT (<span id="spellmap-slot-cost">80</span> Shards)</button>
+          </div>
+          <div class="spellmap-body">
+            <!-- Left: available spell palette -->
+            <div class="spellmap-palette-col">
+              <div class="spellmap-col-title">UNLOCKED SPELLS</div>
+              <div id="spellmap-palette" class="spellmap-palette">
+                <!-- injected by JS -->
+              </div>
+            </div>
+
+            <!-- Right: slot targets -->
+            <div class="spellmap-slots-col">
+              <div class="spellmap-col-title">ACTIVE SLOTS</div>
+              <div id="spellmap-slots" class="spellmap-slots">
+                <!-- injected by JS -->
+              </div>
+              <div class="spellmap-hint">Drag a spell onto a slot — or select a spell then click a slot.</div>
+            </div>
+          </div>
+          <div style="text-align: center; margin-top: 10px;">
+            <button id="btn-spellmap-reset" class="btn-menu secondary small">RESET HOTBAR TO DEFAULT</button>
+          </div>
+        </div>
+
+        <!-- Close -->
+        <div class="menu-buttons" style="margin-top:14px;">
           <button id="btn-inv-back" class="btn-menu secondary">CLOSE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8.4 CHEST LOOT PANEL -->
+    <div id="panel-chest" class="panel-overlay hidden">
+      <div class="menu-content text-center" style="max-width: 480px;">
+        <h2 class="text-glow">TREASURE CHEST</h2>
+        <p style="font-size:0.8rem; color: var(--color-aether); margin-bottom: 16px;">Choose items to add to your satchel</p>
+        <div id="chest-loot-grid" style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-bottom: 18px;">
+          <!-- loot cards injected by JS -->
+        </div>
+        <div class="menu-buttons">
+          <button id="btn-close-chest" class="btn-menu secondary">CLOSE CHEST</button>
         </div>
       </div>
     </div>
@@ -472,40 +536,141 @@
       </div>
     </div>
 
-    <!-- 9. SPELL REMAP PANEL -->
-    <div id="panel-spellmap" class="panel-overlay hidden">
-      <div class="spellmap-content">
-        <div class="spellmap-header">
-          <h2>SPELL LOADOUT</h2>
-          <div class="spellmap-meta">
-            <span id="spellmap-slots-info">Slots: 5 / 5</span>
-            <button id="btn-spellmap-buy-slot" class="btn-menu small" style="margin-left:12px;">UNLOCK SLOT (<span id="spellmap-slot-cost">80</span> Shards)</button>
+
+
+    <!-- 8. PLAY GAME MODES MENU -->
+    <div id="panel-play-menu" class="panel-overlay hidden">
+      <div class="menu-content wide text-center">
+        <h1 class="glitch-title" data-text="SELECT GAME MODE">SELECT GAME MODE</h1>
+        <p class="menu-decor"></p>
+        
+        <div class="modes-grid">
+          <!-- Tutorial Mode -->
+          <div class="mode-card" id="mode-card-tutorial">
+            <div class="mode-preview-box">
+              <canvas id="canvas-mode-tutorial" width="64" height="64"></canvas>
+            </div>
+            <h3>TUTORIAL</h3>
+            <p>Learn the basics of moving, casting spells, triggering elemental combinations, and equipping gear.</p>
+            <button id="btn-start-tutorial" class="btn-menu small">BEGIN TRIAL</button>
           </div>
-          <button id="btn-close-spellmap" class="btn-close">&times;</button>
+
+          <!-- Weaver Mode -->
+          <div class="mode-card" id="mode-card-weaver">
+            <div class="mode-preview-box">
+              <canvas id="canvas-mode-weaver" width="64" height="64"></canvas>
+            </div>
+            <h3>WEAVER MODE</h3>
+            <p>The standard endless spell-weaving challenge. Defeat waves, collect shards, and climb the Leaderboard.</p>
+            <button id="btn-start-weaver" class="btn-menu small">START RUNE</button>
+          </div>
+
+          <!-- Story Mode (Coming Soon) -->
+          <div class="mode-card disabled-mode" id="mode-card-story">
+            <div class="mode-preview-box">
+              <div style="font-size:24px; color:#57606f;">📜</div>
+            </div>
+            <h3>STORY MODE</h3>
+            <p>Unravel the mysteries of the Aether Web in a narrative campaign. (Coming Soon!)</p>
+            <button class="btn-menu small secondary" disabled>COMING SOON</button>
+          </div>
+
+          <!-- Multiplayer Mode (Coming Soon) -->
+          <div class="mode-card disabled-mode" id="mode-card-multiplayer">
+            <div class="mode-preview-box">
+              <div style="font-size:24px; color:#57606f;">⚔️</div>
+            </div>
+            <h3>MULTIPLAYER</h3>
+            <p>Co-op with fellow Runeweavers or duel in active PvP arenas. (Coming Soon!)</p>
+            <button class="btn-menu small secondary" disabled>COMING SOON</button>
+          </div>
         </div>
 
-        <div class="spellmap-body">
-          <!-- Left: available spell palette -->
-          <div class="spellmap-palette-col">
-            <div class="spellmap-col-title">UNLOCKED SPELLS</div>
-            <div id="spellmap-palette" class="spellmap-palette">
-              <!-- injected by JS -->
-            </div>
-          </div>
-
-          <!-- Right: slot targets -->
-          <div class="spellmap-slots-col">
-            <div class="spellmap-col-title">ACTIVE SLOTS</div>
-            <div id="spellmap-slots" class="spellmap-slots">
-              <!-- injected by JS -->
-            </div>
-            <div class="spellmap-hint">Drag a spell onto a slot — or click a slot then click a spell.</div>
-          </div>
+        <div class="menu-buttons" style="margin-top: 20px;">
+          <button id="btn-play-back" class="btn-menu secondary">BACK</button>
         </div>
+      </div>
+    </div>
 
-        <div class="menu-buttons" style="margin-top:14px;">
-          <button id="btn-spellmap-reset" class="btn-menu secondary">RESET TO AUTO</button>
-          <button id="btn-close-spellmap-bottom" class="btn-menu secondary">CLOSE</button>
+    <!-- 9. CHARACTER CUSTOMIZATION PANEL -->
+    <div id="panel-customize" class="panel-overlay hidden">
+      <div class="menu-content text-center">
+        <h1 class="glitch-title" data-text="CUSTOMIZATION">CUSTOMIZATION</h1>
+        <p class="menu-decor"></p>
+        
+        <div class="customize-preview-container">
+          <canvas id="customize-player-canvas" width="96" height="96"></canvas>
+        </div>
+        
+        <div class="customize-selector">
+          <button id="btn-prev-preset" class="btn-circle">&lt;</button>
+          <span id="customize-preset-name" style="font-family: var(--font-pixel); font-size: 11px; color: #fff; min-width: 150px; display: inline-block;">Aether Blue</span>
+          <button id="btn-next-preset" class="btn-circle">&gt;</button>
+        </div>
+        
+        <div class="menu-buttons" style="margin-top: 25px;">
+          <button id="btn-save-customize" class="btn-menu">SAVE & CLOSE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 10. CREDITS PANEL -->
+    <div id="panel-credits" class="panel-overlay hidden">
+      <div class="menu-content text-center">
+        <h1 class="glitch-title" data-text="CREDITS">CREDITS</h1>
+        <p class="menu-decor"></p>
+        
+        <div style="font-family: var(--font-pixel); font-size: 9px; line-height: 2; color: #fff; text-align: left; margin: 15px 0;">
+          <p style="color: var(--color-lightning); font-size: 11px;">DEVELOPMENT & DESIGN:</p>
+          <p style="margin-left: 10px;">Felix & DeepMind Antigravity</p>
+          <br>
+          <p style="color: var(--color-frost); font-size: 11px;">ART & ASSETS:</p>
+          <p style="margin-left: 10px;">Generated Retro Canvas Grid Engine</p>
+          <br>
+          <p style="color: var(--color-fire); font-size: 11px;">MUSIC & AUDIO:</p>
+          <p style="margin-left: 10px;">WebAudio Procedural Synthesizer</p>
+        </div>
+        
+        <div class="menu-buttons" style="margin-top: 20px;">
+          <button id="btn-credits-close" class="btn-menu">BACK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 11. CONTACT PANEL -->
+    <div id="panel-contact" class="panel-overlay hidden">
+      <div class="menu-content text-center">
+        <h1 class="glitch-title" data-text="CONTACT">CONTACT</h1>
+        <p class="menu-decor"></p>
+        
+        <div style="font-family: var(--font-pixel); font-size: 9px; line-height: 2; color: #fff; text-align: left; margin: 15px 0;">
+          <p style="color: var(--color-lightning); font-size: 11px;">REPORT AN ANOMALY / EMAIL:</p>
+          <p style="margin-left: 10px;"><a href="mailto:contact@felixx.dev" style="color: var(--color-frost); text-decoration: underline;">contact@felixx.dev</a></p>
+          <br>
+          <p style="color: var(--color-void); font-size: 11px;">RUNE ARCHIVES:</p>
+          <p style="margin-left: 10px;"><a href="https://github.com/timpim-dev/treee" target="_blank" style="color: var(--color-frost); text-decoration: underline;">GitHub Repository</a></p>
+        </div>
+        
+        <div class="menu-buttons" style="margin-top: 20px;">
+          <button id="btn-contact-close" class="btn-menu">BACK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Tutorial Guide Overlay -->
+    <div id="tutorial-guide" class="hidden">
+      <div class="tutorial-card">
+        <div class="tutorial-header">
+          <span class="tutorial-badge">TRIAL</span>
+          <span id="tutorial-step-indicator">STEP 1/5</span>
+        </div>
+        <h3 id="tutorial-title">MOVE YOUR WIZARD</h3>
+        <p id="tutorial-text">Use WASD or Arrow Keys to walk around the arena.</p>
+        <div class="tutorial-progress">
+          <div id="tutorial-progress-fill" style="width: 20%;"></div>
+        </div>
+        <div id="tutorial-finish-btn-container" class="hidden" style="margin-top: 10px; text-align: center;">
+          <button id="btn-finish-tutorial" class="btn-menu small">FINISH TRIAL</button>
         </div>
       </div>
     </div>

@@ -289,6 +289,39 @@ export class Enemy {
       }
     }
 
+    if (this.isPassive) {
+      // Passive dummy doesn't move or shoot. Just apply knockback and decay
+      const finalVx = this.kbX;
+      const finalVy = this.kbY;
+
+      this.x += finalVx * dt;
+      this.y += finalVy * dt;
+
+      this.kbX *= Math.pow(this.kbFriction, dt * 60);
+      this.kbY *= Math.pow(this.kbFriction, dt * 60);
+      if (Math.hypot(this.kbX, this.kbY) < 1) { this.kbX = 0; this.kbY = 0; }
+
+      // Hard boundary clamp
+      const lvl = this.game.levelManager;
+      this.x = Math.max(this.radius + 40, Math.min(lvl.width  - this.radius - 40, this.x));
+      this.y = Math.max(this.radius + 40, Math.min(lvl.height - this.radius - 40, this.y));
+
+      // Post-move push-out
+      for (const obs of lvl.obstacles) {
+        if (obs.type !== 'pillar' && obs.type !== 'explosive_barrel') continue;
+        const odx = this.x - obs.x;
+        const ody = this.y - obs.y;
+        const odist = Math.hypot(odx, ody);
+        const minD = this.radius + obs.radius + 1;
+        if (odist < minD && odist > 0.01) {
+          const ang = Math.atan2(ody, odx);
+          this.x = obs.x + Math.cos(ang) * minD;
+          this.y = obs.y + Math.sin(ang) * minD;
+        }
+      }
+      return;
+    }
+
     // Compute status-affected speed (Frost slows down movement)
     let speedMult = 1.0;
     if (this.statuses[SPELL_TYPES.FROST] > 0) {
