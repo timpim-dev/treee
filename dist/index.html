@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/main-C9fP1sFn.js"></script>
+  <script type="module" crossorigin src="/assets/main-CKYXTirO.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/main-CFEaPZlh.css">
 </head>
 <body>
@@ -392,6 +392,19 @@
         <h1>DEVTOOLS</h1>
         <p class="menu-decor"></p>
         <pre id="devtools-info" style="text-align: left; white-space: pre-wrap; margin: 0 auto 18px; padding: 16px; max-width: 440px; background: rgba(5,8,18,0.8); border: 1px solid rgba(181, 126, 255, 0.45); color: #dfe7ff; font-size: 11px; line-height: 1.5;"></pre>
+        <div class="menu-buttons" style="gap: 8px; flex-wrap: wrap; margin-bottom: 14px;">
+          <button class="btn-menu small" data-dev-preset="player.shards">GEMS</button>
+          <button class="btn-menu small" data-dev-preset="player.ap">AP</button>
+          <button class="btn-menu small" data-dev-preset="player.xp">XP</button>
+          <button class="btn-menu small" data-dev-preset="player.level">LEVEL</button>
+          <button class="btn-menu small" data-dev-preset="player.hp">HP</button>
+          <button class="btn-menu small" data-dev-preset="player.mp">MP</button>
+        </div>
+        <div class="menu-buttons" style="gap: 8px; flex-wrap: wrap; margin-bottom: 14px;">
+          <input id="dev-var-path" type="text" placeholder="player.shards / levelManager.wave / state" style="flex: 1 1 220px; min-width: 0; padding: 10px 12px; background: rgba(5,8,18,0.8); border: 1px solid rgba(181, 126, 255, 0.45); color: #fff; font-family: 'Courier New', monospace; font-size: 11px;">
+          <input id="dev-var-value" type="text" placeholder="value" style="flex: 0 0 120px; min-width: 0; padding: 10px 12px; background: rgba(5,8,18,0.8); border: 1px solid rgba(181, 126, 255, 0.45); color: #fff; font-family: 'Courier New', monospace; font-size: 11px;">
+          <button id="btn-devtools-apply-var" class="btn-menu">APPLY</button>
+        </div>
         <div class="menu-buttons">
           <button id="btn-devtools-respawn" class="btn-menu">RESPAWN</button>
           <button id="btn-devtools-reveal" class="btn-menu">REVEAL 3x3</button>

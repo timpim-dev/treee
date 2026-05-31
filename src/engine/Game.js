@@ -906,6 +906,9 @@ export class Game {
     const revealBtn = document.getElementById('btn-devtools-reveal');
     const refreshBtn = document.getElementById('btn-devtools-refresh');
     const trailsBtn = document.getElementById('btn-devtools-trails');
+    const applyVarBtn = document.getElementById('btn-devtools-apply-var');
+    const varPathInput = document.getElementById('dev-var-path');
+    const varValueInput = document.getElementById('dev-var-value');
 
     if (toggleBtn) toggleBtn.addEventListener('click', () => this.toggleDevtools());
     if (closeBtn) closeBtn.addEventListener('click', () => this.toggleDevtools(false));
@@ -920,6 +923,26 @@ export class Game {
       this.showSpellTrails = !this.showSpellTrails;
       this.saveSettings();
       this.updateDevtoolsPanel();
+    });
+    if (applyVarBtn) {
+      applyVarBtn.addEventListener('click', () => {
+        this.applyDevtoolsVariable();
+      });
+    }
+
+    document.querySelectorAll('[data-dev-preset]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const preset = btn.dataset.devPreset;
+        if (varPathInput) varPathInput.value = preset;
+        if (varValueInput) {
+          if (preset === 'player.shards') varValueInput.value = String(this.player?.shards ?? 0);
+          else if (preset === 'player.ap') varValueInput.value = String(this.player?.ap ?? 0);
+          else if (preset === 'player.xp') varValueInput.value = String(this.player?.xp ?? 0);
+          else if (preset === 'player.level') varValueInput.value = String(this.player?.level ?? 1);
+          else if (preset === 'player.hp') varValueInput.value = String(this.player?.hp ?? 0);
+          else if (preset === 'player.mp') varValueInput.value = String(this.player?.mp ?? 0);
+        }
+      });
     });
 
     this.updateDevtoolsPanel();
@@ -1028,6 +1051,129 @@ export class Game {
     this.drawWorldmap();
     this.updateDevtoolsPanel();
     if (this.audio) this.audio.playClick();
+  }
+
+  applyDevtoolsVariable() {
+    const pathInput = document.getElementById('dev-var-path');
+    const valueInput = document.getElementById('dev-var-value');
+    if (!pathInput || !valueInput) return;
+
+    const rawPath = pathInput.value.trim();
+    if (!rawPath) return;
+    const normalizedPath = this._normalizeDevtoolsPath(rawPath);
+
+    const rawValue = valueInput.value.trim();
+    const value = this._parseDevtoolsValue(rawValue);
+
+    const resolved = this._resolveDevtoolsTarget(normalizedPath);
+    if (!resolved) {
+      this.particles.spawnText(this.player.x, this.player.y - 20, 'DEV VAR PATH INVALID', {
+        color: '#ff4757',
+        fontSize: 10,
+        fontPixel: true
+      });
+      return;
+    }
+
+    const { target, key } = resolved;
+    target[key] = value;
+
+    if (normalizedPath === 'player.shards') this.player.shards = this._coerceNumber(value, this.player.shards);
+    if (normalizedPath === 'player.ap') this.player.ap = this._coerceNumber(value, this.player.ap);
+    if (normalizedPath === 'player.xp') this.player.xp = this._coerceNumber(value, this.player.xp);
+    if (normalizedPath === 'player.level') this.player.level = this._coerceNumber(value, this.player.level);
+
+    if (normalizedPath.startsWith('player.')) {
+      this.player.recalculateModifiers(this.abilityTree);
+      this.player.saveGameState();
+      this.updateHUD();
+    } else if (normalizedPath.startsWith('levelManager.')) {
+      this.player.saveGameState();
+      if (key === 'mapRevealed' || key === 'theme') this.updateHUD();
+      if (key === 'mapRevealed') this.drawWorldmap();
+    } else if (normalizedPath === 'state') {
+      this.setState(String(value));
+    } else {
+      this.updateHUD();
+    }
+
+    this.updateDevtoolsPanel();
+    if (this.audio) this.audio.playClick();
+  }
+
+  _normalizeDevtoolsPath(path) {
+    if (path === 'gems') return 'player.shards';
+    if (path === 'ap') return 'player.ap';
+    if (path === 'xp') return 'player.xp';
+    if (path === 'level') return 'player.level';
+    if (path === 'hp') return 'player.hp';
+    if (path === 'mp') return 'player.mp';
+    return path;
+  }
+
+  _resolveDevtoolsTarget(path) {
+    const parts = path.split('.').map((part) => part.trim()).filter(Boolean);
+    if (!parts.length) return null;
+
+    let root;
+    let index = 0;
+    if (parts[0] === 'game') {
+      root = this;
+      index = 1;
+    } else if (parts[0] === 'player') {
+      root = this.player;
+      index = 1;
+    } else if (parts[0] === 'levelManager') {
+      root = this.levelManager;
+      index = 1;
+    } else if (parts[0] === 'audio') {
+      root = this.audio;
+      index = 1;
+    } else if (parts[0] === 'camera') {
+      root = this.camera;
+      index = 1;
+    } else if (parts[0] === 'particles') {
+      root = this.particles;
+      index = 1;
+    } else if (parts[0] === 'gems' || parts[0] === 'ap' || parts[0] === 'xp' || parts[0] === 'level') {
+      root = this.player;
+      index = 0;
+    } else {
+      root = this;
+      index = 0;
+    }
+
+    if (!root) return null;
+    let target = root;
+    for (let i = index; i < parts.length - 1; i++) {
+      const key = parts[i];
+      if (target[key] === undefined || target[key] === null) return null;
+      target = target[key];
+    }
+
+    const key = parts[parts.length - 1];
+    if (target === undefined || target === null || !(key in target)) return null;
+    return { target, key };
+  }
+
+  _parseDevtoolsValue(raw) {
+    if (raw === '') return '';
+    const lower = raw.toLowerCase();
+    if (lower === 'true') return true;
+    if (lower === 'false') return false;
+    if (lower === 'null') return null;
+    if (lower === 'undefined') return undefined;
+    if (!Number.isNaN(Number(raw)) && raw.trim() !== '') return Number(raw);
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
+    }
+  }
+
+  _coerceNumber(value, fallback = 0) {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : fallback;
   }
 
   _invSlotCost() {
