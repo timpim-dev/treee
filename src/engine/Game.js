@@ -907,6 +907,8 @@ export class Game {
     const refreshBtn = document.getElementById('btn-devtools-refresh');
     const trailsBtn = document.getElementById('btn-devtools-trails');
     const applyVarBtn = document.getElementById('btn-devtools-apply-var');
+    const loadPresetBtn = document.getElementById('btn-devtools-load-preset');
+    const presetSelect = document.getElementById('dev-var-preset');
     const varPathInput = document.getElementById('dev-var-path');
     const varValueInput = document.getElementById('dev-var-value');
 
@@ -929,19 +931,22 @@ export class Game {
         this.applyDevtoolsVariable();
       });
     }
+    if (loadPresetBtn) {
+      loadPresetBtn.addEventListener('click', () => {
+        const presetPath = presetSelect?.value || 'player.shards';
+        if (varPathInput) varPathInput.value = presetPath;
+        if (varValueInput) {
+          const value = this._getDevtoolsPresetValue(presetPath);
+          varValueInput.value = value;
+        }
+      });
+    }
 
     document.querySelectorAll('[data-dev-preset]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const preset = btn.dataset.devPreset;
         if (varPathInput) varPathInput.value = preset;
-        if (varValueInput) {
-          if (preset === 'player.shards') varValueInput.value = String(this.player?.shards ?? 0);
-          else if (preset === 'player.ap') varValueInput.value = String(this.player?.ap ?? 0);
-          else if (preset === 'player.xp') varValueInput.value = String(this.player?.xp ?? 0);
-          else if (preset === 'player.level') varValueInput.value = String(this.player?.level ?? 1);
-          else if (preset === 'player.hp') varValueInput.value = String(this.player?.hp ?? 0);
-          else if (preset === 'player.mp') varValueInput.value = String(this.player?.mp ?? 0);
-        }
+        if (varValueInput) varValueInput.value = this._getDevtoolsPresetValue(preset);
       });
     });
 
@@ -1089,10 +1094,17 @@ export class Game {
       this.updateHUD();
     } else if (normalizedPath.startsWith('levelManager.')) {
       this.player.saveGameState();
-      if (key === 'mapRevealed' || key === 'theme') this.updateHUD();
+      if (key === 'mapRevealed' || key === 'theme' || key === 'wave') this.updateHUD();
       if (key === 'mapRevealed') this.drawWorldmap();
+      if (key === 'wave') this.updateHUD();
     } else if (normalizedPath === 'state') {
       this.setState(String(value));
+    } else if (normalizedPath === 'renderDistance') {
+      this.saveSettings();
+      if (this.levelManager) this.levelManager.generateObstacles();
+      this.updateHUD();
+    } else if (normalizedPath === 'showSpellTrails') {
+      this.saveSettings();
     } else {
       this.updateHUD();
     }
@@ -1109,6 +1121,26 @@ export class Game {
     if (path === 'hp') return 'player.hp';
     if (path === 'mp') return 'player.mp';
     return path;
+  }
+
+  _getDevtoolsPresetValue(path) {
+    const normalizedPath = this._normalizeDevtoolsPath(path);
+    if (normalizedPath === 'player.shards') return String(this.player?.shards ?? 0);
+    if (normalizedPath === 'player.ap') return String(this.player?.ap ?? 0);
+    if (normalizedPath === 'player.xp') return String(this.player?.xp ?? 0);
+    if (normalizedPath === 'player.level') return String(this.player?.level ?? 1);
+    if (normalizedPath === 'player.hp') return String(this.player?.hp ?? 0);
+    if (normalizedPath === 'player.mp') return String(this.player?.mp ?? 0);
+    if (normalizedPath === 'levelManager.wave') return String(this.levelManager?.wave ?? 1);
+    if (normalizedPath === 'levelManager.mapRevealed') return String(!!this.levelManager?.mapRevealed);
+    if (normalizedPath === 'showSpellTrails') return String(!!this.showSpellTrails);
+    if (normalizedPath === 'renderDistance') return String(this.renderDistance ?? 1200);
+    if (normalizedPath === 'state') return String(this.state || 'MENU');
+    const resolved = this._resolveDevtoolsTarget(normalizedPath);
+    if (!resolved) return '';
+    const value = resolved.target[resolved.key];
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
   }
 
   _resolveDevtoolsTarget(path) {
