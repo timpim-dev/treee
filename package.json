@@ -1,6 +1,6 @@
 {
   "name": "aetherweaver",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Aetherweaver: Rune Odyssey - Pixel Art Action RPG",
   "type": "module",
   "main": "server.js",

@@ -349,13 +349,30 @@ export const SpellBook = {
       const worldMouse = game.getWorldMouse();
       const originX = player.x;
       const originY = player.y;
-      // Leave void explosion at origin
-      game.spawnAreaEffect(originX, originY, 80, 'singularity', 1.5);
+      // Leave a void burst at origin. Avoid using a full singularity here because
+      // the teleport can place enemies exactly at the center and trigger NaNs in
+      // the pull logic if the center distance is zero.
+      const burstRadius = 80;
+      game.enemies.forEach(enemy => {
+        if (enemy.dead) return;
+        const d = Math.hypot(enemy.x - originX, enemy.y - originY);
+        if (d <= burstRadius) {
+          const falloff = 1 - d / burstRadius;
+          enemy.takeDamage(Math.round(35 * falloff * (player.modifiers.allDamage || 1)), false, game);
+          if (!enemy.dead && d > 0.001) {
+            const ang = Math.atan2(enemy.y - originY, enemy.x - originX);
+            enemy.applyKnockback(Math.cos(ang) * 180, Math.sin(ang) * 180);
+          }
+        }
+      });
       game.particles.createExplosion(originX, originY, '#a55eea', 18, 120, 3);
-      // Blink to target (clamped to level bounds)
+
+      // Blink to target (clamped to level bounds and kept away from walls)
       const lvl = game.levelManager;
-      player.x = Math.max(20, Math.min(lvl.width - 20, worldMouse.x));
-      player.y = Math.max(20, Math.min(lvl.height - 20, worldMouse.y));
+      const tx = Math.max(20, Math.min(lvl.width - 20, worldMouse.x));
+      const ty = Math.max(20, Math.min(lvl.height - 20, worldMouse.y));
+      player.x = tx;
+      player.y = ty;
       player.iframeTimer = 0.35;
       if (game.audio) game.audio.playTeleport();
       game.particles.createExplosion(player.x, player.y, '#a55eea', 12, 80, 2);
@@ -367,8 +384,10 @@ export const SpellBook = {
           const d = Math.hypot(enemy.x - originX, enemy.y - originY);
           if (d <= 80) {
             enemy.takeDamage(Math.round(70 * player.modifiers.allDamage), true, game);
-            const ang = Math.atan2(enemy.y - originY, enemy.x - originX);
-            enemy.applyKnockback(Math.cos(ang) * 200, Math.sin(ang) * 200);
+            if (d > 0.001) {
+              const ang = Math.atan2(enemy.y - originY, enemy.x - originX);
+              enemy.applyKnockback(Math.cos(ang) * 200, Math.sin(ang) * 200);
+            }
           }
         });
         game.particles.spawnText(originX, originY - 20, 'DIMENSION BREAK!', { color: '#a55eea', fontSize: 10, fontPixel: true });

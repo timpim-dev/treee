@@ -332,6 +332,50 @@
       line-height: 1.5;
     }
 
+    .wiki-banner-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .wiki-banner-card {
+      background: #05070d;
+      border: 4px double var(--border-color);
+      box-shadow: 4px 4px 0 rgba(0,0,0,0.5);
+      overflow: hidden;
+      min-height: 170px;
+      position: relative;
+    }
+
+    .wiki-banner-canvas {
+      display: block;
+      width: 100%;
+      height: 120px;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      background: #05070d;
+    }
+
+    .wiki-banner-copy {
+      padding: 14px 16px 16px;
+    }
+
+    .wiki-banner-title {
+      font-family: var(--font-sub);
+      font-size: 14px;
+      color: #fff;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    .wiki-banner-copy p {
+      font-size: 13px;
+      color: var(--color-text-dim);
+      line-height: 1.45;
+    }
+
     /* Highlights & Colored Text */
     .text-fire { color: var(--color-fire); text-shadow: 0 0 5px rgba(255, 71, 87, 0.4); }
     .text-frost { color: var(--color-frost); text-shadow: 0 0 5px rgba(112, 161, 255, 0.4); }
@@ -456,6 +500,7 @@
         <h3 class="wiki-box-title"><canvas class="wiki-icon" data-icon="book" width="14" height="14" aria-hidden="true"></canvas> CATEGORIES</h3>
         <ul class="nav-list">
           <li><button class="nav-item-btn active" data-category="overview">Overview</button></li>
+          <li><button class="nav-item-btn" data-category="modes">Modes & Dimensions</button></li>
           <li><button class="nav-item-btn" data-category="controls">Basic Controls</button></li>
           <li><button class="nav-item-btn" data-category="elements">Magic Branches</button></li>
           <li><button class="nav-item-btn" data-category="spells">Spell Book</button></li>
@@ -495,7 +540,47 @@
         </div>
       </section>
 
-      <!-- 2. CONTROLS -->
+      <!-- 2. MODES & DIMENSIONS -->
+      <section class="wiki-section" id="sec-modes">
+        <h1 class="sec-title">MODES & DIMENSIONS</h1>
+        <p class="sec-intro">These are the front-end entries most players look for first. The banners below cover game modes and the major world dimensions currently represented in the build.</p>
+
+        <div class="wiki-banner-grid">
+          <article class="wiki-banner-card">
+            <canvas class="wiki-banner-canvas" data-banner="weaver" width="480" height="120" aria-hidden="true"></canvas>
+            <div class="wiki-banner-copy">
+              <h3 class="wiki-banner-title">Weaver Mode</h3>
+              <p>The core endless mode. Collect shards, unlock the Aether Web, and push as far as your build can survive.</p>
+            </div>
+          </article>
+
+          <article class="wiki-banner-card">
+            <canvas class="wiki-banner-canvas" data-banner="tutorial" width="480" height="120" aria-hidden="true"></canvas>
+            <div class="wiki-banner-copy">
+              <h3 class="wiki-banner-title">Tutorial Trial</h3>
+              <p>A guided run that teaches movement, spell casting, basic combos, inventory use, and tree progression.</p>
+            </div>
+          </article>
+
+          <article class="wiki-banner-card">
+            <canvas class="wiki-banner-canvas" data-banner="dungeon" width="480" height="120" aria-hidden="true"></canvas>
+            <div class="wiki-banner-copy">
+              <h3 class="wiki-banner-title">Dark Dungeon Dimension</h3>
+              <p>The default dimension. Tight corridors, rune-lit doors, and a steady baseline for the dungeon loop.</p>
+            </div>
+          </article>
+
+          <article class="wiki-banner-card">
+            <canvas class="wiki-banner-canvas" data-banner="backrooms" width="480" height="120" aria-hidden="true"></canvas>
+            <div class="wiki-banner-copy">
+              <h3 class="wiki-banner-title">Limitless Backrooms</h3>
+              <p>A rare glitched dimension with yellow maze walls, broken sightlines, and more chaotic enemy behavior.</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- 3. CONTROLS -->
       <section class="wiki-section" id="sec-controls">
         <h1 class="sec-title">BASIC CONTROLS</h1>
         <p class="sec-intro">Command your Runeweaver using standard desktop key bindings. Use the mouse to target and aim projectives.</p>
@@ -567,7 +652,7 @@
         </div>
       </section>
 
-      <!-- 3. MAGIC ELEMENTS -->
+      <!-- 4. MAGIC ELEMENTS -->
       <section class="wiki-section" id="sec-elements">
         <h1 class="sec-title">MAGIC BRANCHES</h1>
         <p class="sec-intro">There are five core elemental elements of magic in the Aether Web. Master a single element or combine nodes to craft hybrid builds.</p>
@@ -605,7 +690,7 @@
         </div>
       </section>
 
-      <!-- 4. SPELLS -->
+      <!-- 5. SPELLS -->
       <section class="wiki-section" id="sec-spells">
         <h1 class="sec-title">SPELL BOOK</h1>
         <p class="sec-intro">List of active spells that can be unlocked in the Aether Web and mapped to your action hotbar.</p>
@@ -667,7 +752,7 @@
         </div>
       </section>
 
-      <!-- 5. COMPANIONS -->
+      <!-- 6. COMPANIONS -->
       <section class="wiki-section" id="sec-companions">
         <h1 class="sec-title">COMPANIONS & PROGRESSION</h1>
         <p class="sec-intro">Unlock magical companions that accompany you in combat, providing auto-attack damage, buffs, and custom skill webs.</p>
@@ -693,7 +778,7 @@
         </div>
       </section>
 
-      <!-- 6. REGIONS -->
+      <!-- 7. REGIONS -->
       <section class="wiki-section" id="sec-regions">
         <h1 class="sec-title">WORLD REGIONS</h1>
         <p class="sec-intro">Explore a seamless grid of 3x3 sectors, each possessing custom brick textures, monster types, audio loops, and unique mechanics.</p>
@@ -743,7 +828,7 @@
         </div>
       </section>
 
-      <!-- 7. COMBOS -->
+      <!-- 8. COMBOS -->
       <section class="wiki-section" id="sec-combos">
         <h1 class="sec-title">ELEMENTAL SYNERGIES</h1>
         <p class="sec-intro">Trigger elemental reaction events by stacking two different statuses on a target, unleashing screen-clearing effects.</p>
@@ -775,7 +860,7 @@
         </div>
       </section>
 
-      <!-- 8. SATCHEL -->
+      <!-- 9. SATCHEL -->
       <section class="wiki-section" id="sec-satchel">
         <h1 class="sec-title">SATCHEL & GEAR</h1>
         <p class="sec-intro">Open your Satchel using <span class="keycap">I</span> to manage your equipment (robes, weapons, active spells, runes, and achievements).</p>
@@ -1035,14 +1120,136 @@
         for (let x = 0; x < row.length; x++) {
           const color = wikiIconPalette[row[x]];
           if (!color) continue;
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+          ctx.fillRect(offsetX + x * scale + 1, offsetY + y * scale + 1, scale, scale);
           ctx.fillStyle = color;
           ctx.fillRect(offsetX + x * scale, offsetY + y * scale, scale, scale);
         }
       });
     }
 
+    function drawWikiBanner(canvas, bannerName) {
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      const px = 6;
+
+      const fillNoise = (count, palette) => {
+        for (let i = 0; i < count; i++) {
+          const x = Math.floor(Math.random() * (w / px)) * px;
+          const y = Math.floor(Math.random() * (h / px)) * px;
+          ctx.fillStyle = palette[i % palette.length];
+          ctx.fillRect(x, y, px, px);
+        }
+      };
+
+      ctx.clearRect(0, 0, w, h);
+      ctx.imageSmoothingEnabled = false;
+
+      if (bannerName === 'weaver') {
+        const grad = ctx.createLinearGradient(0, 0, w, h);
+        grad.addColorStop(0, '#060812');
+        grad.addColorStop(0.55, '#11162a');
+        grad.addColorStop(1, '#2f1c57');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+        fillNoise(180, ['rgba(125,95,255,0.12)', 'rgba(241,196,15,0.08)', 'rgba(255,71,87,0.08)']);
+
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, h - 28, w, 28);
+        ctx.fillStyle = '#7d5fff';
+        for (let i = 0; i < 8; i++) ctx.fillRect(28 + i * 52, 30 + (i % 2) * 2, 16, 44);
+        ctx.fillStyle = '#f1c40f';
+        ctx.fillRect(102, 20, 12, 72);
+        ctx.fillRect(346, 18, 12, 74);
+        ctx.fillStyle = '#ff4757';
+        ctx.fillRect(220, 32, 40, 40);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(234, 46, 12, 12);
+        ctx.fillStyle = '#10ac84';
+        ctx.fillRect(202, 58, 18, 18);
+        ctx.fillRect(276, 54, 18, 18);
+      } else if (bannerName === 'tutorial') {
+        const grad = ctx.createLinearGradient(0, 0, w, h);
+        grad.addColorStop(0, '#07121a');
+        grad.addColorStop(0.55, '#0e2030');
+        grad.addColorStop(1, '#1b3d2f');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+        fillNoise(160, ['rgba(46,213,115,0.14)', 'rgba(112,161,255,0.08)', 'rgba(255,159,67,0.06)']);
+
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, h - 26, w, 26);
+        ctx.fillStyle = '#2ed573';
+        ctx.fillRect(54, 34, 34, 10);
+        ctx.fillRect(62, 44, 18, 32);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(69, 28, 4, 10);
+        ctx.fillStyle = '#70a1ff';
+        ctx.fillRect(180, 24, 120, 10);
+        ctx.fillRect(186, 38, 108, 10);
+        ctx.fillRect(194, 52, 92, 10);
+        ctx.fillStyle = '#f1c40f';
+        ctx.fillRect(300, 18, 46, 64);
+        ctx.fillStyle = '#ff4757';
+        ctx.fillRect(394, 26, 22, 56);
+      } else if (bannerName === 'dungeon') {
+        const grad = ctx.createLinearGradient(0, 0, w, h);
+        grad.addColorStop(0, '#04050a');
+        grad.addColorStop(0.6, '#0f1324');
+        grad.addColorStop(1, '#1c142b');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+        fillNoise(140, ['rgba(125,95,255,0.08)', 'rgba(164,176,190,0.1)', 'rgba(255,159,67,0.05)']);
+
+        ctx.fillStyle = '#1d2332';
+        ctx.fillRect(0, 78, w, 42);
+        ctx.fillStyle = '#2f3640';
+        for (let i = 0; i < 10; i++) ctx.fillRect(i * 48, 40 + (i % 3) * 4, 20, 38);
+        ctx.fillStyle = '#7d5fff';
+        ctx.fillRect(146, 20, 34, 84);
+        ctx.fillRect(300, 18, 34, 88);
+        ctx.fillStyle = '#eccc68';
+        ctx.fillRect(160, 42, 10, 40);
+        ctx.fillRect(314, 40, 10, 42);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(168, 48, 2, 2);
+        ctx.fillRect(322, 46, 2, 2);
+      } else if (bannerName === 'backrooms') {
+        const grad = ctx.createLinearGradient(0, 0, w, h);
+        grad.addColorStop(0, '#b98d10');
+        grad.addColorStop(0.55, '#d8b83a');
+        grad.addColorStop(1, '#8f7414');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+        fillNoise(180, ['rgba(255,255,255,0.08)', 'rgba(0,0,0,0.1)', 'rgba(255,159,67,0.08)']);
+
+        ctx.fillStyle = '#6b560e';
+        ctx.fillRect(0, 24, w, 10);
+        ctx.fillRect(0, 64, w, 10);
+        ctx.fillRect(0, 104, w, 10);
+        ctx.fillStyle = '#f5d76e';
+        ctx.fillRect(0, 0, w, 18);
+        ctx.fillRect(0, 46, w, 10);
+        ctx.fillRect(0, 86, w, 10);
+        ctx.fillStyle = '#10121a';
+        ctx.fillRect(224, 0, 8, h);
+        ctx.fillRect(320, 0, 8, h);
+        ctx.fillRect(104, 0, 8, h);
+        ctx.fillStyle = '#ff4757';
+        ctx.fillRect(246, 38, 28, 28);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(256, 48, 6, 6);
+      }
+    }
+
     document.querySelectorAll('.wiki-icon').forEach((canvas) => {
       drawWikiIcon(canvas, canvas.dataset.icon);
+    });
+
+    document.querySelectorAll('.wiki-banner-canvas').forEach((canvas) => {
+      drawWikiBanner(canvas, canvas.dataset.banner);
     });
 
     // 1. Navigation Tab Switches

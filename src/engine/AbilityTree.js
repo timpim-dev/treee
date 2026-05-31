@@ -779,10 +779,15 @@ export class AbilityTree {
       ctx.fill();
     } else if (node.type === 'unlock') {
       ctx.fillStyle = isUnlocked ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.18)';
-      ctx.font = `bold ${Math.round(r * 1.1)}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('★', nx, ny + 1);
+      const s = Math.max(1, Math.round(r * 0.18));
+      ctx.fillRect(nx - s, ny - s * 4, s * 2 + 1, s);
+      ctx.fillRect(nx - s, ny + s * 3, s * 2 + 1, s);
+      ctx.fillRect(nx - s * 4, ny - s, s, s * 2 + 1);
+      ctx.fillRect(nx + s * 3, ny - s, s, s * 2 + 1);
+      ctx.fillRect(nx - s * 2, ny - s * 2, s, s);
+      ctx.fillRect(nx + s, ny - s * 2, s, s);
+      ctx.fillRect(nx - s * 2, ny + s, s, s);
+      ctx.fillRect(nx + s, ny + s, s, s);
     } else if (node.type === 'major') {
       ctx.fillStyle = isUnlocked ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.1)';
       const d = r * 0.4;

@@ -2714,7 +2714,7 @@ export class Game {
           const dx = ae.x - enemy.x;
           const dy = ae.y - enemy.y;
           const dist = Math.hypot(dx, dy);
-          if (dist < ae.radius) {
+          if (dist < ae.radius && dist > 0.001) {
             const pullForce = (1.0 - dist / ae.radius) * 160;
             enemy.x += (dx / dist) * pullForce * enemyDt;
             enemy.y += (dy / dist) * pullForce * enemyDt;
@@ -2725,7 +2725,7 @@ export class Game {
         const pDx = ae.x - this.player.x;
         const pDy = ae.y - this.player.y;
         const pDist = Math.hypot(pDx, pDy);
-        if (pDist < ae.radius) {
+        if (pDist < ae.radius && pDist > 0.001) {
           const pullForce = (1.0 - pDist / ae.radius) * 70;
           this.player.x += (pDx / pDist) * pullForce * dt;
           this.player.y += (pDy / pDist) * pullForce * dt;
