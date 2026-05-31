@@ -362,6 +362,18 @@ export class AbilityTree {
       this.game.player.recalculateModifiers(this);
       
       if (this.game.audio) this.game.audio.playUnlock();
+
+      // Check AP Master achievement
+      let spent = 0;
+      for (const key in this.nodes) {
+        if (this.nodes[key].unlocked && key !== 'root') {
+          spent += this.nodes[key].cost;
+        }
+      }
+      if (spent >= 10) {
+        this.game.unlockAchievement('ap_master');
+      }
+
       this.game.player.saveGameState();
       return true;
     }

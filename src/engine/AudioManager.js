@@ -67,6 +67,17 @@ export class AudioManager {
     return this.isMuted;
   }
 
+  setMusicVolume(vol) {
+    this.musicVolume = vol;
+    if (this._musicEl) {
+      this._musicEl.volume = this.isMuted ? 0 : this.musicVolume;
+    }
+  }
+
+  setSfxVolume(vol) {
+    this.sfxVolume = vol;
+  }
+
   // ─────────────────────────────────────────────
   // Music
   // ─────────────────────────────────────────────

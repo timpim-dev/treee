@@ -125,11 +125,67 @@ export class Enemy {
     if (this.xpValue) {
       this.xpValue = Math.round(this.xpValue * 1.25);
     }
+
+    // Theme-specific monster renaming
+    const theme = this.getLocalTheme();
+    if (theme === 'gardens') {
+      if (this.type === 'slime') this.name = 'Spore Slime';
+      else if (this.type === 'slime_elite') this.name = 'Elite Blossom Slime';
+      else if (this.type === 'slime_mini') this.name = 'Seed Slime';
+      else if (this.type === 'skeleton') this.name = 'Ivy Archer';
+      else if (this.type === 'skeleton_elite') this.name = 'Elite Thorn Archer';
+      else if (this.type === 'horror') this.name = 'Vine Creeper';
+      else if (this.type === 'horror_elite') this.name = 'Elite Bramble Stalker';
+      else if (this.type === 'warden') this.name = 'Grove Guardian';
+      else if (this.type === 'archon') this.name = 'THE FOREST ARCHON';
+    } else if (theme === 'underground') {
+      if (this.type === 'slime') this.name = 'Cavern Slime';
+      else if (this.type === 'slime_elite') this.name = 'Elite Magma Slime';
+      else if (this.type === 'slime_mini') this.name = 'Rock Slime';
+      else if (this.type === 'skeleton') this.name = 'Fossil Sentry';
+      else if (this.type === 'skeleton_elite') this.name = 'Elite Deep Archer';
+      else if (this.type === 'horror') this.name = 'Tunnel Skulker';
+      else if (this.type === 'horror_elite') this.name = 'Elite Maw Horror';
+      else if (this.type === 'warden') this.name = 'Iron Warden';
+      else if (this.type === 'archon') this.name = 'THE GEODE ARCHON';
+    } else if (theme === 'pool') {
+      if (this.type === 'slime') this.name = 'Aquatic Slime';
+      else if (this.type === 'slime_elite') this.name = 'Elite Tide Slime';
+      else if (this.type === 'slime_mini') this.name = 'Droplet Slime';
+      else if (this.type === 'skeleton') this.name = 'Coral Sentry';
+      else if (this.type === 'skeleton_elite') this.name = 'Elite Abyssal Archer';
+      else if (this.type === 'horror') this.name = 'Abyss Lurker';
+      else if (this.type === 'horror_elite') this.name = 'Elite Siren Terror';
+      else if (this.type === 'warden') this.name = 'Deep Warden';
+      else if (this.type === 'archon') this.name = 'THE TSUNAMI ARCHON';
+    } else if (theme === 'backrooms') {
+      if (this.type === 'slime') this.name = 'Glitch Slime';
+      else if (this.type === 'slime_elite') this.name = 'Elite Error Slime';
+      else if (this.type === 'slime_mini') this.name = 'Pixel Slime';
+      else if (this.type === 'skeleton') this.name = 'Lagging Sentry';
+      else if (this.type === 'skeleton_elite') this.name = 'Elite Glitched Archer';
+      else if (this.type === 'horror') this.name = 'The Smiler';
+      else if (this.type === 'horror_elite') this.name = 'Elite Bacteria Assassin';
+      else if (this.type === 'warden') this.name = 'Null Pointer Warden';
+      else if (this.type === 'archon') this.name = 'THE SYSTEM ARCHON';
+    }
   }
 
   applyStatus(type, duration) {
     if (type in this.statuses) {
+      const wasFrozen = this.statuses[SPELL_TYPES.FROST] > 0;
       this.statuses[type] = Math.max(this.statuses[type], duration);
+
+      // If frost status was not active and is now active, count as a freeze application
+      if (type === SPELL_TYPES.FROST && !wasFrozen && this.statuses[SPELL_TYPES.FROST] > 0) {
+        const player = this.game.player;
+        if (player) {
+          player.frozenEnemiesCount = (player.frozenEnemiesCount || 0) + 1;
+          if (player.frozenEnemiesCount >= 50) {
+            this.game.unlockAchievement('cryomancer');
+          }
+        }
+      }
     }
   }
 
@@ -210,6 +266,11 @@ export class Enemy {
     // at the end of the frame, so no mid-loop splice corruption can occur.
     if (this.dead) return; // already died this frame, don't double-process
     this.dead = true;
+
+    // Check Archon defeat achievement
+    if (this.type === 'archon') {
+      game.unlockAchievement('archon_slayer');
+    }
 
     // Slime splitting logic — queued as pending spawns so they appear next frame
     if (this.type === 'slime' || this.type === 'slime_elite') {
@@ -656,6 +717,16 @@ export class Enemy {
     }
   }
 
+  getLocalTheme() {
+    const lvl = this.game.levelManager;
+    if (lvl && lvl.sectorThemes) {
+      const sx = Math.max(0, Math.min(2, Math.floor(this.x / 2000)));
+      const sy = Math.max(0, Math.min(2, Math.floor(this.y / 2000)));
+      return lvl.sectorThemes[`${sx},${sy}`] || 'dungeon';
+    }
+    return (lvl && lvl.theme) || 'dungeon';
+  }
+
   draw(ctx, assetManager) {
     // Shadow
     ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
@@ -672,6 +743,18 @@ export class Enemy {
 
     ctx.save();
     
+    // Apply dynamic color tint filters based on level theme
+    const theme = this.getLocalTheme();
+    if (theme === 'gardens') {
+      ctx.filter = 'hue-rotate(90deg) saturate(1.3) brightness(0.95)';
+    } else if (theme === 'underground') {
+      ctx.filter = 'sepia(0.6) saturate(1.8) hue-rotate(-20deg) brightness(0.8)';
+    } else if (theme === 'pool') {
+      ctx.filter = 'hue-rotate(190deg) saturate(1.6) brightness(1.1)';
+    } else if (theme === 'backrooms') {
+      ctx.filter = 'hue-rotate(40deg) saturate(1.5) sepia(0.3) brightness(1.2)';
+    }
+
     // Status visual overlays
     if (this.statuses[SPELL_TYPES.FROST] > 0) {
       // Ice coloring filter

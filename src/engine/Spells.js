@@ -176,6 +176,12 @@ export const SpellBook = {
       
       // Give i-frames
       player.iframeTimer = 0.25; 
+
+      // Check Time Bender achievement
+      player.dashCastCount = (player.dashCastCount || 0) + 1;
+      if (player.dashCastCount >= 20) {
+        game.unlockAchievement('time_bender');
+      } 
     }
   },
 

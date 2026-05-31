@@ -97,6 +97,10 @@ export class Player {
       weapon: null,
       ring: null
     };
+    this.keys = 0;
+    this.earnedAchievements = [];
+    this.frozenEnemiesCount = 0;
+    this.dashCastCount = 0;
     
     // Spell slot system
     // customSpellMap overrides auto-assignment when set by the player
@@ -808,6 +812,14 @@ export class Player {
       maxInventorySlots: this.maxInventorySlots,
       customSpellMap: this.customSpellMap,
       maxSpellSlots: this.maxSpellSlots,
+      keys: this.keys || 0,
+      theme: this.game.levelManager?.theme || 'dungeon',
+      unlockedSectors: this.game.levelManager?.unlockedSectors ? Array.from(this.game.levelManager.unlockedSectors) : ["1,1"],
+      sectorThemes: this.game.levelManager?.sectorThemes || {"1,1": 'dungeon'},
+      unlockedDoors: this.game.levelManager?.unlockedDoors ? Array.from(this.game.levelManager.unlockedDoors) : [],
+      earnedAchievements: this.earnedAchievements || [],
+      frozenEnemiesCount: this.frozenEnemiesCount || 0,
+      dashCastCount: this.dashCastCount || 0
     };
 
     for (const key in this.game.abilityTree.nodes) {
@@ -839,6 +851,23 @@ export class Player {
         }
         if (progress.rebirthBonuses) {
           this.rebirthBonuses = { ...this.rebirthBonuses, ...progress.rebirthBonuses };
+        }
+        this.keys = progress.keys || 0;
+        this.earnedAchievements = progress.earnedAchievements || [];
+        this.frozenEnemiesCount = progress.frozenEnemiesCount || 0;
+        this.dashCastCount = progress.dashCastCount || 0;
+        if (this.game.levelManager) {
+          if (progress.theme) this.game.levelManager.theme = progress.theme;
+          if (progress.unlockedSectors) {
+            this.game.levelManager.unlockedSectors = new Set(progress.unlockedSectors);
+          }
+          if (progress.sectorThemes) {
+            this.game.levelManager.sectorThemes = progress.sectorThemes;
+          }
+          if (progress.unlockedDoors) {
+            this.game.levelManager.unlockedDoors = new Set(progress.unlockedDoors);
+          }
+          this.game.levelManager.generateObstacles();
         }
         
         const findItem = (id) => {

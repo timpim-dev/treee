@@ -60,6 +60,8 @@ export class Game {
     this.gameZoom = 1.0;
     this.score = 0;
     this.kills = 0;
+    this.isTutorial = false;
+    this.renderDistance = 1200;
     
     // Frame clocks
     this.lastTime = 0;
@@ -128,7 +130,7 @@ export class Game {
           this.setState('PAUSED');
         } else if (this.state === 'PAUSED') {
           this.setState('PLAYING');
-        } else if (this.state === 'UPGRADE_TREE' || this.state === 'INVENTORY' || this.state === 'WORLD_MAP' || this.state === 'CHEST') {
+        } else if (this.state === 'UPGRADE_TREE' || this.state === 'INVENTORY' || this.state === 'WORLD_MAP') {
           this.setState('PLAYING');
         }
       }
@@ -234,6 +236,9 @@ export class Game {
       const toggleMute = document.getElementById('btn-toggle-mute');
       if (menuMute) menuMute.innerText = text;
       if (toggleMute) toggleMute.innerText = text;
+
+      const boxes = document.querySelectorAll('.volume-controls-box');
+      boxes.forEach(box => box.classList.toggle('muted', isMuted));
     };
     const menuMuteBtn = document.getElementById('btn-menu-mute');
     if (menuMuteBtn) {
@@ -242,6 +247,98 @@ export class Game {
     const toggleMuteBtn = document.getElementById('btn-toggle-mute');
     if (toggleMuteBtn) {
       toggleMuteBtn.addEventListener('click', () => toggleMuteAll());
+    }
+
+    // Volume Sliders Binding & Initialization
+    const sldMenuMusic = document.getElementById('sld-menu-music');
+    const sldPauseMusic = document.getElementById('sld-pause-music');
+    const sldMenuSfx = document.getElementById('sld-menu-sfx');
+    const sldPauseSfx = document.getElementById('sld-pause-sfx');
+
+    const lblMenuMusic = document.getElementById('lbl-menu-music-val');
+    const lblPauseMusic = document.getElementById('lbl-pause-music-val');
+    const lblMenuSfx = document.getElementById('lbl-menu-sfx-val');
+    const lblPauseSfx = document.getElementById('lbl-pause-sfx-val');
+
+    const updateSliderFill = (slider) => {
+      if (!slider) return;
+      const min = slider.min || 0;
+      const max = slider.max || 100;
+      const val = slider.value;
+      const percentage = (val - min) / (max - min) * 100;
+      slider.style.background = `linear-gradient(to right, var(--color-aether) ${percentage}%, #080a14 ${percentage}%)`;
+    };
+
+    const setMusicVolumeUI = (value) => {
+      const vol = parseFloat(value) / 100;
+      this.audio.setMusicVolume(vol);
+      
+      const percentText = `${Math.round(value)}%`;
+      if (lblMenuMusic) lblMenuMusic.innerText = percentText;
+      if (lblPauseMusic) lblPauseMusic.innerText = percentText;
+      if (sldMenuMusic) { sldMenuMusic.value = value; updateSliderFill(sldMenuMusic); }
+      if (sldPauseMusic) { sldPauseMusic.value = value; updateSliderFill(sldPauseMusic); }
+    };
+
+    const setSfxVolumeUI = (value) => {
+      const vol = parseFloat(value) / 100;
+      this.audio.setSfxVolume(vol);
+
+      const percentText = `${Math.round(value)}%`;
+      if (lblMenuSfx) lblMenuSfx.innerText = percentText;
+      if (lblPauseSfx) lblPauseSfx.innerText = percentText;
+      if (sldMenuSfx) { sldMenuSfx.value = value; updateSliderFill(sldMenuSfx); }
+      if (sldPauseSfx) { sldPauseSfx.value = value; updateSliderFill(sldPauseSfx); }
+    };
+
+    // Initialize values from AudioManager
+    const initialMusicValue = Math.round(this.audio.musicVolume * 100);
+    const initialSfxValue = Math.round(this.audio.sfxVolume * 100);
+    setMusicVolumeUI(initialMusicValue);
+    setSfxVolumeUI(initialSfxValue);
+
+    // Bind event listeners
+    if (sldMenuMusic) {
+      sldMenuMusic.addEventListener('input', (e) => setMusicVolumeUI(e.target.value));
+    }
+    if (sldPauseMusic) {
+      sldPauseMusic.addEventListener('input', (e) => setMusicVolumeUI(e.target.value));
+    }
+    if (sldMenuSfx) {
+      sldMenuSfx.addEventListener('input', (e) => setSfxVolumeUI(e.target.value));
+    }
+    if (sldPauseSfx) {
+      sldPauseSfx.addEventListener('input', (e) => setSfxVolumeUI(e.target.value));
+    }
+
+    // Render Distance Slider Binding & Initialization
+    const sldMenuRender = document.getElementById('sld-menu-render');
+    const sldPauseRender = document.getElementById('sld-pause-render');
+    const lblMenuRender = document.getElementById('lbl-menu-render-val');
+    const lblPauseRender = document.getElementById('lbl-pause-render-val');
+
+    const setRenderDistanceUI = (value) => {
+      this.renderDistance = parseInt(value);
+      const text = `${this.renderDistance}px`;
+      if (lblMenuRender) lblMenuRender.innerText = text;
+      if (lblPauseRender) lblPauseRender.innerText = text;
+      if (sldMenuRender) { sldMenuRender.value = value; updateSliderFill(sldMenuRender); }
+      if (sldPauseRender) { sldPauseRender.value = value; updateSliderFill(sldPauseRender); }
+      // Update obstacles filter instantly when render distance changes!
+      if (this.levelManager) {
+        this.levelManager.generateObstacles();
+      }
+    };
+
+    // Initialize render distance value
+    setRenderDistanceUI(this.renderDistance || 1200);
+
+    // Bind event listeners
+    if (sldMenuRender) {
+      sldMenuRender.addEventListener('input', (e) => setRenderDistanceUI(e.target.value));
+    }
+    if (sldPauseRender) {
+      sldPauseRender.addEventListener('input', (e) => setRenderDistanceUI(e.target.value));
     }
 
     // Main Menu Buttons
@@ -544,10 +641,6 @@ export class Game {
       });
     });
 
-    // ── Chest GUI ────────────────────────────────────────────────────────
-    document.getElementById('btn-close-chest').addEventListener('click', () => {
-      this._closeChestGUI();
-    });
 
     // ── Spell Remap Panel ────────────────────────────────────────────────
     document.getElementById('btn-pause-spellmap').addEventListener('click', () => {
@@ -805,6 +898,89 @@ export class Game {
     return SpellBook;
   }
 
+  unlockAchievement(id) {
+    if (!this.player.earnedAchievements) this.player.earnedAchievements = [];
+    if (this.player.earnedAchievements.includes(id)) return;
+    
+    this.player.earnedAchievements.push(id);
+    this.player.saveGameState();
+    
+    // Spawn floating notification!
+    const names = {
+      first_weave: "First Weave",
+      pyromancer: "Pyromancer",
+      cryomancer: "Cryomancer",
+      time_bender: "Time Bender",
+      relic_collector: "Runic Collector",
+      armored_up: "Armored Up",
+      flora_explorer: "Flora Explorer",
+      spelunker: "Spelunker",
+      abyssal_diver: "Abyssal Diver",
+      the_glitched: "The Glitched",
+      archon_slayer: "Archon Slayer",
+      ap_master: "AP Master"
+    };
+    const title = names[id] || id;
+    
+    this.particles.spawnText(this.player.x, this.player.y - 45, `🏆 ACHIEVEMENT: ${title}!`, {
+      color: '#ffa502',
+      fontSize: 11,
+      fontPixel: true,
+      life: 2.5
+    });
+    
+    if (this.audio) this.audio.playUnlock();
+    this.updateHUD();
+  }
+
+  refreshAchievementsPanel() {
+    const grid = document.getElementById('inv-achievements-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    const list = [
+      { id: 'first_weave', name: 'First Weave', desc: 'Successfully complete Wave 1.' },
+      { id: 'pyromancer', name: 'Pyromancer', desc: 'Deal 1,000 total Fire damage.' },
+      { id: 'cryomancer', name: 'Cryomancer', desc: 'Freeze 50 enemies.' },
+      { id: 'time_bender', name: 'Time Bender', desc: 'Cast Chrono Dash 20 times.' },
+      { id: 'relic_collector', name: 'Runic Collector', desc: 'Have 5 runes in storage.' },
+      { id: 'armored_up', name: 'Armored Up', desc: 'Equip gear in all 5 slots.' },
+      { id: 'flora_explorer', name: 'Flora Explorer', desc: 'Visit the Harmonious Gardens.' },
+      { id: 'spelunker', name: 'Spelunker', desc: 'Explore the Deep Caverns.' },
+      { id: 'abyssal_diver', name: 'Abyssal Diver', desc: 'Plunge into the Triton Pools.' },
+      { id: 'the_glitched', name: 'The Glitched', desc: 'Enter the Limitless Backrooms.' },
+      { id: 'archon_slayer', name: 'Archon Slayer', desc: 'Defeat the Aether Archon.' },
+      { id: 'ap_master', name: 'AP Master', desc: 'Spend 10 AP in the Ability Web.' }
+    ];
+
+    const earned = this.player.earnedAchievements || [];
+    const countEl = document.getElementById('inv-achievements-count');
+    if (countEl) countEl.innerText = `${earned.length}/${list.length}`;
+
+    list.forEach(ach => {
+      const hasUnlocked = earned.includes(ach.id);
+      const card = document.createElement('div');
+      card.className = 'achievement-card' + (hasUnlocked ? ' unlocked' : ' locked');
+      card.style.background = hasUnlocked ? 'linear-gradient(135deg, #121824, #1b2234)' : '#04060c';
+      card.style.border = hasUnlocked ? '3px double #eccc68' : '3px double #2f3640';
+      card.style.padding = '8px';
+      card.style.display = 'flex';
+      card.style.alignItems = 'center';
+      card.style.gap = '8px';
+
+      const icon = hasUnlocked ? '🏆' : '🔒';
+      const color = hasUnlocked ? '#eccc68' : '#747d8c';
+      card.innerHTML = `
+        <div style="font-size:16px;">${icon}</div>
+        <div style="text-align: left;">
+          <strong style="color:${color}; font-family:var(--font-pixel); font-size:9px; display:block; margin-bottom:2px;">${ach.name}</strong>
+          <span style="color:#a4b0be; font-size:8px; line-height:1.2; font-family:var(--font-pixel);">${ach.desc}</span>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+  }
+
   _closeInventory() {
     const prev = this._prevStateBeforeInventory || 'PLAYING';
     // Don't play stateChange sfx when returning to playing (too noisy)
@@ -830,7 +1006,6 @@ export class Game {
     }).join(' · ');
   }
 
-  // Helper: build an item card element
   _makeItemCard(item, { onRemove, onClick, removeTitle = 'Drop', clickHint = '' } = {}) {
     const c = document.createElement('canvas');
     c.width = 32; c.height = 32;
@@ -862,6 +1037,13 @@ export class Game {
   }
 
   refreshInventoryPanel() {
+    if (this.player.runeStorage.length >= 5) {
+      this.unlockAchievement('relic_collector');
+    }
+    if (this.player.equipment.helmet && this.player.equipment.chestplate && this.player.equipment.boots && this.player.equipment.weapon && this.player.equipment.ring) {
+      this.unlockAchievement('armored_up');
+    }
+
     // Update shard count in header
     document.getElementById('inv-shards-value').innerText = this.player.shards;
     this.drawHTMLIcon('icon-shard-inv', 'item_shard', 12);
@@ -1035,6 +1217,11 @@ export class Game {
       this.refreshSpellmapPanel();
     }
 
+    // ── ACHIEVEMENTS TAB ───────────────────────────────────────────────────
+    if (activeTab === 'achievements') {
+      this.refreshAchievementsPanel();
+    }
+
     // Refresh the player preview on gear tab
     this.drawInventoryPlayer();
   }
@@ -1148,54 +1335,6 @@ export class Game {
     ctx.restore();
   }
 
-  // ----------------------------------------------------
-  // CHEST GUI
-  // ----------------------------------------------------
-  openChestGUI(lootItems) {
-    // lootItems: array of item objects (relics/gear) to display
-    this._prevStateBeforeChest = this.state;
-    this.setState('CHEST');
-
-    const grid = document.getElementById('chest-loot-grid');
-    if (!grid) return;
-    grid.innerHTML = '';
-
-    lootItems.forEach((item) => {
-      const isGear = !!item.type;
-      const card = this._makeItemCard(item, {
-        removeTitle: 'Leave item',
-        clickHint: isGear ? 'CLICK TO TAKE (Gear tab)' : 'CLICK TO TAKE (auto-applied)',
-        onClick: () => {
-          if (isGear) {
-            this.player.gearStorage.push(item);
-            this.particles.spawnText(this.player.x, this.player.y - 20, `GEAR: ${item.name}`, { color: '#eccc68', fontSize: 10, fontPixel: true });
-          } else {
-            this.player.runeStorage.push(item);
-            this.particles.spawnText(this.player.x, this.player.y - 20, `RUNE: ${item.name}`, { color: '#a55eea', fontSize: 10, fontPixel: true });
-          }
-          this.player.recalculateModifiers(this.abilityTree);
-          this.player.saveGameState();
-          if (this.audio) this.audio.playBuy();
-          this.updateHUD();
-          card.remove();
-        },
-        onRemove: () => {
-          // Leave behind (just remove the card without taking)
-          card.remove();
-        }
-      });
-      card.style.width = '120px';
-      grid.appendChild(card);
-    });
-
-    if (lootItems.length === 0) {
-      grid.innerHTML = '<p style="color: #57606f; font-size: 0.8rem;">The chest was empty.</p>';
-    }
-  }
-
-  _closeChestGUI() {
-    this.setState('PLAYING');
-  }
 
   // ----------------------------------------------------
   // ABILITY TREE MOUSE INTERACTION (Pan / Zoom)
@@ -1353,6 +1492,11 @@ export class Game {
   // GAME FLOW & STATE CONTROL
   // ----------------------------------------------------
   startNewGame() {
+    // Always reset tutorial state when starting a real game
+    this.isTutorial = false;
+    const tg = document.getElementById('tutorial-guide');
+    if (tg) tg.classList.add('hidden');
+
     this.projectiles = [];
     this.enemies = [];
     this.items = [];
@@ -1406,6 +1550,15 @@ export class Game {
   }
 
   gameOver() {
+    // Clean up tutorial state if dying during tutorial
+    if (this.isTutorial) {
+      this.endTutorial();
+      return;
+    }
+    this.isTutorial = false;
+    const tg = document.getElementById('tutorial-guide');
+    if (tg) tg.classList.add('hidden');
+
     this.setState('GAME_OVER');
     document.getElementById('go-waves').innerText = this.levelManager.wave;
     document.getElementById('go-kills').innerText = this.kills;
@@ -1450,10 +1603,17 @@ export class Game {
       const tg = document.getElementById('tutorial-guide');
       if (tg) tg.classList.add('hidden');
     }
+
+    if (newState === 'PLAYING') {
+      const tg = document.getElementById('tutorial-guide');
+      if (tg && !this.isTutorial) {
+        tg.classList.add('hidden');
+      }
+    }
     
-    // Keep HUD visible during inventory/worldmap/chest so stats are readable
+    // Keep HUD visible during inventory/worldmap so stats are readable
     document.getElementById('hud').classList.toggle('hidden',
-      newState !== 'PLAYING' && newState !== 'INVENTORY' && newState !== 'WORLD_MAP' && newState !== 'CHEST');
+      newState !== 'PLAYING' && newState !== 'INVENTORY' && newState !== 'WORLD_MAP');
     
     this.showPanel(
       newState === 'MENU'          ? 'panel-main-menu' :
@@ -1466,8 +1626,7 @@ export class Game {
       newState === 'PAUSED'        ? 'panel-pause' :
       newState === 'SHOP'          ? 'panel-shop' :
       newState === 'INVENTORY'     ? 'panel-inventory' :
-      newState === 'WORLD_MAP'     ? 'panel-worldmap' :
-      newState === 'CHEST'         ? 'panel-chest' : ''
+      newState === 'WORLD_MAP'     ? 'panel-worldmap' : ''
     );
 
     if (newState === 'INVENTORY') {
@@ -1510,7 +1669,7 @@ export class Game {
   }
 
   showPanel(panelId) {
-    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-how-to', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-worldmap', 'panel-chest', 'panel-play-menu', 'panel-customize', 'panel-credits', 'panel-contact'];
+    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-how-to', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-worldmap', 'panel-play-menu', 'panel-customize', 'panel-credits', 'panel-contact'];
     overlays.forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
@@ -1836,15 +1995,14 @@ export class Game {
     document.getElementById('hud-wave-timer').innerText = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
     document.getElementById('hud-enemies-left').innerText = `Enemies: ${this.enemies.length}`;
 
-    // Shards and Ability Points indicators
+    // Shards, Keys and Ability Points indicators
     document.getElementById('hud-shards-value').innerText = this.player.shards;
+    const keysValEl = document.getElementById('hud-keys-value');
+    if (keysValEl) keysValEl.innerText = this.player.keys || 0;
     
     const apNotif = document.getElementById('hud-ap-notification');
-    if (this.player.ap > 0) {
-      apNotif.classList.remove('hidden');
+    if (apNotif) {
       document.getElementById('hud-ap-value').innerText = this.player.ap;
-    } else {
-      apNotif.classList.add('hidden');
     }
 
     // Show/hide extra slots based on maxSpellSlots
@@ -1965,6 +2123,13 @@ export class Game {
     if (dt > 0.1) dt = 0.1;
     this.frameIndex += dt;
 
+    // Enforce tutorial guide visibility every frame — 
+    // the guide can ONLY be visible when isTutorial is true
+    const tutorialGuide = document.getElementById('tutorial-guide');
+    if (tutorialGuide) {
+      tutorialGuide.classList.toggle('hidden', !this.isTutorial);
+    }
+
     if (this.state === 'PLAYING') {
       this.update(dt);
       if (this.isTutorial) {
@@ -1995,8 +2160,6 @@ export class Game {
       if (this.isTutorial) {
         this.updateTutorial(dt);
       }
-    } else if (this.state === 'CHEST') {
-      this.draw();
     }
     
     requestAnimationFrame((t) => this.loop(t));
@@ -2179,6 +2342,13 @@ export class Game {
             
             // Check elemental status combos
             processCombo(enemy, proj.element, this);
+            
+            if (proj.element === 'fire') {
+              this.player.fireDamageDealt = (this.player.fireDamageDealt || 0) + finalDmg;
+              if (this.player.fireDamageDealt >= 1000) {
+                this.unlockAchievement('pyromancer');
+              }
+            }
             
             enemy.takeDamage(finalDmg, isCrit, this);
             enemy.applyKnockback(proj.vx * 0.25, proj.vy * 0.25);
@@ -2766,6 +2936,8 @@ export class Game {
               ctx.fillStyle = '#2f3640'; // Wall
             } else if (tile === 2) {
               ctx.fillStyle = '#2c1b4d'; // Special Room
+            } else if (tile === 3) {
+              ctx.fillStyle = '#e67e22'; // Door
             } else {
               ctx.fillStyle = '#121320'; // Floor
             }
@@ -2858,6 +3030,8 @@ export class Game {
             ctx.fillStyle = '#2f3640'; // Wall
           } else if (tile === 2) {
             ctx.fillStyle = '#2c1b4d'; // Special Room
+          } else if (tile === 3) {
+            ctx.fillStyle = '#e67e22'; // Door
           } else {
             ctx.fillStyle = '#121320'; // Floor
           }

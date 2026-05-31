@@ -6,8 +6,16 @@ import { RELICS_CATALOG, EQUIPMENT_CATALOG } from '../entities/Player.js';
 export class LevelManager {
   constructor(game) {
     this.game = game;
-    this.width = 2000; // Arena dimensions
-    this.height = 2000;
+    this.width = 6000; // Expanded Arena dimensions
+    this.height = 6000;
+    this.theme = 'dungeon';
+    this.doors = [];
+    
+    // Grid expanding state
+    this.unlockedSectors = new Set();
+    this.unlockedSectors.add("1,1");
+    this.sectorThemes = { "1,1": "dungeon" };
+    this.unlockedDoors = new Set();
     
     // Wave state
     this.wave = 1;
@@ -254,157 +262,313 @@ export class LevelManager {
       this.preGenerateFullMaze();
     }
     
-    // Scale active columns and rows based on wave
-    // Starts at 10x10, increases by 1 cell every 2 waves
-    const activeCols = Math.min(30, 10 + Math.floor((this.wave - 1) / 2));
-    const activeRows = Math.min(30, 10 + Math.floor((this.wave - 1) / 2));
+    this.allObstacles = [];
     
-    // --- CONNECTIVITY HEALING ---
-    // Since we truncate the 30x30 maze to activeCols x activeRows, cell paths that loop 
-    // outside the boundary will be closed, which can leave active cells isolated.
-    // We run a BFS from cell (5, 5) (the player spawn cell) to find and heal isolated cells.
-    const visited = [];
-    for (let c = 0; c < activeCols; c++) {
-      visited[c] = new Array(activeRows).fill(false);
-    }
-    
-    const queue = [];
-    const startC = Math.min(activeCols - 1, 5);
-    const startR = Math.min(activeRows - 1, 5);
-    visited[startC][startR] = true;
-    queue.push({ c: startC, r: startR });
-    
-    const getNeighbors = (c, r) => {
-      const cell = this.fullNavCells[c][r];
-      const list = [];
-      if (r > 0 && !cell.walls.north) list.push({ c, r: r - 1 });
-      if (r < activeRows - 1 && !cell.walls.south) list.push({ c, r: r + 1 });
-      if (c < activeCols - 1 && !cell.walls.east) list.push({ c: c + 1, r });
-      if (c > 0 && !cell.walls.west) list.push({ c: c - 1, r });
-      return list;
-    };
-    
-    const runBFS = () => {
-      while (queue.length > 0) {
-        const curr = queue.shift();
-        const neighbors = getNeighbors(curr.c, curr.r);
-        for (const n of neighbors) {
-          if (!visited[n.c][n.r]) {
-            visited[n.c][n.r] = true;
-            queue.push(n);
+    // In tutorial, force to sector (1,1) dimensions and ignore other sectors
+    if (this.game.isTutorial) {
+      this.navCols = 10;
+      this.navRows = 10;
+      this.navCellSize = 200;
+      this.width = 2000;
+      this.height = 2000;
+      this.tileWidth = 50;
+      this.tileHeight = 50;
+      
+      this.navCells = [];
+      for (let c = 0; c < 10; c++) {
+        this.navCells[c] = [];
+        for (let r = 0; r < 10; r++) {
+          const fullCell = this.fullNavCells[c + 10][r + 10];
+          this.navCells[c][r] = {
+            c, r, visited: true,
+            walls: {
+              north: r === 0 ? true : fullCell.walls.north,
+              south: r === 9 ? true : fullCell.walls.south,
+              east: c === 9 ? true : fullCell.walls.east,
+              west: c === 0 ? true : fullCell.walls.west
+            }
+          };
+        }
+      }
+      
+      this.tileGrid = [];
+      for (let x = 0; x < 50; x++) {
+        this.tileGrid[x] = new Array(50).fill(0);
+        for (let y = 0; y < 50; y++) {
+          if (x === 0 || x === 49 || y === 0 || y === 49) {
+            this.tileGrid[x][y] = 1;
+          } else {
+            this.tileGrid[x][y] = this.fullTileGrid[x + 50][y + 50];
           }
         }
       }
-    };
+      
+      this.doors = [];
+      for (let tx = 1; tx < 49; tx++) {
+        for (let ty = 1; ty < 49; ty++) {
+          if (this.tileGrid[tx][ty] === 1) {
+            this.allObstacles.push({
+              x: tx * 40 + 20,
+              y: ty * 40 + 20,
+              radius: 20,
+              type: 'pillar'
+            });
+          }
+        }
+      }
+      this.obstacles = [...this.allObstacles];
+      this.specialRooms = [];
+      return;
+    }
     
-    runBFS();
+    // Regular gameplay: Full 3x3 sectors grid layout
+    this.navCols = 30;
+    this.navRows = 30;
+    this.navCellSize = 200;
+    this.width = 6000;
+    this.height = 6000;
+    this.tileWidth = 150;
+    this.tileHeight = 150;
     
-    // Find unvisited active cells and connect them to visited neighbors
-    let healedAny = true;
-    while (healedAny) {
-      healedAny = false;
-      for (let c = 0; c < activeCols; c++) {
-        for (let r = 0; r < activeRows; r++) {
-          if (!visited[c][r]) {
-            // Find a neighbor that IS visited and carve a path
-            const choices = [];
-            if (r > 0 && visited[c][r - 1]) choices.push({ dir: 'north', tc: c, tr: r - 1 });
-            if (r < activeRows - 1 && visited[c][r + 1]) choices.push({ dir: 'south', tc: c, tr: r + 1 });
-            if (c > 0 && visited[c - 1][r]) choices.push({ dir: 'west', tc: c - 1, tr: r });
-            if (c < activeCols - 1 && visited[c + 1][r]) choices.push({ dir: 'east', tc: c + 1, tr: r });
-            
-            if (choices.length > 0) {
-              const choice = choices[Math.floor(Math.random() * choices.length)];
-              const cell = this.fullNavCells[c][r];
-              const neighborCell = this.fullNavCells[choice.tc][choice.tr];
-              
-              if (choice.dir === 'north') {
-                cell.walls.north = false;
-                neighborCell.walls.south = false;
-                const ty = r * 5;
-                for (let tx = c * 5 + 1; tx < (c + 1) * 5; tx++) this.fullTileGrid[tx][ty] = 0;
-              } else if (choice.dir === 'south') {
-                cell.walls.south = false;
-                neighborCell.walls.north = false;
-                const ty = (r + 1) * 5;
-                for (let tx = c * 5 + 1; tx < (c + 1) * 5; tx++) this.fullTileGrid[tx][ty] = 0;
-              } else if (choice.dir === 'west') {
-                cell.walls.west = false;
-                neighborCell.walls.east = false;
-                const tx = c * 5;
-                for (let ty = r * 5 + 1; ty < (r + 1) * 5; ty++) this.fullTileGrid[tx][ty] = 0;
-              } else if (choice.dir === 'east') {
-                cell.walls.east = false;
-                neighborCell.walls.west = false;
-                const tx = (c + 1) * 5;
-                for (let ty = r * 5 + 1; ty < (r + 1) * 5; ty++) this.fullTileGrid[tx][ty] = 0;
-              }
-              
-              // Add the newly connected cell to BFS queue to cascade updates
-              visited[c][r] = true;
-              queue.push({ c, r });
-              runBFS();
-              healedAny = true;
-              break; // Break loop to scan from top-left again
+    this.navCells = [];
+    for (let c = 0; c < 30; c++) {
+      this.navCells[c] = [];
+      const sx = Math.floor(c / 10);
+      for (let r = 0; r < 30; r++) {
+        const sy = Math.floor(r / 10);
+        const sectorKey = `${sx},${sy}`;
+        const isUnlocked = this.unlockedSectors.has(sectorKey);
+        
+        if (!isUnlocked) {
+          this.navCells[c][r] = {
+            c, r, visited: false,
+            walls: { north: true, south: true, east: true, west: true }
+          };
+          continue;
+        }
+        
+        const fullCell = this.fullNavCells[c][r];
+        let north = fullCell.walls.north;
+        let south = fullCell.walls.south;
+        let east = fullCell.walls.east;
+        let west = fullCell.walls.west;
+        
+        // 1. North boundary of sector (sy * 10)
+        if (r === sy * 10) {
+          const neighborSy = sy - 1;
+          const isNeighborUnlocked = neighborSy >= 0 && this.unlockedSectors.has(`${sx},${neighborSy}`);
+          if (!isNeighborUnlocked) {
+            north = true;
+          } else {
+            if (c === sx * 10 + 5) {
+              const doorKey = `${sx * 50 + 27},${sy * 50}`;
+              const doorUnlocked = this.unlockedDoors.has(doorKey);
+              north = !doorUnlocked;
+            } else {
+              north = true;
             }
           }
         }
-        if (healedAny) break;
-      }
-    }
-    
-    this.navCols = activeCols;
-    this.navRows = activeRows;
-    this.navCellSize = 200;
-    
-    this.width = activeCols * 200;
-    this.height = activeRows * 200;
-    
-    this.tileWidth = activeCols * 5;
-    this.tileHeight = activeRows * 5;
-    
-    // Initialize tileGrid for the active region
-    this.tileGrid = [];
-    for (let x = 0; x < this.tileWidth; x++) {
-      this.tileGrid[x] = new Array(this.tileHeight).fill(0);
-    }
-    
-    // Copy the active portion of fullTileGrid into tileGrid
-    // We overwrite the outer boundary tiles with solid walls (1)
-    for (let x = 0; x < this.tileWidth; x++) {
-      for (let y = 0; y < this.tileHeight; y++) {
-        if (x === 0 || x === this.tileWidth - 1 || y === 0 || y === this.tileHeight - 1) {
-          this.tileGrid[x][y] = 1;
-        } else {
-          this.tileGrid[x][y] = this.fullTileGrid[x][y];
-        }
-      }
-    }
-    
-    // Reconstruct navCells for active region pathfinding
-    this.navCells = [];
-    for (let c = 0; c < activeCols; c++) {
-      this.navCells[c] = [];
-      for (let r = 0; r < activeRows; r++) {
-        const fullCell = this.fullNavCells[c][r];
-        this.navCells[c][r] = {
-          c,
-          r,
-          visited: true,
-          walls: {
-            north: r === 0 ? true : fullCell.walls.north,
-            south: r === activeRows - 1 ? true : fullCell.walls.south,
-            east: c === activeCols - 1 ? true : fullCell.walls.east,
-            west: c === 0 ? true : fullCell.walls.west
+        
+        // 2. South boundary of sector (sy * 10 + 9)
+        if (r === sy * 10 + 9) {
+          const neighborSy = sy + 1;
+          const isNeighborUnlocked = neighborSy < 3 && this.unlockedSectors.has(`${sx},${neighborSy}`);
+          if (!isNeighborUnlocked) {
+            south = true;
+          } else {
+            if (c === sx * 10 + 5) {
+              const doorKey = `${sx * 50 + 27},${sy * 50 + 49}`;
+              const doorUnlocked = this.unlockedDoors.has(doorKey);
+              south = !doorUnlocked;
+            } else {
+              south = true;
+            }
           }
+        }
+        
+        // 3. West boundary of sector (sx * 10)
+        if (c === sx * 10) {
+          const neighborSx = sx - 1;
+          const isNeighborUnlocked = neighborSx >= 0 && this.unlockedSectors.has(`${neighborSx},${sy}`);
+          if (!isNeighborUnlocked) {
+            west = true;
+          } else {
+            if (r === sy * 10 + 5) {
+              const doorKey = `${sx * 50},${sy * 50 + 27}`;
+              const doorUnlocked = this.unlockedDoors.has(doorKey);
+              west = !doorUnlocked;
+            } else {
+              west = true;
+            }
+          }
+        }
+        
+        // 4. East boundary of sector (sx * 10 + 9)
+        if (c === sx * 10 + 9) {
+          const neighborSx = sx + 1;
+          const isNeighborUnlocked = neighborSx < 3 && this.unlockedSectors.has(`${neighborSx},${sy}`);
+          if (!isNeighborUnlocked) {
+            east = true;
+          } else {
+            if (r === sy * 10 + 5) {
+              const doorKey = `${sx * 50 + 49},${sy * 50 + 27}`;
+              const doorUnlocked = this.unlockedDoors.has(doorKey);
+              east = !doorUnlocked;
+            } else {
+              east = true;
+            }
+          }
+        }
+        
+        this.navCells[c][r] = {
+          c, r, visited: true,
+          walls: { north, south, east, west }
         };
       }
     }
     
+    // Initialize tileGrid for the entire 150x150 region
+    this.tileGrid = [];
+    for (let x = 0; x < 150; x++) {
+      this.tileGrid[x] = new Array(150).fill(1); // solid walls by default
+    }
+    
+    // Copy the active portions of fullTileGrid into tileGrid
+    for (let tx = 0; tx < 150; tx++) {
+      const sx = Math.floor(tx / 50);
+      for (let ty = 0; ty < 150; ty++) {
+        const sy = Math.floor(ty / 50);
+        const sectorKey = `${sx},${sy}`;
+        
+        if (this.unlockedSectors.has(sectorKey)) {
+          this.tileGrid[tx][ty] = this.fullTileGrid[tx][ty];
+          
+          // Apply sector boundary walls
+          
+          // 1. North edge
+          if (ty === sy * 50) {
+            const neighborSy = sy - 1;
+            const neighborUnlocked = neighborSy >= 0 && this.unlockedSectors.has(`${sx},${neighborSy}`);
+            if (!neighborUnlocked) {
+              this.tileGrid[tx][ty] = 1;
+            } else {
+              if (tx === sx * 50 + 27) {
+                const doorKey = `${tx},${ty}`;
+                const doorUnlocked = this.unlockedDoors.has(doorKey);
+                this.tileGrid[tx][ty] = doorUnlocked ? 0 : 3;
+              } else {
+                this.tileGrid[tx][ty] = 1;
+              }
+            }
+          }
+          
+          // 2. South edge
+          if (ty === sy * 50 + 49) {
+            const neighborSy = sy + 1;
+            const neighborUnlocked = neighborSy < 3 && this.unlockedSectors.has(`${sx},${neighborSy}`);
+            if (!neighborUnlocked) {
+              this.tileGrid[tx][ty] = 1;
+            } else {
+              if (tx === sx * 50 + 27) {
+                const doorKey = `${tx},${ty}`;
+                const doorUnlocked = this.unlockedDoors.has(doorKey);
+                this.tileGrid[tx][ty] = doorUnlocked ? 0 : 3;
+              } else {
+                this.tileGrid[tx][ty] = 1;
+              }
+            }
+          }
+          
+          // 3. West edge
+          if (tx === sx * 50) {
+            const neighborSx = sx - 1;
+            const neighborUnlocked = neighborSx >= 0 && this.unlockedSectors.has(`${neighborSx},${sy}`);
+            if (!neighborUnlocked) {
+              this.tileGrid[tx][ty] = 1;
+            } else {
+              if (ty === sy * 50 + 27) {
+                const doorKey = `${tx},${ty}`;
+                const doorUnlocked = this.unlockedDoors.has(doorKey);
+                this.tileGrid[tx][ty] = doorUnlocked ? 0 : 3;
+              } else {
+                this.tileGrid[tx][ty] = 1;
+              }
+            }
+          }
+          
+          // 4. East edge
+          if (tx === sx * 50 + 49) {
+            const neighborSx = sx + 1;
+            const neighborUnlocked = neighborSx < 3 && this.unlockedSectors.has(`${neighborSx},${sy}`);
+            if (!neighborUnlocked) {
+              this.tileGrid[tx][ty] = 1;
+            } else {
+              if (ty === sy * 50 + 27) {
+                const doorKey = `${tx},${ty}`;
+                const doorUnlocked = this.unlockedDoors.has(doorKey);
+                this.tileGrid[tx][ty] = doorUnlocked ? 0 : 3;
+              } else {
+                this.tileGrid[tx][ty] = 1;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // Set Door Portals at unlocked sector boundaries (excluding unlocked doors)
+    this.doors = [];
+    for (const sectorKey of this.unlockedSectors) {
+      const [sx, sy] = sectorKey.split(',').map(Number);
+      
+      // North Door
+      if (sy > 0) {
+        const doorTx = sx * 50 + 27;
+        const doorTy = sy * 50;
+        const doorKey = `${doorTx},${doorTy}`;
+        if (!this.unlockedDoors.has(doorKey) && !this.unlockedSectors.has(`${sx},${sy - 1}`)) {
+          this.doors.push({ tx: doorTx, ty: doorTy, dir: 'North', x: (doorTx + 0.5) * 40, y: (doorTy + 0.5) * 40 });
+        }
+      }
+      // South Door
+      if (sy < 2) {
+        const doorTx = sx * 50 + 27;
+        const doorTy = sy * 50 + 49;
+        const doorKey = `${doorTx},${doorTy}`;
+        if (!this.unlockedDoors.has(doorKey) && !this.unlockedSectors.has(`${sx},${sy + 1}`)) {
+          this.doors.push({ tx: doorTx, ty: doorTy, dir: 'South', x: (doorTx + 0.5) * 40, y: (doorTy + 0.5) * 40 });
+        }
+      }
+      // West Door
+      if (sx > 0) {
+        const doorTx = sx * 50;
+        const doorTy = sy * 50 + 27;
+        const doorKey = `${doorTx},${doorTy}`;
+        if (!this.unlockedDoors.has(doorKey) && !this.unlockedSectors.has(`${sx - 1},${sy}`)) {
+          this.doors.push({ tx: doorTx, ty: doorTy, dir: 'West', x: (doorTx + 0.5) * 40, y: (doorTy + 0.5) * 40 });
+        }
+      }
+      // East Door
+      if (sx < 2) {
+        const doorTx = sx * 50 + 49;
+        const doorTy = sy * 50 + 27;
+        const doorKey = `${doorTx},${doorTy}`;
+        if (!this.unlockedDoors.has(doorKey) && !this.unlockedSectors.has(`${sx + 1},${sy}`)) {
+          this.doors.push({ tx: doorTx, ty: doorTy, dir: 'East', x: (doorTx + 0.5) * 40, y: (doorTy + 0.5) * 40 });
+        }
+      }
+    }
+    
+    // Set tileGrid values for doors so they render and behave correctly
+    this.doors.forEach(d => {
+      this.tileGrid[d.tx][d.ty] = 3;
+    });
+
     // Reconstruct physics obstacles (pillars) for active region
     this.obstacles = [];
-    for (let tx = 1; tx < this.tileWidth - 1; tx++) {
-      for (let ty = 1; ty < this.tileHeight - 1; ty++) {
+    for (let tx = 0; tx < 150; tx++) {
+      for (let ty = 0; ty < 150; ty++) {
         if (this.tileGrid[tx][ty] === 1) {
           this.obstacles.push({
             x: tx * 40 + 20,
@@ -416,23 +580,28 @@ export class LevelManager {
       }
     }
     
-    // Add explosive barrels that fall inside the active region (with clearance)
+    // Add explosive barrels that fall inside the unlocked regions
     if (this.fullExplosiveBarrels) {
       for (const barrel of this.fullExplosiveBarrels) {
         const tx = Math.floor(barrel.x / 40);
         const ty = Math.floor(barrel.y / 40);
-        if (tx > 0 && tx < this.tileWidth - 1 && ty > 0 && ty < this.tileHeight - 1) {
-          this.obstacles.push(barrel);
+        const sx = Math.floor(tx / 50);
+        const sy = Math.floor(ty / 50);
+        if (this.unlockedSectors.has(`${sx},${sy}`)) {
+          if (tx % 50 > 0 && tx % 50 < 49 && ty % 50 > 0 && ty % 50 < 49) {
+            this.obstacles.push(barrel);
+          }
         }
       }
     }
     
-    // Filter special rooms that are inside the active region
-    this.specialRooms = this.fullSpecialRooms.filter(room => room.c < activeCols && room.r < activeRows);
+    // Filter special rooms that are inside unlocked sectors
+    this.specialRooms = this.fullSpecialRooms.filter(room => {
+      const sx = Math.floor(room.c / 10);
+      const sy = Math.floor(room.r / 10);
+      return this.unlockedSectors.has(`${sx},${sy}`);
+    });
   }
-
-
-
 
   // ── Navigation helpers ──────────────────────────────────────────────────
 
@@ -638,9 +807,17 @@ export class LevelManager {
     let valid = false;
     let attempts = 0;
 
+    const unlockedList = Array.from(this.unlockedSectors);
+    const chosenSectorKey = unlockedList[Math.floor(Math.random() * unlockedList.length)];
+    const [sx, sy] = chosenSectorKey.split(',').map(Number);
+    const minX = sx * 2000 + 100;
+    const maxX = (sx + 1) * 2000 - 100;
+    const minY = sy * 2000 + 100;
+    const maxY = (sy + 1) * 2000 - 100;
+
     while (!valid && attempts < 100) {
-      px = 100 + Math.random() * (this.width - 200);
-      py = 100 + Math.random() * (this.height - 200);
+      px = minX + Math.random() * (maxX - minX);
+      py = minY + Math.random() * (maxY - minY);
       attempts++;
 
       // Check distance to player
@@ -668,9 +845,17 @@ export class LevelManager {
     let valid = false;
     let attempts = 0;
 
+    const unlockedList = Array.from(this.unlockedSectors);
+    const chosenSectorKey = unlockedList[Math.floor(Math.random() * unlockedList.length)];
+    const [sx, sy] = chosenSectorKey.split(',').map(Number);
+    const minX = sx * 2000 + 100;
+    const maxX = (sx + 1) * 2000 - 100;
+    const minY = sy * 2000 + 100;
+    const maxY = (sy + 1) * 2000 - 100;
+
     while (!valid && attempts < 100) {
-      px = 100 + Math.random() * (this.width - 200);
-      py = 100 + Math.random() * (this.height - 200);
+      px = minX + Math.random() * (maxX - minX);
+      py = minY + Math.random() * (maxY - minY);
       attempts++;
 
       // Check distance to player
@@ -701,6 +886,30 @@ export class LevelManager {
   }
 
   update(dt) {
+    // Dynamic theme update based on player position
+    if (this.game.player && this.sectorThemes) {
+      const currentSx = Math.max(0, Math.min(2, Math.floor(this.game.player.x / 2000)));
+      const currentSy = Math.max(0, Math.min(2, Math.floor(this.game.player.y / 2000)));
+      this.theme = this.sectorThemes[`${currentSx},${currentSy}`] || 'dungeon';
+    }
+
+    // Door proximity and unlock checks
+    if (this.doors && this.game.player && this.game.state === 'PLAYING') {
+      this.doors.forEach(door => {
+        const dist = Math.hypot(this.game.player.x - door.x, this.game.player.y - door.y);
+        if (dist < 55) {
+          if (this.game.player.keys > 0) {
+            this.transitionToNewArea(door);
+          } else {
+            if (!this._lastDoorWarnTime || Date.now() - this._lastDoorWarnTime > 1500) {
+              this.game.particles.spawnText(door.x, door.y - 20, "LOCKED: NEED RUNE KEY", { color: '#ff4757', fontSize: 10, fontPixel: true });
+              this._lastDoorWarnTime = Date.now();
+            }
+          }
+        }
+      });
+    }
+
     // Uncover fog of war around player
     if (this.game.player && this.exploredGrid) {
       const px = Math.floor(this.game.player.x / 40);
@@ -740,6 +949,23 @@ export class LevelManager {
         fontPixel: true,
         life: 2.5
       });
+
+      // Grant Rune Key (except in tutorial)
+      if (!this.game.isTutorial) {
+        this.game.player.keys = (this.game.player.keys || 0) + 1;
+        this.game.particles.spawnText(this.game.player.x, this.game.player.y - 12, `ACQUIRED RUNE KEY!`, {
+          color: '#f1c40f',
+          fontSize: 11,
+          fontPixel: true,
+          life: 2.5
+        });
+        if (this.game.audio) this.game.audio.playUnlock();
+      }
+
+      // Check First Weave achievement
+      if (this.wave === 1 && !this.game.isTutorial) {
+        this.game.unlockAchievement('first_weave');
+      }
 
       // Save game state
       this.game.player.saveGameState();
@@ -844,8 +1070,10 @@ export class LevelManager {
             loot.push(combinedPool[idx]);
           }
 
-          // Open chest GUI panel
-          this.game.openChestGUI(loot);
+          // Spawn chest loot directly on the ground!
+          loot.forEach(item => {
+            this.game.spawnItem(chest.x + (Math.random() - 0.5) * 16, chest.y + (Math.random() - 0.5) * 16, 'relic', item);
+          });
 
           this.chests.splice(i, 1);
         }
@@ -1186,28 +1414,57 @@ export class LevelManager {
     const endTx = Math.min(this.tileWidth - 1, Math.ceil((centerX + halfW) / tileSize));
     const startTy = Math.max(0, Math.floor((centerY - halfH) / tileSize));
     const endTy = Math.min(this.tileHeight - 1, Math.ceil((centerY + halfH) / tileSize));
-    
+
     for (let tx = startTx; tx <= endTx; tx++) {
+      const sx = Math.floor(tx / 50);
       for (let ty = startTy; ty <= endTy; ty++) {
-        // Draw floor if it's a floor tile (0)
-        if (this.tileGrid[tx][ty] === 0) {
+        const sy = Math.floor(ty / 50);
+        const theme = (this.sectorThemes && this.sectorThemes[`${sx},${sy}`]) || 'dungeon';
+        
+        // Draw floor if it's a floor tile (0) or door tile (3 - draws floor under the door object)
+        if (this.tileGrid[tx][ty] === 0 || this.tileGrid[tx][ty] === 3) {
           const rx = tx * tileSize - camera.x;
           const ry = ty * tileSize - camera.y;
           
-          // Draw base flagstone color
-          ctx.fillStyle = '#121320';
+          // Theme coloring
+          let fillStyle = '#121320';
+          let strokeStyle = '#0e0f18';
+          let crackStyle = '#08090f';
+          let dotStyle = '#1d1e2f';
+          
+          if (theme === 'gardens') {
+            fillStyle = '#1b7a3e'; // grass forest green
+            strokeStyle = '#145c2f'; // grass borders
+            crackStyle = '#0e3e20';
+            dotStyle = '#f1c40f'; // flower dots
+          } else if (theme === 'underground') {
+            fillStyle = '#4a2c11'; // rock brown
+            strokeStyle = '#331e0b';
+            crackStyle = '#1e1106';
+            dotStyle = '#5c3715';
+          } else if (theme === 'pool') {
+            fillStyle = '#00d2d3'; // cyan pool tiles
+            strokeStyle = '#00a8a9';
+            crackStyle = '#48dbfb';
+            dotStyle = '#b2fefb';
+          } else if (theme === 'backrooms') {
+            fillStyle = '#d1b87a'; // yellow carpet
+            strokeStyle = '#b89e5c';
+            crackStyle = '#a38b4d';
+            dotStyle = '#8f773b'; // carpet muck stains
+          }
+          
+          ctx.fillStyle = fillStyle;
           ctx.fillRect(rx, ry, tileSize, tileSize);
           
-          // Draw faint borders between floor tiles
-          ctx.strokeStyle = '#0e0f18';
+          ctx.strokeStyle = strokeStyle;
           ctx.lineWidth = 1;
           ctx.strokeRect(rx, ry, tileSize, tileSize);
           
-          // Add deterministic variety using a hash
           const hash = (tx * 17 + ty * 31) % 100;
           if (hash < 12) {
             // Draw a diagonal crack
-            ctx.strokeStyle = '#08090f';
+            ctx.strokeStyle = crackStyle;
             ctx.lineWidth = 1.5;
             ctx.beginPath();
             ctx.moveTo(rx + 8, ry + 8);
@@ -1215,13 +1472,20 @@ export class LevelManager {
             ctx.lineTo(rx + 12, ry + 26);
             ctx.stroke();
           } else if (hash < 20) {
-            // Tiny stone/debris dot details
-            ctx.fillStyle = '#1d1e2f';
-            ctx.fillRect(rx + 24, ry + 12, 3, 3);
-            ctx.fillRect(rx + 10, ry + 28, 2, 2);
+            // Tiny stone/debris dot details or flowers
+            ctx.fillStyle = dotStyle;
+            if (theme === 'gardens') {
+              // Draw flower dots (yellow/pink)
+              ctx.fillRect(rx + 24, ry + 12, 3, 3);
+              ctx.fillStyle = hash % 2 === 0 ? '#e84393' : '#f1c40f';
+              ctx.fillRect(rx + 10, ry + 28, 4, 4);
+            } else {
+              ctx.fillRect(rx + 24, ry + 12, 3, 3);
+              ctx.fillRect(rx + 10, ry + 28, 2, 2);
+            }
           } else if (hash < 26) {
             // Vertical split lines to simulate smaller brick pavers
-            ctx.strokeStyle = '#0e0f18';
+            ctx.strokeStyle = strokeStyle;
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(rx + 20, ry);
@@ -1260,6 +1524,35 @@ export class LevelManager {
     ctx.strokeStyle = '#1e1f2f';
     ctx.lineWidth = 4;
     ctx.strokeRect(-camera.x, -camera.y, this.width, this.height);
+
+    // Draw Door portals
+    if (this.doors) {
+      this.doors.forEach(door => {
+        const rx = door.x - camera.x;
+        const ry = door.y - camera.y;
+        
+        // Door background
+        ctx.fillStyle = '#2f3542';
+        ctx.fillRect(rx - 20, ry - 20, 40, 40);
+        
+        // Door frame
+        ctx.strokeStyle = '#747d8c';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(rx - 20, ry - 20, 40, 40);
+        
+        // Draw locked symbol
+        ctx.fillStyle = '#ffa502';
+        ctx.font = '10px var(--font-pixel)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🔒', rx, ry);
+        
+        // Label direction
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '6px var(--font-pixel)';
+        ctx.fillText(door.dir, rx, ry - 12);
+      });
+    }
 
     // Draw Shrines
     this.shrines.forEach((shrine) => {
@@ -1360,15 +1653,42 @@ export class LevelManager {
           const S = (ty < this.tileHeight - 1) ? this.tileGrid[tx][ty + 1] === 1 : true;
           const W = (tx > 0) ? this.tileGrid[tx - 1][ty] === 1 : true;
           const E = (tx < this.tileWidth - 1) ? this.tileGrid[tx + 1][ty] === 1 : true;
+          const theme = (this.sectorThemes && this.sectorThemes[`${Math.floor(tx / 50)},${Math.floor(ty / 50)}`]) || 'dungeon';
           
-          // Base wall background color (cool dark slate)
-          ctx.fillStyle = '#3f4756';
+          let wallBase = '#3f4756';
+          let wallMortar = '#1c202a';
+          let wallHighlight = '#5c677c';
+          let wallShadow = '#161922';
+          
+          if (theme === 'gardens') {
+            wallBase = '#1e5f33'; // shrub leafy green
+            wallMortar = '#0e3e20';
+            wallHighlight = '#2ecc71';
+            wallShadow = '#0f3d1e';
+          } else if (theme === 'underground') {
+            wallBase = '#634427'; // cavern rock
+            wallMortar = '#331e0b';
+            wallHighlight = '#7d5b3c';
+            wallShadow = '#2d1c0a';
+          } else if (theme === 'pool') {
+            wallBase = '#e0f7fa'; // white/teal clean tiles
+            wallMortar = '#b2ebf2';
+            wallHighlight = '#ffffff';
+            wallShadow = '#80deea';
+          } else if (theme === 'backrooms') {
+            wallBase = '#ffeaa7'; // yellow mono wallpaper
+            wallMortar = '#d1b87a';
+            wallHighlight = '#fff9db';
+            wallShadow = '#b89e5c';
+          }
+          
+          ctx.fillStyle = wallBase;
           ctx.fillRect(rx, ry, tileSize, tileSize);
           
           // Draw procedural horizontal brick line textures
           const xStart = W ? rx : rx + 4;
           const xEnd = E ? rx + tileSize : rx + tileSize - 4;
-          ctx.fillStyle = '#1c202a';
+          ctx.fillStyle = wallMortar;
           ctx.fillRect(xStart, ry + 13, xEnd - xStart, 2);
           ctx.fillRect(xStart, ry + 26, xEnd - xStart, 2);
           
@@ -1385,11 +1705,11 @@ export class LevelManager {
           }
           
           // Connected highlights (top/left) and shadows (bottom/right)
-          ctx.fillStyle = '#5c677c'; // Highlight color
+          ctx.fillStyle = wallHighlight;
           if (!N) ctx.fillRect(rx, ry, tileSize, 3);
           if (!W) ctx.fillRect(rx, ry, 3, tileSize);
           
-          ctx.fillStyle = '#161922'; // Shadow color
+          ctx.fillStyle = wallShadow;
           if (!S) ctx.fillRect(rx, ry + tileSize - 3, tileSize, 3);
           if (!E) ctx.fillRect(rx + tileSize - 3, ry, 3, tileSize);
         }
@@ -1465,16 +1785,110 @@ export class LevelManager {
       ctx.fillStyle = '#ff9f43';
       ctx.fill();
       
-      ctx.strokeStyle = '#1e293b';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      
-      ctx.font = 'bold 8px monospace';
       ctx.fillStyle = '#1e293b';
       ctx.textAlign = 'center';
       ctx.fillText("!", rx, ry + 5);
       ctx.restore();
     });
   }
-}
 
+  transitionToNewArea(door) {
+    if (!door) return;
+    
+    // Consume key
+    this.game.player.keys = Math.max(0, (this.game.player.keys || 0) - 1);
+    
+    // Find current player sector
+    const currentSx = Math.max(0, Math.min(2, Math.floor(this.game.player.x / 2000)));
+    const currentSy = Math.max(0, Math.min(2, Math.floor(this.game.player.y / 2000)));
+    
+    // Determine target sector
+    const targetSx = currentSx + (door.dir === 'East' ? 1 : door.dir === 'West' ? -1 : 0);
+    const targetSy = currentSy + (door.dir === 'South' ? 1 : door.dir === 'North' ? -1 : 0);
+    
+    // Bounds check for the 3x3 sectors grid
+    if (targetSx < 0 || targetSx >= 3 || targetSy < 0 || targetSy >= 3) {
+      return; // Out of bounds of our 3x3 grid
+    }
+    
+    const targetSectorKey = `${targetSx},${targetSy}`;
+    const targetAlreadyUnlocked = this.unlockedSectors.has(targetSectorKey);
+    
+    // Choose new theme randomly for the target sector if it doesn't have one
+    let newTheme = this.sectorThemes[targetSectorKey];
+    if (!newTheme) {
+      const currentTheme = this.sectorThemes[`${currentSx},${currentSy}`] || 'dungeon';
+      const roll = Math.random();
+      if (roll < 0.005) {
+        newTheme = 'backrooms';
+      } else {
+        const themes = ['dungeon', 'gardens', 'underground', 'pool'];
+        const choices = themes.filter(t => t !== currentTheme);
+        newTheme = choices[Math.floor(Math.random() * choices.length)];
+      }
+      this.sectorThemes[targetSectorKey] = newTheme;
+    }
+    
+    // Unlock target sector
+    this.unlockedSectors.add(targetSectorKey);
+    
+    // Unlock target door
+    const doorKey = `${door.tx},${door.ty}`;
+    this.unlockedDoors.add(doorKey);
+    
+    // Also unlock the corresponding door tile in the adjacent sector
+    let neighborTx = door.tx;
+    let neighborTy = door.ty;
+    if (door.dir === 'North') neighborTy = door.ty - 1;
+    else if (door.dir === 'South') neighborTy = door.ty + 1;
+    else if (door.dir === 'West') neighborTx = door.tx - 1;
+    else if (door.dir === 'East') neighborTx = door.tx + 1;
+    
+    this.unlockedDoors.add(`${neighborTx},${neighborTy}`);
+    
+    // Increment wave
+    this.wave++;
+    
+    // Unlock explore achievements
+    if (newTheme === 'gardens') this.game.unlockAchievement('flora_explorer');
+    else if (newTheme === 'underground') this.game.unlockAchievement('spelunker');
+    else if (newTheme === 'pool') this.game.unlockAchievement('abyssal_diver');
+    else if (newTheme === 'backrooms') this.game.unlockAchievement('the_glitched');
+    
+    // Visual text banner
+    const names = {
+      dungeon: "THE DARK DUNGEON",
+      gardens: "THE HARMONIOUS GARDENS",
+      underground: "THE DEEP CAVERNS",
+      pool: "THE TRITON POOLS",
+      backrooms: "THE LIMITLESS BACKROOMS"
+    };
+    const colors = {
+      dungeon: "#a55eea",
+      gardens: "#2ecc71",
+      underground: "#e67e22",
+      pool: "#48dbfb",
+      backrooms: "#ffeaa7"
+    };
+    
+    const themeName = names[newTheme] || newTheme.toUpperCase();
+    const themeColor = colors[newTheme] || '#ffffff';
+    
+    this.game.particles.spawnText(door.x, door.y - 20, `UNLOCKED: ${themeName}`, {
+      color: themeColor,
+      fontSize: 12,
+      fontPixel: true,
+      life: 3.5
+    });
+    
+    // Push the player slightly into the new sector to avoid immediate re-triggering
+    const pushDist = 60;
+    if (door.dir === 'North') this.game.player.y -= pushDist;
+    else if (door.dir === 'South') this.game.player.y += pushDist;
+    else if (door.dir === 'West') this.game.player.x -= pushDist;
+    else if (door.dir === 'East') this.game.player.x += pushDist;
+    
+    // Start next wave (which re-generates obstacles, chests, spawns)
+    this.startNextWave();
+  }
+}

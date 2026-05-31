@@ -56,13 +56,16 @@
         <div id="hud-enemies-left">Enemies: 0</div>
       </div>
 
-      <!-- Resources (Gold, Aether Shards, Points) -->
+      <!-- Resources (Gold, Aether Shards, Points, Keys) -->
       <div id="hud-resources" class="hud-panel">
         <div class="resource-item">
           <canvas class="inline-icon" id="icon-shard-hud" width="12" height="12" draggable="false"></canvas>
           <span id="hud-shards-value" class="resource-text">0</span>
         </div>
-        <div class="resource-item hidden" id="hud-ap-notification">
+        <div class="resource-item" id="hud-keys-notification" style="margin-left: 10px;" title="Rune Keys (Complete Waves, Unlock Doors)">
+          🔑 <span id="hud-keys-value" class="resource-text">0</span>
+        </div>
+        <div class="resource-item" id="hud-ap-notification">
           <button id="btn-open-tree-hud" class="btn-pulse-glow">
             <canvas class="inline-icon" id="icon-ap-hud" width="12" height="12" draggable="false"></canvas> Tree (<span id="hud-ap-value">0</span> AP)
           </button>
@@ -151,7 +154,7 @@
           <div class="player-preview-box">
             <canvas id="main-menu-player-canvas" width="128" height="128"></canvas>
           </div>
-          <div class="menu-version-indicator" id="menu-version">v0.3.0Beta</div>
+          <div class="menu-version-indicator" id="menu-version">v0.4.0Beta</div>
         </div>
         
         <!-- Right Column: Navigation Buttons -->
@@ -163,6 +166,29 @@
             <button id="btn-credits-menu" class="btn-menu">CREDITS</button>
             <button id="btn-contact-menu" class="btn-menu">CONTACT</button>
             <button id="btn-menu-mute" class="btn-menu secondary">MUTE AUDIO</button>
+            <div class="volume-controls-box">
+              <div class="volume-slider-group">
+                <div class="volume-header">
+                  <span class="volume-label">MUSIC VOLUME</span>
+                  <span id="lbl-menu-music-val" class="volume-value">35%</span>
+                </div>
+                <input type="range" id="sld-menu-music" min="0" max="100" value="35" class="volume-slider">
+              </div>
+              <div class="volume-slider-group">
+                <div class="volume-header">
+                  <span class="volume-label">SFX VOLUME</span>
+                  <span id="lbl-menu-sfx-val" class="volume-value">55%</span>
+                </div>
+                <input type="range" id="sld-menu-sfx" min="0" max="100" value="55" class="volume-slider">
+              </div>
+              <div class="volume-slider-group" style="margin-top: 6px;">
+                <div class="volume-header">
+                  <span class="volume-label">RENDER DISTANCE</span>
+                  <span id="lbl-menu-render-val" class="volume-value">1200px</span>
+                </div>
+                <input type="range" id="sld-menu-render" min="600" max="2400" step="200" value="1200" class="volume-slider">
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -312,6 +338,29 @@
           <button id="btn-pause-tree" class="btn-menu">OPEN ABILITY TREE</button>
           <button id="btn-pause-spellmap" class="btn-menu">SPELL LOADOUT</button>
           <button id="btn-toggle-mute" class="btn-menu secondary">MUTE AUDIO</button>
+          <div class="volume-controls-box">
+            <div class="volume-slider-group">
+              <div class="volume-header">
+                <span class="volume-label">MUSIC VOLUME</span>
+                <span id="lbl-pause-music-val" class="volume-value">35%</span>
+              </div>
+              <input type="range" id="sld-pause-music" min="0" max="100" value="35" class="volume-slider">
+            </div>
+            <div class="volume-slider-group">
+              <div class="volume-header">
+                <span class="volume-label">SFX VOLUME</span>
+                <span id="lbl-pause-sfx-val" class="volume-value">55%</span>
+              </div>
+              <input type="range" id="sld-pause-sfx" min="0" max="100" value="55" class="volume-slider">
+            </div>
+            <div class="volume-slider-group" style="margin-top: 6px;">
+              <div class="volume-header">
+                <span class="volume-label">RENDER DISTANCE</span>
+                <span id="lbl-pause-render-val" class="volume-value">1200px</span>
+              </div>
+              <input type="range" id="sld-pause-render" min="600" max="2400" step="200" value="1200" class="volume-slider">
+            </div>
+          </div>
           <button id="btn-pause-menu" class="btn-menu secondary">QUIT TO MENU</button>
         </div>
       </div>
@@ -393,6 +442,7 @@
           <button class="inv-tab-btn active" data-tab="runes">RUNES <span id="inv-rune-count" style="font-size:6px; opacity:0.7;"></span></button>
           <button class="inv-tab-btn" data-tab="gear">GEAR &amp; ARMOR (<span id="inv-gear-count">0</span>)</button>
           <button class="inv-tab-btn" data-tab="spells">SPELLS &amp; HOTBAR</button>
+          <button class="inv-tab-btn" data-tab="achievements">ACHIEVEMENTS (<span id="inv-achievements-count">0</span>)</button>
         </div>
 
         <!-- RUNES TAB -->
@@ -491,23 +541,17 @@
           </div>
         </div>
 
+        <!-- ACHIEVEMENTS TAB -->
+        <div class="inv-tab-pane hidden" data-tab="achievements">
+          <p class="inv-tab-desc">Earn badges by completing challenges during your odyssey.</p>
+          <div id="inv-achievements-grid" class="achievements-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; max-height:220px; overflow-y:auto;">
+            <!-- achievements injected by JS -->
+          </div>
+        </div>
+
         <!-- Close -->
         <div class="menu-buttons" style="margin-top:14px;">
           <button id="btn-inv-back" class="btn-menu secondary">CLOSE</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 8.4 CHEST LOOT PANEL -->
-    <div id="panel-chest" class="panel-overlay hidden">
-      <div class="menu-content text-center" style="max-width: 480px;">
-        <h2 class="text-glow">TREASURE CHEST</h2>
-        <p style="font-size:0.8rem; color: var(--color-aether); margin-bottom: 16px;">Choose items to add to your satchel</p>
-        <div id="chest-loot-grid" style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-bottom: 18px;">
-          <!-- loot cards injected by JS -->
-        </div>
-        <div class="menu-buttons">
-          <button id="btn-close-chest" class="btn-menu secondary">CLOSE CHEST</button>
         </div>
       </div>
     </div>
@@ -619,15 +663,10 @@
         <h1 class="glitch-title" data-text="CREDITS">CREDITS</h1>
         <p class="menu-decor"></p>
         
-        <div style="font-family: var(--font-pixel); font-size: 9px; line-height: 2; color: #fff; text-align: left; margin: 15px 0;">
-          <p style="color: var(--color-lightning); font-size: 11px;">DEVELOPMENT & DESIGN:</p>
-          <p style="margin-left: 10px;">Felix & DeepMind Antigravity</p>
+        <div style="font-family: var(--font-pixel); font-size: 10px; line-height: 2.2; color: #fff; text-align: center; margin: 25px 0;">
+          <p>CODED BY FELIXX</p>
           <br>
-          <p style="color: var(--color-frost); font-size: 11px;">ART & ASSETS:</p>
-          <p style="margin-left: 10px;">Generated Retro Canvas Grid Engine</p>
-          <br>
-          <p style="color: var(--color-fire); font-size: 11px;">MUSIC & AUDIO:</p>
-          <p style="margin-left: 10px;">WebAudio Procedural Synthesizer</p>
+          <p>MUSIC &amp; SOUNDS FROM BROWSERQUEST</p>
         </div>
         
         <div class="menu-buttons" style="margin-top: 20px;">
