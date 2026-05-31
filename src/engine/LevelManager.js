@@ -13,8 +13,7 @@ export class LevelManager {
     
     // Grid expanding state
     this.unlockedSectors = new Set();
-    this.unlockedSectors.add("1,1");
-    this.sectorThemes = { "1,1": "dungeon" };
+    this.sectorThemes = {};
     this.unlockedDoors = new Set();
     
     // Wave state
@@ -34,6 +33,11 @@ export class LevelManager {
     this.navRows = 10;
     this.navCellSize = 200;
     this.navCells = null;
+    
+    this.startSectorX = 0;
+    this.startSectorY = 0;
+
+    console.log("[LevelManager] Constructor: initializing obstacles...");
     this.generateObstacles();
 
     // Interactive elements
@@ -48,8 +52,6 @@ export class LevelManager {
     this.eventTimer = 15.0; // Random events every 15s
     this.meteorIndicators = [];
     this.backroomsSecretUnlocked = false;
-    this.startSectorX = 0;
-    this.startSectorY = 0;
   }
 
   preGenerateFullMaze() {
@@ -148,7 +150,7 @@ export class LevelManager {
       }
     }
     
-    // Randomly remove 35% of remaining walls to make it open
+    // Randomly remove some remaining walls to make it a bit more open, but keep the maze structure
     const hWalls = [];
     const vWalls = [];
     for (let c = 0; c < cols; c++) {
@@ -158,7 +160,7 @@ export class LevelManager {
       }
     }
     const allWalls = [...hWalls, ...vWalls];
-    const removeCount = Math.floor(allWalls.length * 0.45);
+    const removeCount = Math.floor(allWalls.length * 0.20); 
     for (let i = 0; i < removeCount; i++) {
       const idx = Math.floor(Math.random() * allWalls.length);
       const wall = allWalls.splice(idx, 1)[0];
@@ -230,10 +232,10 @@ export class LevelManager {
       }
     }
     
-    // Clear player spawn (middle of the grid at cell (15,15))
+    // Clear player spawn (proper open spawn room of 10x10 tiles)
     const spawnCenterX = this.startSectorX * 50 + 25;
     const spawnCenterY = this.startSectorY * 50 + 25;
-    const spawnRadius = 3;
+    const spawnRadius = 5; 
     for (let x = spawnCenterX - spawnRadius; x <= spawnCenterX + spawnRadius; x++) {
       for (let y = spawnCenterY - spawnRadius; y <= spawnCenterY + spawnRadius; y++) {
         if (x > 0 && x < this.fullTileWidth - 1 && y > 0 && y < this.fullTileHeight - 1) {
@@ -241,7 +243,22 @@ export class LevelManager {
         }
       }
     }
-    
+
+    // Surround spawn area with a wall (except for a few exits)
+    for (let x = spawnCenterX - spawnRadius - 1; x <= spawnCenterX + spawnRadius + 1; x++) {
+      this.fullTileGrid[x][spawnCenterY - spawnRadius - 1] = 1;
+      this.fullTileGrid[x][spawnCenterY + spawnRadius + 1] = 1;
+    }
+    for (let y = spawnCenterY - spawnRadius - 1; y <= spawnCenterY + spawnRadius + 1; y++) {
+      this.fullTileGrid[spawnCenterX - spawnRadius - 1][y] = 1;
+      this.fullTileGrid[spawnCenterX + spawnRadius + 1][y] = 1;
+    }
+    // Create exits in the spawn room walls
+    this.fullTileGrid[spawnCenterX][spawnCenterY - spawnRadius - 1] = 0;
+    this.fullTileGrid[spawnCenterX][spawnCenterY + spawnRadius + 1] = 0;
+    this.fullTileGrid[spawnCenterX - spawnRadius - 1][spawnCenterY] = 0;
+    this.fullTileGrid[spawnCenterX + spawnRadius + 1][spawnCenterY] = 0;
+
     // Pre-generate explosive barrels
     this.fullExplosiveBarrels = [];
     for (let c = 0; c < cols; c++) {
@@ -262,11 +279,23 @@ export class LevelManager {
         }
       }
     }
+
+    // Make the spawn area immediately discovered
+    for (let tx = spawnCenterX - 10; tx < spawnCenterX + 10; tx++) {
+      for (let ty = spawnCenterY - 10; ty < spawnCenterY + 10; ty++) {
+        if (tx >= 0 && tx < this.fullTileWidth && ty >= 0 && ty < this.fullTileHeight) {
+          this.exploredGrid[tx][ty] = true;
+        }
+      }
+    }
+    this.mapRevealed = true;
     
-    this.mapRevealed = false;
   }
 
   getSpawnPoint() {
+    if (this.game.isTutorial) {
+      return { x: 1000, y: 1000 };
+    }
     return {
       x: (this.startSectorX + 0.5) * 2000,
       y: (this.startSectorY + 0.5) * 2000
@@ -499,14 +528,14 @@ export class LevelManager {
             const neighborSy = sy - 1;
             const neighborUnlocked = neighborSy >= 0 && this.unlockedSectors.has(`${sx},${neighborSy}`);
             if (!neighborUnlocked) {
-              this.tileGrid[tx][ty] = 1;
+              if (this.tileGrid[tx][ty] !== 3) this.tileGrid[tx][ty] = 1;
             } else {
               if (tx === sx * 50 + 27) {
                 const doorKey = `${tx},${ty}`;
                 const doorUnlocked = this.unlockedDoors.has(doorKey);
                 this.tileGrid[tx][ty] = doorUnlocked ? 0 : 3;
               } else {
-                this.tileGrid[tx][ty] = 1;
+                if (this.tileGrid[tx][ty] !== 3) this.tileGrid[tx][ty] = 1;
               }
             }
           }
@@ -516,14 +545,14 @@ export class LevelManager {
             const neighborSy = sy + 1;
             const neighborUnlocked = neighborSy < this.maxSectorRows && this.unlockedSectors.has(`${sx},${neighborSy}`);
             if (!neighborUnlocked) {
-              this.tileGrid[tx][ty] = 1;
+              if (this.tileGrid[tx][ty] !== 3) this.tileGrid[tx][ty] = 1;
             } else {
               if (tx === sx * 50 + 27) {
                 const doorKey = `${tx},${ty}`;
                 const doorUnlocked = this.unlockedDoors.has(doorKey);
                 this.tileGrid[tx][ty] = doorUnlocked ? 0 : 3;
               } else {
-                this.tileGrid[tx][ty] = 1;
+                if (this.tileGrid[tx][ty] !== 3) this.tileGrid[tx][ty] = 1;
               }
             }
           }
@@ -533,14 +562,14 @@ export class LevelManager {
             const neighborSx = sx - 1;
             const neighborUnlocked = neighborSx >= 0 && this.unlockedSectors.has(`${neighborSx},${sy}`);
             if (!neighborUnlocked) {
-              this.tileGrid[tx][ty] = 1;
+              if (this.tileGrid[tx][ty] !== 3) this.tileGrid[tx][ty] = 1;
             } else {
               if (ty === sy * 50 + 27) {
                 const doorKey = `${tx},${ty}`;
                 const doorUnlocked = this.unlockedDoors.has(doorKey);
                 this.tileGrid[tx][ty] = doorUnlocked ? 0 : 3;
               } else {
-                this.tileGrid[tx][ty] = 1;
+                if (this.tileGrid[tx][ty] !== 3) this.tileGrid[tx][ty] = 1;
               }
             }
           }
@@ -550,14 +579,14 @@ export class LevelManager {
             const neighborSx = sx + 1;
             const neighborUnlocked = neighborSx < this.maxSectorCols && this.unlockedSectors.has(`${neighborSx},${sy}`);
             if (!neighborUnlocked) {
-              this.tileGrid[tx][ty] = 1;
+              if (this.tileGrid[tx][ty] !== 3) this.tileGrid[tx][ty] = 1;
             } else {
               if (ty === sy * 50 + 27) {
                 const doorKey = `${tx},${ty}`;
                 const doorUnlocked = this.unlockedDoors.has(doorKey);
                 this.tileGrid[tx][ty] = doorUnlocked ? 0 : 3;
               } else {
-                this.tileGrid[tx][ty] = 1;
+                if (this.tileGrid[tx][ty] !== 3) this.tileGrid[tx][ty] = 1;
               }
             }
           }
@@ -613,21 +642,23 @@ export class LevelManager {
       this.tileGrid[d.tx][d.ty] = 3;
     });
 
-    // Connectivity Check: BFS flood-fill from player position or spawn center (77, 77)
+    // Connectivity Check: BFS flood-fill from player position or spawn center
     // to find all reachable floor tiles, converting unreachable floor pockets into solid walls (1).
-    let startTx = 77;
-    let startTy = 77;
+    let startTx = this.startSectorX * 50 + 25;
+    let startTy = this.startSectorY * 50 + 25;
     if (this.game.player) {
       startTx = Math.max(0, Math.min(this.tileWidth - 1, Math.floor(this.game.player.x / 40)));
       startTy = Math.max(0, Math.min(this.tileHeight - 1, Math.floor(this.game.player.y / 40)));
     }
     
-    // Ensure the start position itself is not inside a wall (fallback to 77, 77 if it is)
+    // Ensure the start position itself is not inside a wall (fallback if it is)
     if (this.tileGrid[startTx][startTy] === 1) {
-      startTx = 77;
-      startTy = 77;
+      startTx = this.startSectorX * 50 + 25;
+      startTy = this.startSectorY * 50 + 25;
     }
     
+    console.log(`[LevelManager] BFS start tile: (${startTx}, ${startTy}), val: ${this.tileGrid[startTx][startTy]}`);
+
     const queue = [{ x: startTx, y: startTy }];
     const visited = [];
     for (let x = 0; x < this.tileWidth; x++) {
@@ -636,6 +667,7 @@ export class LevelManager {
     visited[startTx][startTy] = true;
     
     let head = 0;
+    let reachableCount = 1;
     while (head < queue.length) {
       const curr = queue[head++];
       const dirs = [
@@ -655,17 +687,20 @@ export class LevelManager {
             if (tileVal === 0 || tileVal === 2 || tileVal === 3) {
               visited[nx][ny] = true;
               queue.push({ x: nx, y: ny });
+              reachableCount++;
             }
           }
         }
       }
     }
+    console.log(`[LevelManager] BFS finished. Reachable tiles: ${reachableCount}`);
 
     // For each door, if it is not reached by BFS, carve a corridor inward into the active sector
     if (this.doors) {
       this.doors.forEach(door => {
         let reached = visited[door.tx][door.ty];
         if (!reached) {
+          console.log(`[LevelManager] Door at (${door.tx}, ${door.ty}) not reachable. Carving corridor...`);
           let currX = door.tx;
           let currY = door.ty;
           let stepX = 0;
@@ -716,14 +751,18 @@ export class LevelManager {
     }
     
     // Now convert any unvisited floor tile into a solid wall (1)
+    // CRITICAL: NEVER convert tile type 3 (Door) into a wall, as it is the ONLY way between sectors.
+    let convertedCount = 0;
     for (let tx = 0; tx < this.tileWidth; tx++) {
       for (let ty = 0; ty < this.tileHeight; ty++) {
         const tileVal = this.tileGrid[tx][ty];
-        if ((tileVal === 0 || tileVal === 2 || tileVal === 3) && !visited[tx][ty]) {
+        if ((tileVal === 0 || tileVal === 2) && !visited[tx][ty]) {
           this.tileGrid[tx][ty] = 1;
+          convertedCount++;
         }
       }
     }
+    console.log(`[LevelManager] Converted ${convertedCount} unreachable floor tiles to walls.`);
 
     // Reconstruct physics obstacles (pillars) for active region
     this.allObstacles = [];
@@ -1876,7 +1915,7 @@ export class LevelManager {
       if (shrine.active) {
         const strokeColor = shrine.buffType === 'haste' ? 'rgba(255, 159, 67, 0.3)' : 
                             shrine.buffType === 'mana' ? 'rgba(16, 172, 132, 0.3)' : 'rgba(255, 71, 87, 0.3)';
-        this.game.drawPixelCircle(ctx, rx, ry, shrine.radius + 6, null, strokeColor, 2, 4);
+        this.game.drawCircle(ctx, rx, ry, shrine.radius + 6, null, strokeColor, 2);
       }
     });
 
@@ -2068,7 +2107,7 @@ export class LevelManager {
       }
       
       // Pixelated warning circle
-      this.game.drawPixelCircle(ctx, rx, ry, met.radius * scale, fillColor, strokeColor, 3, 8);
+      this.game.drawCircle(ctx, rx, ry, met.radius * scale, fillColor, strokeColor, 3);
       
       // Draw warning triangle
       ctx.save();

@@ -107,10 +107,10 @@ export class Game {
   }
 
   resizeCanvas() {
-    const scale = 3; // chunky pixel art scale factor
+    const scale = 2; // Balanced pixelation: scale factor set to 2
     this.canvas.width = Math.ceil(window.innerWidth / scale);
     this.canvas.height = Math.ceil(window.innerHeight / scale);
-    this.ctx.imageSmoothingEnabled = false;
+    this.ctx.imageSmoothingEnabled = false; // Disable smoothing to keep pixels sharp
   }
 
   resizeTreeCanvas() {
@@ -118,7 +118,7 @@ export class Game {
     if (container && this.treeCanvas) {
       this.treeCanvas.width = container.clientWidth;
       this.treeCanvas.height = container.clientHeight;
-      this.treeCtx.imageSmoothingEnabled = false;
+      this.treeCtx.imageSmoothingEnabled = false; // Disable smoothing
     }
   }
 
@@ -1927,7 +1927,8 @@ export class Game {
       isPlayerOwned,
       life: 3.0, // 3 seconds timeout
       id: spec.id,
-      shootTimer: 0
+      shootTimer: 0,
+      trail: [] // History of points for ribbon trail
     });
   }
 
@@ -2461,6 +2462,12 @@ export class Game {
       proj.x += proj.vx * projDt;
       proj.y += proj.vy * projDt;
 
+      // Update trail history
+      if (this.showSpellTrails) {
+        proj.trail.unshift({ x: proj.x, y: proj.y });
+        if (proj.trail.length > 12) proj.trail.pop();
+      }
+
       // Blizzard Orb continuous shards emission
       if (proj.id === 'blizzard_orb') {
         proj.shootTimer += projDt;
@@ -2491,29 +2498,11 @@ export class Game {
               spriteKey: 'proj_frost_spike',
               isPlayerOwned: true,
               life: 1.5,
-              id: 'blizzard_shard'
+              id: 'blizzard_shard',
+              trail: []
             });
           }
         }
-      }
-
-      // Projectile particles tail
-      if (this.showSpellTrails && Math.random() < 0.4) {
-        const colors = {
-          [SPELL_TYPES.FIRE]: '#ff4757',
-          [SPELL_TYPES.FROST]: '#10ac84',
-          [SPELL_TYPES.LIGHTNING]: '#f1c40f',
-          [SPELL_TYPES.VOID]: '#a55eea'
-        };
-        this.particles.spawn(proj.x, proj.y, {
-          vx: -proj.vx * 0.15,
-          vy: -proj.vy * 0.15,
-          color: colors[proj.element] || '#ffffff',
-          size: Math.random() * 1.5 + 1,
-          life: 0.25,
-          glow: true,
-          shape: 'spark'
-        });
       }
 
       // Region specific projectile mechanics
@@ -3107,19 +3096,19 @@ export class Game {
         this.ctx.save();
         this.ctx.shadowBlur = 10;
         this.ctx.shadowColor = '#a55eea';
-        this.drawPixelCircle(this.ctx, rx, ry, ae.radius, null, 'rgba(165, 94, 234, 0.5)', 4, 8);
+        this.drawCircle(this.ctx, rx, ry, ae.radius, null, 'rgba(165, 94, 234, 0.5)', 4);
         this.ctx.restore();
-        this.drawPixelCircle(this.ctx, rx, ry, 16, '#06070d', null, 0, 8);
+        this.drawCircle(this.ctx, rx, ry, 16, '#06070d', null, 0);
       } else if (ae.type === 'steam_cloud') {
-        this.drawPixelCircle(this.ctx, rx, ry, ae.radius, 'rgba(245, 246, 250, 0.14)', null, 0, 8);
+        this.drawCircle(this.ctx, rx, ry, ae.radius, 'rgba(245, 246, 250, 0.14)', null, 0);
       } else if (ae.type === 'fire_pool') {
-        this.drawPixelCircle(this.ctx, rx, ry, ae.radius, 'rgba(255, 71, 87, 0.16)', null, 0, 8);
+        this.drawCircle(this.ctx, rx, ry, ae.radius, 'rgba(255, 71, 87, 0.16)', null, 0);
       } else if (ae.type === 'chrono_slow') {
-        this.drawPixelCircle(this.ctx, rx, ry, ae.radius, 'rgba(255, 159, 67, 0.08)', 'rgba(255, 159, 67, 0.2)', 2, 8);
+        this.drawCircle(this.ctx, rx, ry, ae.radius, 'rgba(255, 159, 67, 0.08)', 'rgba(255, 159, 67, 0.2)', 2);
       } else if (ae.type === 'frost_slow') {
-        this.drawPixelCircle(this.ctx, rx, ry, ae.radius, 'rgba(0, 210, 213, 0.08)', 'rgba(0, 210, 213, 0.2)', 2, 8);
+        this.drawCircle(this.ctx, rx, ry, ae.radius, 'rgba(0, 210, 213, 0.08)', 'rgba(0, 210, 213, 0.2)', 2);
       } else if (ae.type === 'ice_trail') {
-        this.drawPixelTrailStamp(this.ctx, rx, ry, 'rgba(178, 254, 251, 0.45)', 'rgba(72, 219, 251, 0.6)');
+        this.drawSmoothTrailStamp(this.ctx, rx, ry, 'rgba(178, 254, 251, 0.45)', 'rgba(72, 219, 251, 0.6)');
       }
       this.ctx.restore();
     });
@@ -3151,6 +3140,38 @@ export class Game {
 
     // Draw spell projectiles
     this.projectiles.forEach((proj) => {
+      // Draw ribbon trail
+      if (this.showSpellTrails && proj.trail && proj.trail.length > 1) {
+        this.ctx.save();
+        this.ctx.lineCap = 'round';
+        this.ctx.lineJoin = 'round';
+        
+        let color = '#fff';
+        if (proj.element === SPELL_TYPES.FIRE) color = '#ff4757';
+        else if (proj.element === SPELL_TYPES.FROST) color = '#7ed6df';
+        else if (proj.element === SPELL_TYPES.LIGHTNING) color = '#f1c40f';
+        else if (proj.element === SPELL_TYPES.VOID) color = '#a55eea';
+
+        this.ctx.strokeStyle = color;
+        this.ctx.shadowBlur = 8;
+        this.ctx.shadowColor = color;
+
+        for (let i = 0; i < proj.trail.length - 1; i++) {
+          const p1 = proj.trail[i];
+          const p2 = proj.trail[i+1];
+          const alpha = 1.0 - (i / proj.trail.length);
+          const width = (proj.radius * 1.5) * alpha;
+          
+          this.ctx.globalAlpha = alpha * 0.6;
+          this.ctx.lineWidth = width;
+          this.ctx.beginPath();
+          this.ctx.moveTo(p1.x - this.camera.x, p1.y - this.camera.y);
+          this.ctx.lineTo(p2.x - this.camera.x, p2.y - this.camera.y);
+          this.ctx.stroke();
+        }
+        this.ctx.restore();
+      }
+
       this.assets.draw(this.ctx, proj.spriteKey, proj.x - this.camera.x, proj.y - this.camera.y, proj.radius * 2);
     });
 
@@ -3474,9 +3495,9 @@ export class Game {
       ctx.save();
       ctx.shadowBlur = 10;
       ctx.shadowColor = '#a55eea';
-      this.drawPixelCircle(ctx, w / 2, h / 2, 24, 'rgba(165, 94, 234, 0.4)', null, 0, 4);
+      ctx.save();
+      this.drawCircle(ctx, w / 2, h / 2, 24, 'rgba(165, 94, 234, 0.4)', null, 0);
       ctx.restore();
-      
       this.assets.draw(ctx, 'icon_fireball', w / 2, h / 2, 40);
     });
 
@@ -3500,9 +3521,9 @@ export class Game {
       ctx.save();
       ctx.shadowBlur = 10;
       ctx.shadowColor = '#2ed573';
-      this.drawPixelCircle(ctx, w / 2, h / 2, 24, 'rgba(46, 213, 115, 0.3)', null, 0, 4);
+      ctx.save();
+      this.drawCircle(ctx, w / 2, h / 2, 24, 'rgba(46, 213, 115, 0.3)', null, 0);
       ctx.restore();
-
       this.assets.draw(ctx, 'enemy_slime', w / 2, h / 2, 32, 0);
     });
   }
@@ -3846,62 +3867,36 @@ export class Game {
     }
   }
 
-  drawPixelCircle(ctx, cx, cy, radius, fillStyle, strokeStyle, strokeWidth = 2, blockSize = 8) {
-    const startX = Math.floor((cx - radius) / blockSize) * blockSize;
-    const endX = Math.ceil((cx + radius) / blockSize) * blockSize;
-    const startY = Math.floor((cy - radius) / blockSize) * blockSize;
-    const endY = Math.ceil((cy + radius) / blockSize) * blockSize;
-
+  drawCircle(ctx, cx, cy, radius, fillStyle, strokeStyle, strokeWidth = 2) {
     ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    
     if (fillStyle) {
       ctx.fillStyle = fillStyle;
-      for (let x = startX; x <= endX; x += blockSize) {
-        for (let y = startY; y <= endY; y += blockSize) {
-          const dx = x + blockSize / 2 - cx;
-          const dy = y + blockSize / 2 - cy;
-          if (dx * dx + dy * dy <= radius * radius) {
-            ctx.fillRect(x, y, blockSize, blockSize);
-          }
-        }
-      }
+      ctx.fill();
     }
-
+    
     if (strokeStyle) {
-      ctx.fillStyle = strokeStyle;
-      for (let x = startX; x <= endX; x += blockSize) {
-        for (let y = startY; y <= endY; y += blockSize) {
-          const dx = x + blockSize / 2 - cx;
-          const dy = y + blockSize / 2 - cy;
-          const distSq = dx * dx + dy * dy;
-          const outerR = radius;
-          const innerR = radius - strokeWidth;
-          if (distSq <= outerR * outerR && distSq > innerR * innerR) {
-            ctx.fillRect(x, y, blockSize, blockSize);
-          }
-        }
-      }
+      ctx.strokeStyle = strokeStyle;
+      ctx.lineWidth = strokeWidth;
+      ctx.stroke();
     }
     ctx.restore();
   }
 
-  drawPixelTrailStamp(ctx, cx, cy, fillStyle, strokeStyle = null) {
+  drawSmoothTrailStamp(ctx, cx, cy, fillStyle, strokeStyle = null) {
     ctx.save();
-    ctx.imageSmoothingEnabled = false;
+    ctx.beginPath();
     ctx.fillStyle = fillStyle;
-
-    // A compact icy shard stamp instead of a circular blob.
-    ctx.fillRect(Math.round(cx - 5), Math.round(cy - 1), 10, 3);
-    ctx.fillRect(Math.round(cx - 3), Math.round(cy - 4), 6, 2);
-    ctx.fillRect(Math.round(cx - 2), Math.round(cy + 2), 4, 2);
+    ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+    ctx.fill();
 
     if (strokeStyle) {
-      ctx.fillStyle = strokeStyle;
-      ctx.fillRect(Math.round(cx - 6), Math.round(cy), 2, 1);
-      ctx.fillRect(Math.round(cx + 4), Math.round(cy), 2, 1);
-      ctx.fillRect(Math.round(cx - 1), Math.round(cy - 5), 2, 1);
-      ctx.fillRect(Math.round(cx - 1), Math.round(cy + 4), 2, 1);
+      ctx.strokeStyle = strokeStyle;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
     }
-
     ctx.restore();
   }
 

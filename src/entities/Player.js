@@ -114,6 +114,8 @@ export class Player {
     // Volt Shield active timers
     this.voltShieldTimer = 0;
     this.voltShieldDamageTimer = 0;
+    this.voltShieldOrbs = []; // Stores orb history for trails
+    for (let i = 0; i < 3; i++) this.voltShieldOrbs[i] = { trail: [] };
     
     // Spell configurations (Slots mapping to spell IDs in SpellBook)
     this.spellSlots = {
@@ -644,6 +646,11 @@ export class Player {
         const ox = this.x + Math.cos(orbAngle) * ORBIT_R;
         const oy = this.y + Math.sin(orbAngle) * ORBIT_R;
 
+        // Update trail history
+        const orbObj = this.voltShieldOrbs[i];
+        orbObj.trail.unshift({ x: ox, y: oy });
+        if (orbObj.trail.length > 10) orbObj.trail.pop();
+
         // Orb glow particles
         this.game.particles.spawn(ox, oy, {
           vx: (Math.random() - 0.5) * 12, vy: (Math.random() - 0.5) * 12,
@@ -1103,30 +1110,42 @@ export class Player {
       const cx = this.x - this.game.camera.x;
       const cy = this.y - this.game.camera.y;
 
-      // Orbit ring hint (retro blocky dashed square)
-      ctx.save();
-      ctx.strokeStyle = 'rgba(255, 226, 0, 0.12)';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 6]);
-      ctx.strokeRect(cx - ORBIT_R, cy - ORBIT_R, ORBIT_R * 2, ORBIT_R * 2);
-      ctx.restore();
+      // Orbit ring hint (smooth circle)
+      this.game.drawCircle(ctx, cx, cy, ORBIT_R, null, 'rgba(255, 226, 0, 0.12)', 1);
 
       for (let i = 0; i < ORB_COUNT; i++) {
         const orbAngle = this.voltShieldTimer * SPIN_SPEED * -1 + (i / ORB_COUNT) * Math.PI * 2;
         const ox = cx + Math.cos(orbAngle) * ORBIT_R;
         const oy = cy + Math.sin(orbAngle) * ORBIT_R;
 
-        // Glow (blocky square)
-        ctx.save();
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#fff200';
-        ctx.fillStyle = '#fff200';
-        ctx.fillRect(ox - 5, oy - 5, 10, 10);
-        ctx.restore();
+        // Draw ribbon trail for orb
+        const orbObj = this.voltShieldOrbs[i];
+        if (orbObj && orbObj.trail && orbObj.trail.length > 1) {
+          ctx.save();
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.strokeStyle = '#fff200';
+          ctx.shadowBlur = 8;
+          ctx.shadowColor = '#fff200';
 
-        // Inner bright core (blocky square)
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(ox - 2, oy - 2, 4, 4);
+          for (let j = 0; j < orbObj.trail.length - 1; j++) {
+            const p1 = orbObj.trail[j];
+            const p2 = orbObj.trail[j+1];
+            const alpha = 1.0 - (j / orbObj.trail.length);
+            const width = 8 * alpha;
+            
+            ctx.globalAlpha = alpha * 0.5;
+            ctx.lineWidth = width;
+            ctx.beginPath();
+            ctx.moveTo(p1.x - this.game.camera.x, p1.y - this.game.camera.y);
+            ctx.lineTo(p2.x - this.game.camera.x, p2.y - this.game.camera.y);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+
+        // Draw orb core
+        this.game.drawCircle(ctx, ox, oy, 6, '#fff200', '#ffffff', 2);
       }
     }
 
