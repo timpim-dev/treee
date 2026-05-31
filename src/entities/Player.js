@@ -560,17 +560,29 @@ export class Player {
 
     this.mp -= spell.manaCost;
     if (this.game.audio) this.game.audio.playShoot();
-    
-    // Cast spell
-    spell.cast(this, angle, this.game);
+    try {
+      // Cast spell
+      spell.cast(this, angle, this.game);
 
-    // Apply speed boost timer on Chrono Dash
-    if (spellId === 'aether_dash' && this.modifiers.dashSpeedBoost) {
-      this.dashSpeedBoostTimer = 3.0; // 3 seconds speed boost
+      // Apply speed boost timer on Chrono Dash
+      if (spellId === 'aether_dash' && this.modifiers.dashSpeedBoost) {
+        this.dashSpeedBoostTimer = 3.0; // 3 seconds speed boost
+      }
+
+      this.spellCooldowns[slotName] = this.getSpellCooldown(spellId);
+      this.game.updateHUD();
+    } catch (err) {
+      console.warn(`Spell cast failed: ${spellId}`, err);
+      // Refund mana and keep the spell available if its cast logic crashed.
+      this.mp = Math.min(this.getMaxMp(), this.mp + spell.manaCost);
+      this.game.particles.spawnText(this.x, this.y - 20, "SPELL FAILED", {
+        color: '#ff4757',
+        fontSize: 9,
+        fontPixel: true,
+        life: 1.0
+      });
+      this.game.updateHUD();
     }
-
-    this.spellCooldowns[slotName] = this.getSpellCooldown(spellId);
-    this.game.updateHUD();
   }
 
   update(dt) {

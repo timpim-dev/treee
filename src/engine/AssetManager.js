@@ -966,22 +966,22 @@ export class AssetManager {
     ]]);
 
     this.sprites['icon_key'] = this.createSprite(16, 16, [[
-      "kkkkkkkkkkkkkkkk",
-      "kssssssssssssssk",
-      "ks.............sk",
-      "ks....kkk......sk",
-      "ks...kwwwk.....sk",
-      "ks..kwyyywk....sk",
-      "ks..kwywwywk...sk",
-      "ks..kwyyywk....sk",
-      "ks...kwwwk.....sk",
-      "ks....kkk....kssk",
-      "ks..........kttk.",
-      "ks.........kttk..",
-      "ks........kttk...",
-      "ks.......kttk....",
-      "kssssssssssssssk",
-      "kkkkkkkkkkkkkkkk"
+      "................",
+      "................",
+      "......kkk.......",
+      ".....kgggk......",
+      "....kgyyygk.....",
+      "....kgywygk.....",
+      "....kgywygk.....",
+      "....kgyyygk.....",
+      ".....kgggk..kk..",
+      "......kk...kttk.",
+      "...........kttk.",
+      "............kk..",
+      "................",
+      "................",
+      "................",
+      "................"
     ]]);
 
     this.sprites['icon_book'] = this.createSprite(16, 16, [[

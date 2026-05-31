@@ -47,11 +47,12 @@ export class LevelManager {
     };
     this.eventTimer = 15.0; // Random events every 15s
     this.meteorIndicators = [];
+    this.backroomsSecretUnlocked = false;
   }
 
   preGenerateFullMaze() {
-    const cols = 30;
-    const rows = 30;
+    const cols = 60;
+    const rows = 60;
     const cellSize = 200;
     
     this.fullCols = cols;
@@ -60,8 +61,10 @@ export class LevelManager {
     this.fullHeight = rows * cellSize;
     this.fullTileWidth = cols * 5;
     this.fullTileHeight = rows * 5;
+    this.maxSectorCols = cols / 10;
+    this.maxSectorRows = rows / 10;
     
-    // Allocate fullTileGrid and exploredGrid once at 150x150, keeping exploredGrid forever
+    // Allocate fullTileGrid and exploredGrid once at 300x300, keeping exploredGrid forever
     this.fullTileGrid = [];
     this.exploredGrid = [];
     for (let x = 0; x < this.fullTileWidth; x++) {
@@ -257,6 +260,38 @@ export class LevelManager {
     this.mapRevealed = false;
   }
 
+  activateBackroomsSecret() {
+    this.backroomsSecretUnlocked = true;
+
+    if (this.sectorThemes) {
+      for (const key of Object.keys(this.sectorThemes)) {
+        this.sectorThemes[key] = 'backrooms';
+      }
+    }
+
+    if (this.game.player) {
+      const currentSx = Math.max(0, Math.min(this.maxSectorCols - 1, Math.floor(this.game.player.x / 2000)));
+      const currentSy = Math.max(0, Math.min(this.maxSectorRows - 1, Math.floor(this.game.player.y / 2000)));
+      this.sectorThemes[`${currentSx},${currentSy}`] = 'backrooms';
+      this.theme = 'backrooms';
+    }
+
+    this.generateObstacles();
+
+    if (this.game && this.game.unlockAchievement) {
+      this.game.unlockAchievement('the_glitched');
+    }
+
+    if (this.game && this.game.particles && this.game.player) {
+      this.game.particles.spawnText(this.game.player.x, this.game.player.y - 50, 'BACKROOMS ONLINE', {
+        color: '#ffeaa7',
+        fontSize: 12,
+        fontPixel: true,
+        life: 3.0
+      });
+    }
+  }
+
   generateObstacles() {
     if (!this.fullTileGrid) {
       this.preGenerateFullMaze();
@@ -278,7 +313,7 @@ export class LevelManager {
       for (let c = 0; c < 10; c++) {
         this.navCells[c] = [];
         for (let r = 0; r < 10; r++) {
-          const fullCell = this.fullNavCells[c + 10][r + 10];
+          const fullCell = this.fullNavCells[c + 30][r + 30];
           this.navCells[c][r] = {
             c, r, visited: true,
             walls: {
@@ -298,7 +333,7 @@ export class LevelManager {
           if (x === 0 || x === 49 || y === 0 || y === 49) {
             this.tileGrid[x][y] = 1;
           } else {
-            this.tileGrid[x][y] = this.fullTileGrid[x + 50][y + 50];
+            this.tileGrid[x][y] = this.fullTileGrid[x + 150][y + 150];
           }
         }
       }
@@ -321,20 +356,20 @@ export class LevelManager {
       return;
     }
     
-    // Regular gameplay: Full 3x3 sectors grid layout
-    this.navCols = 30;
-    this.navRows = 30;
+    // Regular gameplay: Expanded 6x6 sectors grid layout
+    this.navCols = 60;
+    this.navRows = 60;
     this.navCellSize = 200;
-    this.width = 6000;
-    this.height = 6000;
-    this.tileWidth = 150;
-    this.tileHeight = 150;
+    this.width = 12000;
+    this.height = 12000;
+    this.tileWidth = 300;
+    this.tileHeight = 300;
     
     this.navCells = [];
-    for (let c = 0; c < 30; c++) {
+    for (let c = 0; c < 60; c++) {
       this.navCells[c] = [];
       const sx = Math.floor(c / 10);
-      for (let r = 0; r < 30; r++) {
+      for (let r = 0; r < 60; r++) {
         const sy = Math.floor(r / 10);
         const sectorKey = `${sx},${sy}`;
         const isUnlocked = this.unlockedSectors.has(sectorKey);
@@ -347,7 +382,7 @@ export class LevelManager {
           continue;
         }
         
-        const fullCell = this.fullNavCells[c][r];
+          const fullCell = this.fullNavCells[c][r];
         let north = fullCell.walls.north;
         let south = fullCell.walls.south;
         let east = fullCell.walls.east;
@@ -373,7 +408,7 @@ export class LevelManager {
         // 2. South boundary of sector (sy * 10 + 9)
         if (r === sy * 10 + 9) {
           const neighborSy = sy + 1;
-          const isNeighborUnlocked = neighborSy < 3 && this.unlockedSectors.has(`${sx},${neighborSy}`);
+          const isNeighborUnlocked = neighborSy < this.maxSectorRows && this.unlockedSectors.has(`${sx},${neighborSy}`);
           if (!isNeighborUnlocked) {
             south = true;
           } else {
@@ -407,7 +442,7 @@ export class LevelManager {
         // 4. East boundary of sector (sx * 10 + 9)
         if (c === sx * 10 + 9) {
           const neighborSx = sx + 1;
-          const isNeighborUnlocked = neighborSx < 3 && this.unlockedSectors.has(`${neighborSx},${sy}`);
+          const isNeighborUnlocked = neighborSx < this.maxSectorCols && this.unlockedSectors.has(`${neighborSx},${sy}`);
           if (!isNeighborUnlocked) {
             east = true;
           } else {
@@ -428,16 +463,16 @@ export class LevelManager {
       }
     }
     
-    // Initialize tileGrid for the entire 150x150 region
+    // Initialize tileGrid for the entire active maze region
     this.tileGrid = [];
-    for (let x = 0; x < 150; x++) {
-      this.tileGrid[x] = new Array(150).fill(1); // solid walls by default
+    for (let x = 0; x < this.tileWidth; x++) {
+      this.tileGrid[x] = new Array(this.tileHeight).fill(1); // solid walls by default
     }
     
     // Copy the active portions of fullTileGrid into tileGrid
-    for (let tx = 0; tx < 150; tx++) {
+    for (let tx = 0; tx < this.tileWidth; tx++) {
       const sx = Math.floor(tx / 50);
-      for (let ty = 0; ty < 150; ty++) {
+      for (let ty = 0; ty < this.tileHeight; ty++) {
         const sy = Math.floor(ty / 50);
         const sectorKey = `${sx},${sy}`;
         
@@ -466,7 +501,7 @@ export class LevelManager {
           // 2. South edge
           if (ty === sy * 50 + 49) {
             const neighborSy = sy + 1;
-            const neighborUnlocked = neighborSy < 3 && this.unlockedSectors.has(`${sx},${neighborSy}`);
+            const neighborUnlocked = neighborSy < this.maxSectorRows && this.unlockedSectors.has(`${sx},${neighborSy}`);
             if (!neighborUnlocked) {
               this.tileGrid[tx][ty] = 1;
             } else {
@@ -500,7 +535,7 @@ export class LevelManager {
           // 4. East edge
           if (tx === sx * 50 + 49) {
             const neighborSx = sx + 1;
-            const neighborUnlocked = neighborSx < 3 && this.unlockedSectors.has(`${neighborSx},${sy}`);
+            const neighborUnlocked = neighborSx < this.maxSectorCols && this.unlockedSectors.has(`${neighborSx},${sy}`);
             if (!neighborUnlocked) {
               this.tileGrid[tx][ty] = 1;
             } else {
@@ -532,7 +567,7 @@ export class LevelManager {
         }
       }
       // South Door
-      if (sy < 2) {
+      if (sy < this.maxSectorRows - 1) {
         const doorTx = sx * 50 + 27;
         const doorTy = sy * 50 + 49;
         const doorKey = `${doorTx},${doorTy}`;
@@ -550,7 +585,7 @@ export class LevelManager {
         }
       }
       // East Door
-      if (sx < 2) {
+      if (sx < this.maxSectorCols - 1) {
         const doorTx = sx * 50 + 49;
         const doorTy = sy * 50 + 27;
         const doorKey = `${doorTx},${doorTy}`;
@@ -679,8 +714,8 @@ export class LevelManager {
 
     // Reconstruct physics obstacles (pillars) for active region
     this.allObstacles = [];
-    for (let tx = 0; tx < 150; tx++) {
-      for (let ty = 0; ty < 150; ty++) {
+    for (let tx = 0; tx < this.tileWidth; tx++) {
+      for (let ty = 0; ty < this.tileHeight; ty++) {
         if (this.tileGrid[tx][ty] === 1) {
           this.allObstacles.push({
             x: tx * 40 + 20,
@@ -1015,8 +1050,8 @@ export class LevelManager {
   update(dt) {
     // Dynamic theme update based on player position
     if (this.game.player && this.sectorThemes) {
-      const currentSx = Math.max(0, Math.min(2, Math.floor(this.game.player.x / 2000)));
-      const currentSy = Math.max(0, Math.min(2, Math.floor(this.game.player.y / 2000)));
+      const currentSx = Math.max(0, Math.min(this.maxSectorCols - 1, Math.floor(this.game.player.x / 2000)));
+      const currentSy = Math.max(0, Math.min(this.maxSectorRows - 1, Math.floor(this.game.player.y / 2000)));
       this.theme = this.sectorThemes[`${currentSx},${currentSy}`] || 'dungeon';
     }
 
@@ -1798,24 +1833,15 @@ export class LevelManager {
         ctx.lineWidth = 3;
         ctx.strokeRect(rx - 20, ry - 20, 40, 40);
         
-        // Draw a simple pixel lock so the door label stays readable
-        ctx.fillStyle = '#f1c40f';
-        ctx.fillRect(rx - 5, ry - 2, 10, 8);
-        ctx.fillStyle = '#000';
-        ctx.fillRect(rx - 3, ry, 6, 4);
-        ctx.fillStyle = '#f1c40f';
-        ctx.fillRect(rx - 3, ry - 8, 6, 4);
-        ctx.fillRect(rx - 2, ry - 10, 4, 2);
-
-        // Label direction with a clearer font and contrast outline
-        ctx.font = "700 8px 'Orbitron', sans-serif";
+        // Keep the door label readable instead of over-pixelating the text.
+        ctx.font = "700 10px 'Orbitron', sans-serif";
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 3;
         ctx.strokeStyle = '#000';
         ctx.fillStyle = '#ffffff';
-        ctx.strokeText(door.dir, rx, ry - 12);
-        ctx.fillText(door.dir, rx, ry - 12);
+        ctx.strokeText(door.dir, rx, ry - 14);
+        ctx.fillText(door.dir, rx, ry - 14);
       });
     }
 
@@ -2055,16 +2081,16 @@ export class LevelManager {
     this.game.player.keys = Math.max(0, (this.game.player.keys || 0) - 1);
     
     // Find current player sector
-    const currentSx = Math.max(0, Math.min(2, Math.floor(this.game.player.x / 2000)));
-    const currentSy = Math.max(0, Math.min(2, Math.floor(this.game.player.y / 2000)));
+    const currentSx = Math.max(0, Math.min(this.maxSectorCols - 1, Math.floor(this.game.player.x / 2000)));
+    const currentSy = Math.max(0, Math.min(this.maxSectorRows - 1, Math.floor(this.game.player.y / 2000)));
     
     // Determine target sector
     const targetSx = currentSx + (door.dir === 'East' ? 1 : door.dir === 'West' ? -1 : 0);
     const targetSy = currentSy + (door.dir === 'South' ? 1 : door.dir === 'North' ? -1 : 0);
     
-    // Bounds check for the 3x3 sectors grid
-    if (targetSx < 0 || targetSx >= 3 || targetSy < 0 || targetSy >= 3) {
-      return; // Out of bounds of our 3x3 grid
+    // Bounds check for the expanded sectors grid
+    if (targetSx < 0 || targetSx >= this.maxSectorCols || targetSy < 0 || targetSy >= this.maxSectorRows) {
+      return; // Out of bounds of the active maze grid
     }
     
     const targetSectorKey = `${targetSx},${targetSy}`;
@@ -2073,14 +2099,18 @@ export class LevelManager {
     // Choose new theme randomly for the target sector if it doesn't have one
     let newTheme = this.sectorThemes[targetSectorKey];
     if (!newTheme) {
-      const currentTheme = this.sectorThemes[`${currentSx},${currentSy}`] || 'dungeon';
-      const roll = Math.random();
-      if (roll < 0.005) {
+      if (this.backroomsSecretUnlocked) {
         newTheme = 'backrooms';
       } else {
-        const themes = ['dungeon', 'gardens', 'underground', 'pool'];
-        const choices = themes.filter(t => t !== currentTheme);
-        newTheme = choices[Math.floor(Math.random() * choices.length)];
+        const currentTheme = this.sectorThemes[`${currentSx},${currentSy}`] || 'dungeon';
+        const roll = Math.random();
+        if (roll < 0.005) {
+          newTheme = 'backrooms';
+        } else {
+          const themes = ['dungeon', 'gardens', 'underground', 'pool'];
+          const choices = themes.filter(t => t !== currentTheme);
+          newTheme = choices[Math.floor(Math.random() * choices.length)];
+        }
       }
       this.sectorThemes[targetSectorKey] = newTheme;
     }

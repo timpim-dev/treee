@@ -252,26 +252,30 @@ export const SpellBook = {
       }
       // Delay then impact
       setTimeout(() => {
-        if (game.state !== 'PLAYING') return;
-        const dmg = Math.round(game.spellBook_meteorDamage || player.modifiers.allDamage * 80);
-        game.enemies.forEach(enemy => {
-          if (enemy.dead) return;
-          const dist = Math.hypot(enemy.x - tx, enemy.y - ty);
-          if (dist <= 90) {
-            const falloff = 1 - dist / 90;
-            enemy.takeDamage(Math.round(dmg * falloff), true, game);
-            if (!enemy.dead) {
-              enemy.applyStatus(SPELL_TYPES.FIRE, 4.0);
-              const ang = Math.atan2(enemy.y - ty, enemy.x - tx);
-              enemy.applyKnockback(Math.cos(ang) * 250, Math.sin(ang) * 250);
+        try {
+          if (game.state !== 'PLAYING') return;
+          const dmg = Math.round(game.spellBook_meteorDamage || player.modifiers.allDamage * 80);
+          game.enemies.forEach(enemy => {
+            if (enemy.dead) return;
+            const dist = Math.hypot(enemy.x - tx, enemy.y - ty);
+            if (dist <= 90) {
+              const falloff = 1 - dist / 90;
+              enemy.takeDamage(Math.round(dmg * falloff), true, game);
+              if (!enemy.dead) {
+                enemy.applyStatus(SPELL_TYPES.FIRE, 4.0);
+                const ang = Math.atan2(enemy.y - ty, enemy.x - tx);
+                enemy.applyKnockback(Math.cos(ang) * 250, Math.sin(ang) * 250);
+              }
             }
-          }
-        });
-        game.spawnAreaEffect(tx, ty, 90, 'fire_pool', 2.0);
-        game.particles.createExplosion(tx, ty, '#ff6348', 35, 200, 6);
-        game.screenShake = 14;
-        if (game.audio) game.audio.playExplosion();
-        game.uiNotifyCombo('METEOR IMPACT!', 'fire');
+          });
+          game.spawnAreaEffect(tx, ty, 90, 'fire_pool', 2.0);
+          game.particles.createExplosion(tx, ty, '#ff6348', 35, 200, 6);
+          game.screenShake = 14;
+          if (game.audio) game.audio.playExplosion();
+          game.uiNotifyCombo('METEOR IMPACT!', 'fire');
+        } catch (err) {
+          console.warn('Meteor Strike delayed impact failed:', err);
+        }
       }, 1000);
     }
   },
@@ -319,19 +323,24 @@ export const SpellBook = {
       game.particles.createExplosion(player.x, player.y, '#f1c40f', 15, 100, 2);
       let ticks = 0;
       const interval = setInterval(() => {
-        if (game.state !== 'PLAYING' || ticks >= 10) { clearInterval(interval); return; }
-        ticks++;
-        // Pick up to 2 random enemies
-        const targets = [...game.enemies].filter(e => !e.dead).sort(() => Math.random() - 0.5).slice(0, 2);
-        targets.forEach(enemy => {
-          if (enemy.dead) return;
-          game.triggerChainLightning(enemy.x, enemy.y - 200, 22, 2, 150);
-          enemy.takeDamage(22, false, game);
-          if (!enemy.dead) {
-            enemy.applyStatus(SPELL_TYPES.LIGHTNING, 2.0);
-            game.particles.createExplosion(enemy.x, enemy.y, '#f1c40f', 8, 60, 2);
-          }
-        });
+        try {
+          if (game.state !== 'PLAYING' || ticks >= 10) { clearInterval(interval); return; }
+          ticks++;
+          // Pick up to 2 random enemies
+          const targets = [...game.enemies].filter(e => !e.dead).sort(() => Math.random() - 0.5).slice(0, 2);
+          targets.forEach(enemy => {
+            if (enemy.dead) return;
+            game.triggerChainLightning(enemy.x, enemy.y - 200, 22, 2, 150);
+            enemy.takeDamage(22, false, game);
+            if (!enemy.dead) {
+              enemy.applyStatus(SPELL_TYPES.LIGHTNING, 2.0);
+              game.particles.createExplosion(enemy.x, enemy.y, '#f1c40f', 8, 60, 2);
+            }
+          });
+        } catch (err) {
+          console.warn('Storm Call tick failed:', err);
+          clearInterval(interval);
+        }
       }, 500);
     }
   },
@@ -469,21 +478,25 @@ export const SpellBook = {
       const dy = Math.sin(targetAngle);
       for (let step = 0; step < 8; step++) {
         setTimeout(() => {
-          if (game.state !== 'PLAYING') return;
-          const dist = step * 40 + 30;
-          const fx = player.x + dx * dist;
-          const fy = player.y + dy * dist;
-          game.particles.createExplosion(fx, fy, '#10ac84', 6, 40, 4);
-          game.spawnAreaEffect(fx, fy, 40, 'frost_slow', 1.5);
-          game.enemies.forEach(enemy => {
-            if (enemy.dead) return;
-            const edist = Math.hypot(enemy.x - fx, enemy.y - fy);
-            if (edist <= enemy.radius + 25) {
-              enemy.takeDamage(Math.round(40 * (player.modifiers.frostDamage || 1.0) * (player.modifiers.allDamage || 1.0)), true, game);
-              enemy.applyStatus(SPELL_TYPES.FROST, 3.0);
-              enemy.applyFreeze(2.0);
-            }
-          });
+          try {
+            if (game.state !== 'PLAYING') return;
+            const dist = step * 40 + 30;
+            const fx = player.x + dx * dist;
+            const fy = player.y + dy * dist;
+            game.particles.createExplosion(fx, fy, '#10ac84', 6, 40, 4);
+            game.spawnAreaEffect(fx, fy, 40, 'frost_slow', 1.5);
+            game.enemies.forEach(enemy => {
+              if (enemy.dead) return;
+              const edist = Math.hypot(enemy.x - fx, enemy.y - fy);
+              if (edist <= enemy.radius + 25) {
+                enemy.takeDamage(Math.round(40 * (player.modifiers.frostDamage || 1.0) * (player.modifiers.allDamage || 1.0)), true, game);
+                enemy.applyStatus(SPELL_TYPES.FROST, 3.0);
+                enemy.applyFreeze(2.0);
+              }
+            });
+          } catch (err) {
+            console.warn('Glacial Fissure step failed:', err);
+          }
         }, step * 80);
       }
       if (game.audio) game.audio.playFreeze();
@@ -600,28 +613,33 @@ export const SpellBook = {
         
         let ticks = 0;
         const interval = setInterval(() => {
-          if (game.state !== 'PLAYING' || ticks >= 8) {
+          try {
+            if (game.state !== 'PLAYING' || ticks >= 8) {
+              clearInterval(interval);
+              return;
+            }
+            ticks++;
+            for (let i = 0; i < 4; i++) {
+              const ang = (i / 4) * Math.PI * 2 + ticks * 0.2;
+              game.projectiles.push({
+                x: gx,
+                y: gy,
+                vx: Math.cos(ang) * 280,
+                vy: Math.sin(ang) * 280,
+                damage: Math.round(20 * (player.modifiers.fireDamage || 1.0) * (player.modifiers.allDamage || 1.0)),
+                radius: 6,
+                element: SPELL_TYPES.FIRE,
+                spriteKey: 'proj_fire',
+                isPlayerOwned: true,
+                life: 1.5,
+                id: 'volcanic_fireball'
+              });
+            }
+            if (game.audio) game.audio.playFire();
+          } catch (err) {
+            console.warn('Volcanic Eruption tick failed:', err);
             clearInterval(interval);
-            return;
           }
-          ticks++;
-          for (let i = 0; i < 4; i++) {
-            const ang = (i / 4) * Math.PI * 2 + ticks * 0.2;
-            game.projectiles.push({
-              x: gx,
-              y: gy,
-              vx: Math.cos(ang) * 280,
-              vy: Math.sin(ang) * 280,
-              damage: Math.round(20 * (player.modifiers.fireDamage || 1.0) * (player.modifiers.allDamage || 1.0)),
-              radius: 6,
-              element: SPELL_TYPES.FIRE,
-              spriteKey: 'proj_fire',
-              isPlayerOwned: true,
-              life: 1.5,
-              id: 'volcanic_fireball'
-            });
-          }
-          if (game.audio) game.audio.playFire();
         }, 500);
       });
     }
@@ -664,21 +682,27 @@ export const SpellBook = {
       game.particles.spawnText(tx, ty - 30, 'BLACK HOLE!', { color: '#a55eea', fontSize: 14, fontPixel: true });
       
       setTimeout(() => {
-        if (game.state !== 'PLAYING') return;
-        game.enemies.forEach(enemy => {
-          if (enemy.dead) return;
-          const dist = Math.hypot(enemy.x - tx, enemy.y - ty);
-          if (dist <= 160) {
-            enemy.takeDamage(Math.round(120 * (player.modifiers.voidDamage || 1.0) * (player.modifiers.allDamage || 1.0)), true, game);
-            enemy.applyStatus(SPELL_TYPES.VOID, 4.0);
-            const pushAngle = Math.atan2(enemy.y - ty, enemy.x - tx);
-            enemy.applyKnockback(Math.cos(pushAngle) * 300, Math.sin(pushAngle) * 300);
-          }
-        });
-        game.particles.createExplosion(tx, ty, '#a55eea', 40, 250, 8);
-        game.screenShake = 15;
-        if (game.audio) game.audio.playExplosion();
-        game.particles.spawnText(tx, ty - 30, 'COLLAPSE!', { color: '#a55eea', fontSize: 18, fontPixel: true });
+        try {
+          if (game.state !== 'PLAYING') return;
+          game.enemies.forEach(enemy => {
+            if (enemy.dead) return;
+            const dist = Math.hypot(enemy.x - tx, enemy.y - ty);
+            if (dist <= 160) {
+              enemy.takeDamage(Math.round(120 * (player.modifiers.voidDamage || 1.0) * (player.modifiers.allDamage || 1.0)), true, game);
+              enemy.applyStatus(SPELL_TYPES.VOID, 4.0);
+              if (dist > 0.001) {
+                const pushAngle = Math.atan2(enemy.y - ty, enemy.x - tx);
+                enemy.applyKnockback(Math.cos(pushAngle) * 300, Math.sin(pushAngle) * 300);
+              }
+            }
+          });
+          game.particles.createExplosion(tx, ty, '#a55eea', 40, 250, 8);
+          game.screenShake = 15;
+          if (game.audio) game.audio.playExplosion();
+          game.particles.spawnText(tx, ty - 30, 'COLLAPSE!', { color: '#a55eea', fontSize: 18, fontPixel: true });
+        } catch (err) {
+          console.warn('Singularity Collapse failed:', err);
+        }
       }, 4000);
     }
   },
@@ -722,18 +746,23 @@ export const SpellBook = {
       game.particles.spawnText(player.x, player.y - 45, 'STORM DEITY WRATH!', { color: '#f1c40f', fontSize: 15, fontPixel: true });
       let ticks = 0;
       const interval = setInterval(() => {
-        if (game.state !== 'PLAYING' || ticks >= 10) {
+        try {
+          if (game.state !== 'PLAYING' || ticks >= 10) {
+            clearInterval(interval);
+            return;
+          }
+          ticks++;
+          game.enemies.forEach(enemy => {
+            if (enemy.dead || enemy.isInTallGrass()) return;
+            game.triggerChainLightning(enemy.x, enemy.y - 250, 30, 2, 100);
+            enemy.takeDamage(Math.round(30 * (player.modifiers.lightningDamage || 1.0) * (player.modifiers.allDamage || 1.0)), true, game);
+            enemy.applyStatus(SPELL_TYPES.LIGHTNING, 2.0);
+          });
+          if (game.audio) game.audio.playLightning();
+        } catch (err) {
+          console.warn('Storm Deity Wrath tick failed:', err);
           clearInterval(interval);
-          return;
         }
-        ticks++;
-        game.enemies.forEach(enemy => {
-          if (enemy.dead || enemy.isInTallGrass()) return;
-          game.triggerChainLightning(enemy.x, enemy.y - 250, 30, 2, 100);
-          enemy.takeDamage(Math.round(30 * (player.modifiers.lightningDamage || 1.0) * (player.modifiers.allDamage || 1.0)), true, game);
-          enemy.applyStatus(SPELL_TYPES.LIGHTNING, 2.0);
-        });
-        if (game.audio) game.audio.playLightning();
       }, 400);
     }
   }

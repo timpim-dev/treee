@@ -207,6 +207,19 @@ export class Game {
         }
       }
 
+      if (e.ctrlKey && e.shiftKey && key === 'b') {
+        const code = window.prompt('Backrooms access code:');
+        if (code && code.trim() === 'violet-hallway' && this.levelManager && this.levelManager.activateBackroomsSecret) {
+          this.levelManager.activateBackroomsSecret();
+          this.particles.spawnText(this.player.x, this.player.y - 40, 'SECRET UNLOCKED', {
+            color: '#ffeaa7',
+            fontSize: 12,
+            fontPixel: true,
+            life: 2.5
+          });
+        }
+      }
+
       if (key === 'i') {
         if (this.state === 'PLAYING') {
           e.preventDefault();
@@ -3087,11 +3100,11 @@ export class Game {
       
       this.ctx.save();
       if (ae.type === 'singularity') {
-        ctx.save();
+        this.ctx.save();
         this.ctx.shadowBlur = 10;
         this.ctx.shadowColor = '#a55eea';
         this.drawPixelCircle(this.ctx, rx, ry, ae.radius, null, 'rgba(165, 94, 234, 0.5)', 4, 8);
-        ctx.restore();
+        this.ctx.restore();
         this.drawPixelCircle(this.ctx, rx, ry, 16, '#06070d', null, 0, 8);
       } else if (ae.type === 'steam_cloud') {
         this.drawPixelCircle(this.ctx, rx, ry, ae.radius, 'rgba(245, 246, 250, 0.14)', null, 0, 8);
