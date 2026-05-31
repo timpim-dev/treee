@@ -221,9 +221,9 @@ export class LevelManager {
       }
     }
     
-    // Clear player spawn (middle of the grid at cell (5,5))
-    const spawnCenterX = 5 * 5 + 2;
-    const spawnCenterY = 5 * 5 + 2;
+    // Clear player spawn (middle of the grid at cell (15,15))
+    const spawnCenterX = 15 * 5 + 2;
+    const spawnCenterY = 15 * 5 + 2;
     const spawnRadius = 3;
     for (let x = spawnCenterX - spawnRadius; x <= spawnCenterX + spawnRadius; x++) {
       for (let y = spawnCenterY - spawnRadius; y <= spawnCenterY + spawnRadius; y++) {
@@ -565,12 +565,124 @@ export class LevelManager {
       this.tileGrid[d.tx][d.ty] = 3;
     });
 
+    // Connectivity Check: BFS flood-fill from player position or spawn center (77, 77)
+    // to find all reachable floor tiles, converting unreachable floor pockets into solid walls (1).
+    let startTx = 77;
+    let startTy = 77;
+    if (this.game.player) {
+      startTx = Math.max(0, Math.min(this.tileWidth - 1, Math.floor(this.game.player.x / 40)));
+      startTy = Math.max(0, Math.min(this.tileHeight - 1, Math.floor(this.game.player.y / 40)));
+    }
+    
+    // Ensure the start position itself is not inside a wall (fallback to 77, 77 if it is)
+    if (this.tileGrid[startTx][startTy] === 1) {
+      startTx = 77;
+      startTy = 77;
+    }
+    
+    const queue = [{ x: startTx, y: startTy }];
+    const visited = [];
+    for (let x = 0; x < this.tileWidth; x++) {
+      visited[x] = new Array(this.tileHeight).fill(false);
+    }
+    visited[startTx][startTy] = true;
+    
+    let head = 0;
+    while (head < queue.length) {
+      const curr = queue[head++];
+      const dirs = [
+        { dx: 0, dy: -1 },
+        { dx: 0, dy: 1 },
+        { dx: -1, dy: 0 },
+        { dx: 1, dy: 0 }
+      ];
+      for (const d of dirs) {
+        const nx = curr.x + d.dx;
+        const ny = curr.y + d.dy;
+        if (nx >= 0 && nx < this.tileWidth && ny >= 0 && ny < this.tileHeight) {
+          if (!visited[nx][ny]) {
+            const tileVal = this.tileGrid[nx][ny];
+            // 0 = floor, 2 = runic, 3 = door.
+            // Note: we can pass through doors too!
+            if (tileVal === 0 || tileVal === 2 || tileVal === 3) {
+              visited[nx][ny] = true;
+              queue.push({ x: nx, y: ny });
+            }
+          }
+        }
+      }
+    }
+
+    // For each door, if it is not reached by BFS, carve a corridor inward into the active sector
+    if (this.doors) {
+      this.doors.forEach(door => {
+        let reached = visited[door.tx][door.ty];
+        if (!reached) {
+          let currX = door.tx;
+          let currY = door.ty;
+          let stepX = 0;
+          let stepY = 0;
+          
+          if (door.dir === 'North') stepY = 1;
+          else if (door.dir === 'South') stepY = -1;
+          else if (door.dir === 'West') stepX = 1;
+          else if (door.dir === 'East') stepX = -1;
+          
+          for (let i = 0; i < 100; i++) {
+            currX += stepX;
+            currY += stepY;
+            
+            if (currX < 0 || currX >= this.tileWidth || currY < 0 || currY >= this.tileHeight) {
+              break;
+            }
+            
+            this.tileGrid[currX][currY] = 0; // Clear to floor
+            visited[currX][currY] = true;
+            
+            // Check neighbors to see if we connected to a visited tile
+            let hitVisited = false;
+            const checkDirs = [
+              { dx: 0, dy: -1 },
+              { dx: 0, dy: 1 },
+              { dx: -1, dy: 0 },
+              { dx: 1, dy: 0 }
+            ];
+            for (const cd of checkDirs) {
+              const nx = currX + cd.dx;
+              const ny = currY + cd.dy;
+              if (nx >= 0 && nx < this.tileWidth && ny >= 0 && ny < this.tileHeight) {
+                if (visited[nx][ny] && this.tileGrid[nx][ny] !== 1) {
+                  hitVisited = true;
+                  break;
+                }
+              }
+            }
+            
+            if (hitVisited) {
+              break;
+            }
+          }
+          visited[door.tx][door.ty] = true;
+        }
+      });
+    }
+    
+    // Now convert any unvisited floor tile into a solid wall (1)
+    for (let tx = 0; tx < this.tileWidth; tx++) {
+      for (let ty = 0; ty < this.tileHeight; ty++) {
+        const tileVal = this.tileGrid[tx][ty];
+        if ((tileVal === 0 || tileVal === 2 || tileVal === 3) && !visited[tx][ty]) {
+          this.tileGrid[tx][ty] = 1;
+        }
+      }
+    }
+
     // Reconstruct physics obstacles (pillars) for active region
-    this.obstacles = [];
+    this.allObstacles = [];
     for (let tx = 0; tx < 150; tx++) {
       for (let ty = 0; ty < 150; ty++) {
         if (this.tileGrid[tx][ty] === 1) {
-          this.obstacles.push({
+          this.allObstacles.push({
             x: tx * 40 + 20,
             y: ty * 40 + 20,
             radius: 20,
@@ -589,10 +701,25 @@ export class LevelManager {
         const sy = Math.floor(ty / 50);
         if (this.unlockedSectors.has(`${sx},${sy}`)) {
           if (tx % 50 > 0 && tx % 50 < 49 && ty % 50 > 0 && ty % 50 < 49) {
-            this.obstacles.push(barrel);
+            this.allObstacles.push(barrel);
           }
         }
       }
+    }
+
+    // Initialize active obstacles with dynamic render distance filter
+    if (this.game.player && this.allObstacles) {
+      const px = this.game.player.x;
+      const py = this.game.player.y;
+      const distCutoff = (this.game.renderDistance || 1200);
+      const distCutoffSq = distCutoff * distCutoff;
+      this.obstacles = this.allObstacles.filter(obs => {
+        const dx = obs.x - px;
+        const dy = obs.y - py;
+        return (dx * dx + dy * dy) <= distCutoffSq;
+      });
+    } else {
+      this.obstacles = [...this.allObstacles];
     }
     
     // Filter special rooms that are inside unlocked sectors
@@ -893,6 +1020,88 @@ export class LevelManager {
       this.theme = this.sectorThemes[`${currentSx},${currentSy}`] || 'dungeon';
     }
 
+    // Dynamic filtering of active obstacles based on player proximity
+    if (this.game.player && this.allObstacles) {
+      const px = this.game.player.x;
+      const py = this.game.player.y;
+      const distCutoff = (this.game.renderDistance || 1200);
+      const distCutoffSq = distCutoff * distCutoff;
+      this.obstacles = this.allObstacles.filter(obs => {
+        const dx = obs.x - px;
+        const dy = obs.y - py;
+        return (dx * dx + dy * dy) <= distCutoffSq;
+      });
+    }
+
+    // Dynamic enemy unloading and teleportation
+    if (this.game.player && this.game.enemies) {
+      const px = this.game.player.x;
+      const py = this.game.player.y;
+      const renderDistance = (this.game.renderDistance || 1200);
+      const unloadCutoff = renderDistance + 200;
+      const unloadCutoffSq = unloadCutoff * unloadCutoff;
+
+      for (let i = 0; i < this.game.enemies.length; i++) {
+        const enemy = this.game.enemies[i];
+        if (enemy.dead) continue;
+        if (enemy.type === 'archon' || enemy.spriteKey === 'boss_archon') continue;
+
+        const edx = enemy.x - px;
+        const edy = enemy.y - py;
+        const distSq = edx * edx + edy * edy;
+
+        if (distSq > unloadCutoffSq) {
+          // Unloaded! Teleport closer to player (between 350px and renderDistance)
+          let targetX = px;
+          let targetY = py;
+          let found = false;
+
+          for (let attempt = 0; attempt < 50; attempt++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 350 + Math.random() * (renderDistance - 350);
+            targetX = px + Math.cos(angle) * dist;
+            targetY = py + Math.sin(angle) * dist;
+
+            const tx = Math.floor(targetX / 40);
+            const ty = Math.floor(targetY / 40);
+
+            if (tx >= 0 && tx < this.tileWidth && ty >= 0 && ty < this.tileHeight) {
+              if (this.tileGrid[tx][ty] === 0) {
+                // Check obstacle overlap
+                let overlap = false;
+                for (const obs of this.obstacles) {
+                  if (obs.type === 'pillar') {
+                    if (Math.hypot(targetX - obs.x, targetY - obs.y) < obs.radius + enemy.radius) {
+                      overlap = true;
+                      break;
+                    }
+                  }
+                }
+                if (!overlap) {
+                  found = true;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (found) {
+            // Teleport the enemy!
+            enemy.x = targetX;
+            enemy.y = targetY;
+            // Reset A* path target/state so it re-routes immediately
+            enemy._path = [];
+            enemy._pathTimer = 0;
+            
+            // Spawn visual teleport wisp particles at new location
+            if (this.game.particles) {
+              this.game.particles.createExplosion(targetX, targetY, '#7d5fff', 8, 40, 1.5);
+            }
+          }
+        }
+      }
+    }
+
     // Door proximity and unlock checks
     if (this.doors && this.game.player && this.game.state === 'PLAYING') {
       this.doors.forEach(door => {
@@ -1091,10 +1300,12 @@ export class LevelManager {
     let sx = 0;
     let sy = 0;
     
-    // Gather all floor tile candidates outside the player's immediate vicinity
+    // Gather all floor tile candidates within the active render distance, but outside the screen view
     const candidates = [];
     const playerX = this.game.player.x;
     const playerY = this.game.player.y;
+    const maxDist = this.game.renderDistance || 1200;
+    const minDist = 350; // Just off-screen
     
     for (let tx = 0; tx < this.tileWidth; tx++) {
       for (let ty = 0; ty < this.tileHeight; ty++) {
@@ -1102,8 +1313,24 @@ export class LevelManager {
           const wx = tx * 40 + 20;
           const wy = ty * 40 + 20;
           const dist = Math.hypot(wx - playerX, wy - playerY);
-          if (dist > 220) {
+          if (dist >= minDist && dist <= maxDist) {
             candidates.push({ x: wx, y: wy });
+          }
+        }
+      }
+    }
+
+    // Fallback if no tiles fit inside the band
+    if (candidates.length === 0) {
+      for (let tx = 0; tx < this.tileWidth; tx++) {
+        for (let ty = 0; ty < this.tileHeight; ty++) {
+          if (this.tileGrid[tx][ty] === 0) {
+            const wx = tx * 40 + 20;
+            const wy = ty * 40 + 20;
+            const dist = Math.hypot(wx - playerX, wy - playerY);
+            if (dist > 220) {
+              candidates.push({ x: wx, y: wy });
+            }
           }
         }
       }
@@ -1410,10 +1637,20 @@ export class LevelManager {
     const centerX = camera.x + canvasWidth / 2;
     const centerY = camera.y + canvasHeight / 2;
     
-    const startTx = Math.max(0, Math.floor((centerX - halfW) / tileSize));
-    const endTx = Math.min(this.tileWidth - 1, Math.ceil((centerX + halfW) / tileSize));
-    const startTy = Math.max(0, Math.floor((centerY - halfH) / tileSize));
-    const endTy = Math.min(this.tileHeight - 1, Math.ceil((centerY + halfH) / tileSize));
+    // Cull based on active render distance around the player
+    const renderDistance = this.game.renderDistance || 1200;
+    const px = this.game.player ? this.game.player.x : centerX;
+    const py = this.game.player ? this.game.player.y : centerY;
+    
+    const renderStartTx = Math.max(0, Math.floor((px - renderDistance) / tileSize));
+    const renderEndTx = Math.min(this.tileWidth - 1, Math.ceil((px + renderDistance) / tileSize));
+    const renderStartTy = Math.max(0, Math.floor((py - renderDistance) / tileSize));
+    const renderEndTy = Math.min(this.tileHeight - 1, Math.ceil((py + renderDistance) / tileSize));
+
+    const startTx = Math.max(0, Math.floor((centerX - halfW) / tileSize), renderStartTx);
+    const endTx = Math.min(this.tileWidth - 1, Math.ceil((centerX + halfW) / tileSize), renderEndTx);
+    const startTy = Math.max(0, Math.floor((centerY - halfH) / tileSize), renderStartTy);
+    const endTy = Math.min(this.tileHeight - 1, Math.ceil((centerY + halfH) / tileSize), renderEndTy);
 
     for (let tx = startTx; tx <= endTx; tx++) {
       const sx = Math.floor(tx / 50);
@@ -1456,41 +1693,62 @@ export class LevelManager {
           
           ctx.fillStyle = fillStyle;
           ctx.fillRect(rx, ry, tileSize, tileSize);
-          
-          ctx.strokeStyle = strokeStyle;
-          ctx.lineWidth = 1;
-          ctx.strokeRect(rx, ry, tileSize, tileSize);
-          
+
+          // Gameplay mechanic: Tall grass patches in Gardens theme
           const hash = (tx * 17 + ty * 31) % 100;
-          if (hash < 12) {
-            // Draw a diagonal crack
-            ctx.strokeStyle = crackStyle;
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(rx + 8, ry + 8);
-            ctx.lineTo(rx + 16, ry + 16);
-            ctx.lineTo(rx + 12, ry + 26);
-            ctx.stroke();
-          } else if (hash < 20) {
-            // Tiny stone/debris dot details or flowers
-            ctx.fillStyle = dotStyle;
-            if (theme === 'gardens') {
-              // Draw flower dots (yellow/pink)
-              ctx.fillRect(rx + 24, ry + 12, 3, 3);
-              ctx.fillStyle = hash % 2 === 0 ? '#e84393' : '#f1c40f';
-              ctx.fillRect(rx + 10, ry + 28, 4, 4);
-            } else {
-              ctx.fillRect(rx + 24, ry + 12, 3, 3);
-              ctx.fillRect(rx + 10, ry + 28, 2, 2);
+          if (theme === 'gardens' && hash >= 50 && hash < 75) {
+            ctx.fillStyle = '#11572b'; // darker grass background
+            ctx.fillRect(rx, ry, tileSize, tileSize);
+            
+            ctx.fillStyle = '#21a153'; // bright grass blades
+            for (let b = 0; b < 5; b++) {
+              const bx = rx + 4 + b * 7;
+              const by = ry + tileSize;
+              const bh = 15 + (b * 3 + hash) % 12; // blade height
+              ctx.beginPath();
+              ctx.moveTo(bx, by);
+              ctx.lineTo(bx + 2, by - bh);
+              ctx.lineTo(bx + 4, by);
+              ctx.fill();
             }
-          } else if (hash < 26) {
-            // Vertical split lines to simulate smaller brick pavers
+          }
+          
+          if (this.game.showFloorGrid) {
             ctx.strokeStyle = strokeStyle;
             ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(rx + 20, ry);
-            ctx.lineTo(rx + 20, ry + tileSize);
-            ctx.stroke();
+            ctx.strokeRect(rx, ry, tileSize, tileSize);
+            
+            const hash = (tx * 17 + ty * 31) % 100;
+            if (hash < 12) {
+              // Draw a diagonal crack
+              ctx.strokeStyle = crackStyle;
+              ctx.lineWidth = 1.5;
+              ctx.beginPath();
+              ctx.moveTo(rx + 8, ry + 8);
+              ctx.lineTo(rx + 16, ry + 16);
+              ctx.lineTo(rx + 12, ry + 26);
+              ctx.stroke();
+            } else if (hash < 20) {
+              // Tiny stone/debris dot details or flowers
+              ctx.fillStyle = dotStyle;
+              if (theme === 'gardens') {
+                // Draw flower dots (yellow/pink)
+                ctx.fillRect(rx + 24, ry + 12, 3, 3);
+                ctx.fillStyle = hash % 2 === 0 ? '#e84393' : '#f1c40f';
+                ctx.fillRect(rx + 10, ry + 28, 4, 4);
+              } else {
+                ctx.fillRect(rx + 24, ry + 12, 3, 3);
+                ctx.fillRect(rx + 10, ry + 28, 2, 2);
+              }
+            } else if (hash < 26) {
+              // Vertical split lines to simulate smaller brick pavers
+              ctx.strokeStyle = strokeStyle;
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.moveTo(rx + 20, ry);
+              ctx.lineTo(rx + 20, ry + tileSize);
+              ctx.stroke();
+            }
           }
         } else if (this.tileGrid[tx][ty] === 2) {
           // Draw special runic floor
@@ -1561,22 +1819,17 @@ export class LevelManager {
       
       // Draw shadow
       ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      ctx.beginPath();
-      ctx.arc(rx, ry + 8, 12, 0, Math.PI*2);
-      ctx.fill();
+      ctx.fillRect(rx - 12, ry + 6, 24, 4);
 
       // Draw shrine sprite (translucent if on cooldown)
       const alpha = shrine.active ? 1.0 : 0.4;
       this.game.assets.draw(ctx, 'shrine_' + shrine.buffType, rx, ry, 24, 0, 0, alpha);
 
-      // Glowing circle underneath active shrine
+      // Glowing circle underneath active shrine (pixelated)
       if (shrine.active) {
-        ctx.strokeStyle = shrine.buffType === 'haste' ? 'rgba(255, 159, 67, 0.3)' : 
-                          shrine.buffType === 'mana' ? 'rgba(16, 172, 132, 0.3)' : 'rgba(255, 71, 87, 0.3)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(rx, ry, shrine.radius + 6, 0, Math.PI*2);
-        ctx.stroke();
+        const strokeColor = shrine.buffType === 'haste' ? 'rgba(255, 159, 67, 0.3)' : 
+                            shrine.buffType === 'mana' ? 'rgba(16, 172, 132, 0.3)' : 'rgba(255, 71, 87, 0.3)';
+        this.game.drawPixelCircle(ctx, rx, ry, shrine.radius + 6, null, strokeColor, 2, 4);
       }
     });
 
@@ -1587,9 +1840,7 @@ export class LevelManager {
       
       // Shadow
       ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      ctx.beginPath();
-      ctx.arc(rx, ry + 6, 10, 0, Math.PI*2);
-      ctx.fill();
+      ctx.fillRect(rx - 10, ry + 4, 20, 3);
 
       this.game.assets.draw(ctx, 'item_chest', rx, ry, 20);
 
@@ -1620,10 +1871,20 @@ export class LevelManager {
     const centerX = camera.x + canvasWidth / 2;
     const centerY = camera.y + canvasHeight / 2;
     
-    const startTx = Math.max(0, Math.floor((centerX - halfW) / tileSize));
-    const endTx = Math.min(this.tileWidth - 1, Math.ceil((centerX + halfW) / tileSize));
-    const startTy = Math.max(0, Math.floor((centerY - halfH) / tileSize));
-    const endTy = Math.min(this.tileHeight - 1, Math.ceil((centerY + halfH) / tileSize));
+    // Cull based on active render distance around the player
+    const renderDistance = this.game.renderDistance || 1200;
+    const px = this.game.player ? this.game.player.x : centerX;
+    const py = this.game.player ? this.game.player.y : centerY;
+    
+    const renderStartTx = Math.max(0, Math.floor((px - renderDistance) / tileSize));
+    const renderEndTx = Math.min(this.tileWidth - 1, Math.ceil((px + renderDistance) / tileSize));
+    const renderStartTy = Math.max(0, Math.floor((py - renderDistance) / tileSize));
+    const renderEndTy = Math.min(this.tileHeight - 1, Math.ceil((py + renderDistance) / tileSize));
+
+    const startTx = Math.max(0, Math.floor((centerX - halfW) / tileSize), renderStartTx);
+    const endTx = Math.min(this.tileWidth - 1, Math.ceil((centerX + halfW) / tileSize), renderEndTx);
+    const startTy = Math.max(0, Math.floor((centerY - halfH) / tileSize), renderStartTy);
+    const endTy = Math.min(this.tileHeight - 1, Math.ceil((centerY + halfH) / tileSize), renderEndTy);
     
     // First pass: Draw drop shadows on the ground for any wall that has floor below it
     ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
@@ -1759,20 +2020,8 @@ export class LevelManager {
         fillColor = 'rgba(165, 94, 234, 0.15)';
       }
       
-      // Outer warning circle
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = 3;
-      ctx.setLineDash([8, 6]);
-      ctx.beginPath();
-      ctx.arc(rx, ry, met.radius * scale, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Fill warning circle
-      ctx.fillStyle = fillColor;
-      ctx.beginPath();
-      ctx.arc(rx, ry, met.radius * scale, 0, Math.PI * 2);
-      ctx.fill();
+      // Pixelated warning circle
+      this.game.drawPixelCircle(ctx, rx, ry, met.radius * scale, fillColor, strokeColor, 3, 8);
       
       // Draw warning triangle
       ctx.save();

@@ -82,37 +82,52 @@ export class AudioManager {
   // Music
   // ─────────────────────────────────────────────
   _startMusic() {
+    this.updateMusicForTheme('dungeon', false);
+  }
+
+  updateMusicForTheme(theme, isBoss) {
+    if (!this.initialized) return;
+
+    let track = 'audio/music/temple.ogg'; // default for dungeon
+    if (isBoss) {
+      track = 'audio/music/boss.ogg';
+    } else {
+      if (theme === 'gardens') track = 'audio/music/forest.ogg';
+      else if (theme === 'underground') track = 'audio/music/cave.ogg';
+      else if (theme === 'pool') track = 'audio/music/freezingland.ogg';
+      else if (theme === 'backrooms') track = 'audio/music/desert.ogg';
+    }
+    
+    // Check if it's already playing the correct track
+    if (this._musicEl && this._currentTrackSrc === track && !this._musicEl.paused) {
+      return; // Already playing
+    }
+    
+    this._currentTrackSrc = track;
+    this.playTrack(track);
+  }
+
+  playTrack(src) {
     if (this._musicEl) {
       this._musicEl.pause();
       this._musicEl.onended = null;
     }
-
-    const src = this._playlist[this._musicIndex % this._playlist.length];
+    
     const el = new Audio(src);
     el.volume = this.isMuted ? 0 : this.musicVolume;
-    el.muted  = this.isMuted;
-    el.loop   = false;
-
-    el.onended = () => {
-      this._musicIndex = (this._musicIndex + 1) % this._playlist.length;
-      this._startMusic();
-    };
-
+    el.muted = this.isMuted;
+    el.loop = true; // Loop the region's music
+    
     el.onerror = () => {
-      // Try .mp3 fallback if .ogg failed
       const mp3 = src.replace('.ogg', '.mp3');
       if (!el._triedMp3 && mp3 !== src) {
         el._triedMp3 = true;
         el.src = mp3;
         el.load();
         el.play().catch(() => {});
-      } else {
-        // Skip broken track, advance to next
-        this._musicIndex = (this._musicIndex + 1) % this._playlist.length;
-        this._startMusic();
       }
     };
-
+    
     this._musicEl = el;
     el.play().catch(() => {});
   }

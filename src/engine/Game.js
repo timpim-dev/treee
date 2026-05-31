@@ -8,6 +8,7 @@ import { LevelManager } from './LevelManager.js';
 import { AudioManager } from './AudioManager.js';
 import { Player, RELICS_CATALOG, EQUIPMENT_CATALOG } from '../entities/Player.js';
 import { Enemy } from '../entities/Enemy.js';
+import { Companion } from '../entities/Companion.js';
 import { SPELL_TYPES, SpellBook, processCombo } from './Spells.js';
 
 export class Game {
@@ -23,6 +24,18 @@ export class Game {
     this.audio = new AudioManager();
     this.abilityTree = new AbilityTree(this);
     this.levelManager = new LevelManager(this);
+    
+    // Initialize settings fields with default values
+    this.enableScreenShake = true;
+    this.enableGlowEffects = true;
+    this.showDamageNumbers = true;
+    this.showEnemyHealthbars = true;
+    this.showFloorGrid = true;
+    this.lowParticleMode = false;
+    this.showSpellTrails = true;
+    
+    // Load persisted settings
+    this.loadSettings();
     
     // Unlock AudioContext on first user interaction
     const unlockAudio = () => {
@@ -45,6 +58,7 @@ export class Game {
     // 3. Entity Registers
     this.projectiles = [];
     this.enemies = [];
+    this.companions = [];
     this.items = [];
     this.areaEffects = [];
     
@@ -124,12 +138,60 @@ export class Game {
       const key = e.key.toLowerCase();
       this.keys[key] = true;
       
+      // Debug cheats
+      if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        if (key === '[') {
+          this.player.ap += 100;
+          const treeApEl = document.getElementById('tree-ap');
+          if (treeApEl) treeApEl.innerText = this.player.ap;
+          this.particles.spawnText(this.player.x, this.player.y - 30, "+100 AP (CHEAT)", {
+            color: '#f1c40f',
+            fontSize: 12,
+            fontPixel: true
+          });
+          this.updateHUD();
+          this.player.saveGameState();
+        }
+        if (key === ']') {
+          let unlockedCount = 0;
+          for (const k in this.abilityTree.nodes) {
+            const node = this.abilityTree.nodes[k];
+            if (node.view === this.abilityTree.currentView && !node.unlocked) {
+              node.unlocked = true;
+              unlockedCount++;
+            }
+          }
+          if (unlockedCount > 0) {
+            this.player.recalculateModifiers(this.abilityTree);
+            this.checkProgressionOnUnlock();
+            this.player.saveGameState();
+            
+            const treeApEl = document.getElementById('tree-ap');
+            if (treeApEl) treeApEl.innerText = this.player.ap;
+            this.particles.spawnText(this.player.x, this.player.y - 30, `UNLOCKED ${unlockedCount} NODES (CHEAT)`, {
+              color: '#f1c40f',
+              fontSize: 12,
+              fontPixel: true
+            });
+            this.updateHUD();
+            
+            const canvas = this.treeCanvas;
+            if (canvas) {
+              const ctx = canvas.getContext('2d');
+              this.abilityTree.draw(canvas, ctx);
+            }
+          }
+        }
+      }
+      
       // State transitions via buttons
       if (key === 'escape' || key === 'p') {
         if (this.state === 'PLAYING') {
           this.setState('PAUSED');
         } else if (this.state === 'PAUSED') {
           this.setState('PLAYING');
+        } else if (this.state === 'SETTINGS') {
+          this.setState(this.settingsPrevState || 'MENU');
         } else if (this.state === 'UPGRADE_TREE' || this.state === 'INVENTORY' || this.state === 'WORLD_MAP') {
           this.setState('PLAYING');
         }
@@ -228,37 +290,53 @@ export class Game {
   // HTML UI CLICKS LISTENERS
   // ----------------------------------------------------
   initUIListeners() {
-    // Mute Buttons Binding
+    // Settings Navigation Buttons
+    const btnSettingsMenu = document.getElementById('btn-settings-menu');
+    const btnSettingsPause = document.getElementById('btn-settings-pause');
+    const btnCloseSettings = document.getElementById('btn-close-settings');
+
+    if (btnSettingsMenu) {
+      btnSettingsMenu.addEventListener('click', () => {
+        this.settingsPrevState = 'MENU';
+        this.setState('SETTINGS');
+      });
+    }
+    if (btnSettingsPause) {
+      btnSettingsPause.addEventListener('click', () => {
+        this.settingsPrevState = 'PAUSED';
+        this.setState('SETTINGS');
+      });
+    }
+    if (btnCloseSettings) {
+      btnCloseSettings.addEventListener('click', () => {
+        this.setState(this.settingsPrevState || 'MENU');
+      });
+    }
+
+    // Mute Button Binding in Settings
     const toggleMuteAll = () => {
       const isMuted = this.audio.toggleMute();
       const text = isMuted ? "UNMUTE AUDIO" : "MUTE AUDIO";
-      const menuMute = document.getElementById('btn-menu-mute');
-      const toggleMute = document.getElementById('btn-toggle-mute');
-      if (menuMute) menuMute.innerText = text;
-      if (toggleMute) toggleMute.innerText = text;
+      const settingsMute = document.getElementById('btn-settings-mute');
+      if (settingsMute) settingsMute.innerText = text;
 
       const boxes = document.querySelectorAll('.volume-controls-box');
       boxes.forEach(box => box.classList.toggle('muted', isMuted));
+      this.saveSettings();
     };
-    const menuMuteBtn = document.getElementById('btn-menu-mute');
-    if (menuMuteBtn) {
-      menuMuteBtn.addEventListener('click', () => toggleMuteAll());
-    }
-    const toggleMuteBtn = document.getElementById('btn-toggle-mute');
-    if (toggleMuteBtn) {
-      toggleMuteBtn.addEventListener('click', () => toggleMuteAll());
+    const settingsMuteBtn = document.getElementById('btn-settings-mute');
+    if (settingsMuteBtn) {
+      settingsMuteBtn.addEventListener('click', () => toggleMuteAll());
     }
 
-    // Volume Sliders Binding & Initialization
-    const sldMenuMusic = document.getElementById('sld-menu-music');
-    const sldPauseMusic = document.getElementById('sld-pause-music');
-    const sldMenuSfx = document.getElementById('sld-menu-sfx');
-    const sldPauseSfx = document.getElementById('sld-pause-sfx');
+    // Volume & Render Sliders Binding
+    const sldSettingsMusic = document.getElementById('sld-settings-music');
+    const sldSettingsSfx = document.getElementById('sld-settings-sfx');
+    const sldSettingsRender = document.getElementById('sld-settings-render');
 
-    const lblMenuMusic = document.getElementById('lbl-menu-music-val');
-    const lblPauseMusic = document.getElementById('lbl-pause-music-val');
-    const lblMenuSfx = document.getElementById('lbl-menu-sfx-val');
-    const lblPauseSfx = document.getElementById('lbl-pause-sfx-val');
+    const lblSettingsMusic = document.getElementById('lbl-settings-music-val');
+    const lblSettingsSfx = document.getElementById('lbl-settings-sfx-val');
+    const lblSettingsRender = document.getElementById('lbl-settings-render-val');
 
     const updateSliderFill = (slider) => {
       if (!slider) return;
@@ -274,10 +352,9 @@ export class Game {
       this.audio.setMusicVolume(vol);
       
       const percentText = `${Math.round(value)}%`;
-      if (lblMenuMusic) lblMenuMusic.innerText = percentText;
-      if (lblPauseMusic) lblPauseMusic.innerText = percentText;
-      if (sldMenuMusic) { sldMenuMusic.value = value; updateSliderFill(sldMenuMusic); }
-      if (sldPauseMusic) { sldPauseMusic.value = value; updateSliderFill(sldPauseMusic); }
+      if (lblSettingsMusic) lblSettingsMusic.innerText = percentText;
+      if (sldSettingsMusic) { sldSettingsMusic.value = value; updateSliderFill(sldSettingsMusic); }
+      this.saveSettings();
     };
 
     const setSfxVolumeUI = (value) => {
@@ -285,61 +362,115 @@ export class Game {
       this.audio.setSfxVolume(vol);
 
       const percentText = `${Math.round(value)}%`;
-      if (lblMenuSfx) lblMenuSfx.innerText = percentText;
-      if (lblPauseSfx) lblPauseSfx.innerText = percentText;
-      if (sldMenuSfx) { sldMenuSfx.value = value; updateSliderFill(sldMenuSfx); }
-      if (sldPauseSfx) { sldPauseSfx.value = value; updateSliderFill(sldPauseSfx); }
+      if (lblSettingsSfx) lblSettingsSfx.innerText = percentText;
+      if (sldSettingsSfx) { sldSettingsSfx.value = value; updateSliderFill(sldSettingsSfx); }
+      this.saveSettings();
     };
-
-    // Initialize values from AudioManager
-    const initialMusicValue = Math.round(this.audio.musicVolume * 100);
-    const initialSfxValue = Math.round(this.audio.sfxVolume * 100);
-    setMusicVolumeUI(initialMusicValue);
-    setSfxVolumeUI(initialSfxValue);
-
-    // Bind event listeners
-    if (sldMenuMusic) {
-      sldMenuMusic.addEventListener('input', (e) => setMusicVolumeUI(e.target.value));
-    }
-    if (sldPauseMusic) {
-      sldPauseMusic.addEventListener('input', (e) => setMusicVolumeUI(e.target.value));
-    }
-    if (sldMenuSfx) {
-      sldMenuSfx.addEventListener('input', (e) => setSfxVolumeUI(e.target.value));
-    }
-    if (sldPauseSfx) {
-      sldPauseSfx.addEventListener('input', (e) => setSfxVolumeUI(e.target.value));
-    }
-
-    // Render Distance Slider Binding & Initialization
-    const sldMenuRender = document.getElementById('sld-menu-render');
-    const sldPauseRender = document.getElementById('sld-pause-render');
-    const lblMenuRender = document.getElementById('lbl-menu-render-val');
-    const lblPauseRender = document.getElementById('lbl-pause-render-val');
 
     const setRenderDistanceUI = (value) => {
       this.renderDistance = parseInt(value);
       const text = `${this.renderDistance}px`;
-      if (lblMenuRender) lblMenuRender.innerText = text;
-      if (lblPauseRender) lblPauseRender.innerText = text;
-      if (sldMenuRender) { sldMenuRender.value = value; updateSliderFill(sldMenuRender); }
-      if (sldPauseRender) { sldPauseRender.value = value; updateSliderFill(sldPauseRender); }
+      if (lblSettingsRender) lblSettingsRender.innerText = text;
+      if (sldSettingsRender) { sldSettingsRender.value = value; updateSliderFill(sldSettingsRender); }
       // Update obstacles filter instantly when render distance changes!
       if (this.levelManager) {
         this.levelManager.generateObstacles();
       }
+      this.saveSettings();
     };
 
-    // Initialize render distance value
-    setRenderDistanceUI(this.renderDistance || 1200);
-
     // Bind event listeners
-    if (sldMenuRender) {
-      sldMenuRender.addEventListener('input', (e) => setRenderDistanceUI(e.target.value));
+    if (sldSettingsMusic) {
+      sldSettingsMusic.addEventListener('input', (e) => setMusicVolumeUI(e.target.value));
     }
-    if (sldPauseRender) {
-      sldPauseRender.addEventListener('input', (e) => setRenderDistanceUI(e.target.value));
+    if (sldSettingsSfx) {
+      sldSettingsSfx.addEventListener('input', (e) => setSfxVolumeUI(e.target.value));
     }
+    if (sldSettingsRender) {
+      sldSettingsRender.addEventListener('input', (e) => setRenderDistanceUI(e.target.value));
+    }
+
+    // Checkboxes bindings
+    const chkSettingsShake = document.getElementById('chk-settings-shake');
+    const chkSettingsGlow = document.getElementById('chk-settings-glow');
+    const chkSettingsDamage = document.getElementById('chk-settings-damage');
+    const chkSettingsHealthbars = document.getElementById('chk-settings-healthbars');
+    const chkSettingsFloor = document.getElementById('chk-settings-floor');
+    const chkSettingsParticles = document.getElementById('chk-settings-particles');
+    const chkSettingsTrails = document.getElementById('chk-settings-trails');
+
+    const updateCheckboxesUI = () => {
+      if (chkSettingsShake) chkSettingsShake.checked = this.enableScreenShake;
+      if (chkSettingsGlow) chkSettingsGlow.checked = this.enableGlowEffects;
+      if (chkSettingsDamage) chkSettingsDamage.checked = this.showDamageNumbers;
+      if (chkSettingsHealthbars) chkSettingsHealthbars.checked = this.showEnemyHealthbars;
+      if (chkSettingsFloor) chkSettingsFloor.checked = this.showFloorGrid;
+      if (chkSettingsParticles) chkSettingsParticles.checked = this.lowParticleMode;
+      if (chkSettingsTrails) chkSettingsTrails.checked = this.showSpellTrails;
+    };
+
+    if (chkSettingsShake) {
+      chkSettingsShake.addEventListener('change', (e) => {
+        this.enableScreenShake = e.target.checked;
+        this.saveSettings();
+      });
+    }
+    if (chkSettingsGlow) {
+      chkSettingsGlow.addEventListener('change', (e) => {
+        this.enableGlowEffects = e.target.checked;
+        if (this.particles) this.particles.enableGlowEffects = this.enableGlowEffects;
+        this.saveSettings();
+      });
+    }
+    if (chkSettingsDamage) {
+      chkSettingsDamage.addEventListener('change', (e) => {
+        this.showDamageNumbers = e.target.checked;
+        this.saveSettings();
+      });
+    }
+    if (chkSettingsHealthbars) {
+      chkSettingsHealthbars.addEventListener('change', (e) => {
+        this.showEnemyHealthbars = e.target.checked;
+        this.saveSettings();
+      });
+    }
+    if (chkSettingsFloor) {
+      chkSettingsFloor.addEventListener('change', (e) => {
+        this.showFloorGrid = e.target.checked;
+        this.saveSettings();
+      });
+    }
+    if (chkSettingsParticles) {
+      chkSettingsParticles.addEventListener('change', (e) => {
+        this.lowParticleMode = e.target.checked;
+        if (this.particles) this.particles.lowParticleMode = this.lowParticleMode;
+        this.saveSettings();
+      });
+    }
+    if (chkSettingsTrails) {
+      chkSettingsTrails.addEventListener('change', (e) => {
+        this.showSpellTrails = e.target.checked;
+        this.saveSettings();
+      });
+    }
+
+    // Initialize values from AudioManager and Settings
+    if (this.audio) {
+      const initialMusicValue = Math.round(this.audio.musicVolume * 100);
+      const initialSfxValue = Math.round(this.audio.sfxVolume * 100);
+      setMusicVolumeUI(initialMusicValue);
+      setSfxVolumeUI(initialSfxValue);
+      
+      // Update initial mute status text
+      const settingsMute = document.getElementById('btn-settings-mute');
+      if (settingsMute) {
+        settingsMute.innerText = this.audio.isMuted ? "UNMUTE AUDIO" : "MUTE AUDIO";
+      }
+      const boxes = document.querySelectorAll('.volume-controls-box');
+      boxes.forEach(box => box.classList.toggle('muted', this.audio.isMuted));
+    }
+    setRenderDistanceUI(this.renderDistance || 1200);
+    updateCheckboxesUI();
 
     // Main Menu Buttons
     const btnPlayMenu = document.getElementById('btn-play-menu');
@@ -449,6 +580,18 @@ export class Game {
     if (btnCreditsClose) {
       btnCreditsClose.addEventListener('click', () => {
         this.setState('MENU');
+      });
+    }
+    const btnCloseLeaderboard = document.getElementById('btn-close-leaderboard');
+    if (btnCloseLeaderboard) {
+      btnCloseLeaderboard.addEventListener('click', () => {
+        this.setState('MENU');
+      });
+    }
+    const btnLeaderboardMenu = document.getElementById('btn-leaderboard-menu');
+    if (btnLeaderboardMenu) {
+      btnLeaderboardMenu.addEventListener('click', () => {
+        this.setState('LEADERBOARD');
       });
     }
     const btnContactClose = document.getElementById('btn-contact-close');
@@ -1294,9 +1437,7 @@ export class Game {
     
     // Draw trail shadow at feet
     ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-    ctx.beginPath();
-    ctx.arc(px, py + 12, 10, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillRect(px - 10, py + 10, 20, 4);
 
     // Draw player base sprite
     this.assets.draw(ctx, 'player', px, py, 32, fIdx, 0);
@@ -1431,6 +1572,33 @@ export class Game {
       this.abilityTree.panX = 0;
       this.abilityTree.panY = 0;
     });
+    
+    // Tab switching for the Aether Web views
+    const tabContainer = document.getElementById('tree-tabs');
+    if (tabContainer) {
+      tabContainer.addEventListener('click', (e) => {
+        const btn = e.target.closest('.tree-tab-btn');
+        if (!btn) return;
+        const view = btn.getAttribute('data-view');
+        if (view) {
+          this.abilityTree.currentView = view;
+          this.abilityTree.zoom = 1.0;
+          this.abilityTree.panX = 0;
+          this.abilityTree.panY = 0;
+          
+          tabContainer.querySelectorAll('.tree-tab-btn').forEach(b => {
+            b.classList.toggle('active', b === btn);
+          });
+          
+          const canvas = this.treeCanvas;
+          if (canvas) {
+            const ctx = canvas.getContext('2d');
+            this.abilityTree.draw(canvas, ctx);
+          }
+        }
+      });
+    }
+    
     document.getElementById('btn-refund-tree').addEventListener('click', () => {
       // Refunding costs 10 shards as penalty
       if (this.player.shards >= 10) {
@@ -1499,6 +1667,7 @@ export class Game {
 
     this.projectiles = [];
     this.enemies = [];
+    this.companions = [];
     this.items = [];
     this.areaEffects = [];
     this.score = 0;
@@ -1626,7 +1795,9 @@ export class Game {
       newState === 'PAUSED'        ? 'panel-pause' :
       newState === 'SHOP'          ? 'panel-shop' :
       newState === 'INVENTORY'     ? 'panel-inventory' :
-      newState === 'WORLD_MAP'     ? 'panel-worldmap' : ''
+      newState === 'SETTINGS'      ? 'panel-settings' :
+      newState === 'WORLD_MAP'     ? 'panel-worldmap' :
+      newState === 'LEADERBOARD'   ? 'panel-leaderboard' : ''
     );
 
     if (newState === 'INVENTORY') {
@@ -1646,6 +1817,10 @@ export class Game {
       this.drawWorldmap();
     }
 
+    if (newState === 'LEADERBOARD') {
+      this.fetchLeaderboard();
+    }
+
     if (newState === 'UPGRADE_TREE') {
       this.resizeTreeCanvas();
       document.getElementById('tree-shards').innerText = this.player.shards;
@@ -1658,6 +1833,25 @@ export class Game {
       } else {
         rebirthBadge.classList.add('hidden');
       }
+      
+      // Manage tree tabs visibility depending on unlocked companions
+      const treeTabs = document.getElementById('tree-tabs');
+      if (treeTabs) {
+        const unlockedAny = this.player.unlockedCompanion1 || this.player.unlockedCompanion2;
+        treeTabs.classList.toggle('hidden', !unlockedAny);
+        
+        const tab1 = document.getElementById('tab-companion1');
+        if (tab1) tab1.classList.toggle('hidden', !this.player.unlockedCompanion1);
+        
+        const tab2 = document.getElementById('tab-companion2');
+        if (tab2) tab2.classList.toggle('hidden', !this.player.unlockedCompanion2);
+        
+        // Highlight active tab
+        const tabBtns = treeTabs.querySelectorAll('.tree-tab-btn');
+        tabBtns.forEach(btn => {
+          btn.classList.toggle('active', btn.getAttribute('data-view') === this.abilityTree.currentView);
+        });
+      }
     }
     if (newState === 'SHOP') {
       this.drawShopItems();
@@ -1669,7 +1863,7 @@ export class Game {
   }
 
   showPanel(panelId) {
-    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-how-to', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-worldmap', 'panel-play-menu', 'panel-customize', 'panel-credits', 'panel-contact'];
+    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-how-to', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-worldmap', 'panel-play-menu', 'panel-customize', 'panel-credits', 'panel-contact', 'panel-settings'];
     overlays.forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
@@ -1810,7 +2004,7 @@ export class Game {
       let minDist = jumpRange;
 
       for (const enemy of snapshot) {
-        if (enemy.dead || jumpedTargets.has(enemy)) continue;
+        if (enemy.dead || jumpedTargets.has(enemy) || enemy.isInTallGrass()) continue;
         const dist = Math.hypot(enemy.x - currentX, enemy.y - currentY);
         if (dist < minDist) { minDist = dist; nearest = enemy; }
       }
@@ -1924,6 +2118,9 @@ export class Game {
       .then(() => {
         statusEl.innerText = "Highscore recorded! Legend saved.";
         document.getElementById('leaderboard-submission-box').classList.add('hidden');
+        setTimeout(() => {
+          this.setState('LEADERBOARD');
+        }, 1500);
       })
       .catch((err) => {
         console.warn("API submission error: ", err);
@@ -2131,6 +2328,13 @@ export class Game {
     }
 
     if (this.state === 'PLAYING') {
+      // Update music based on region theme and boss status
+      if (this.audio && this.audio.initialized) {
+        const isBoss = this.enemies && this.enemies.some(e => e.type === 'archon');
+        const theme = this.levelManager ? this.levelManager.theme : 'dungeon';
+        this.audio.updateMusicForTheme(theme, isBoss);
+      }
+
       this.update(dt);
       if (this.isTutorial) {
         this.updateTutorial(dt);
@@ -2254,6 +2458,7 @@ export class Game {
           let nearest = null;
           let minDist = 150;
           this.enemies.forEach((enemy) => {
+            if (enemy.isInTallGrass()) return;
             const dist = Math.hypot(enemy.x - proj.x, enemy.y - proj.y);
             if (dist < minDist) {
               minDist = dist;
@@ -2281,7 +2486,7 @@ export class Game {
       }
 
       // Projectile particles tail
-      if (Math.random() < 0.4) {
+      if (this.showSpellTrails && Math.random() < 0.4) {
         const colors = {
           [SPELL_TYPES.FIRE]: '#ff4757',
           [SPELL_TYPES.FROST]: '#10ac84',
@@ -2297,6 +2502,49 @@ export class Game {
           glow: true
         });
       }
+
+      // Region specific projectile mechanics
+      const projSx = Math.max(0, Math.min(2, Math.floor(proj.x / 2000)));
+      const projSy = Math.max(0, Math.min(2, Math.floor(proj.y / 2000)));
+      const projTheme = (this.levelManager.sectorThemes && this.levelManager.sectorThemes[`${projSx},${projSy}`]) || 'dungeon';
+      
+      let projDestroyed = false;
+      if (projTheme === 'pool') {
+        if (proj.element === SPELL_TYPES.FIRE) {
+          // Extinguish fireballs to steam
+          this.spawnAreaEffect(proj.x, proj.y, 45, 'steam_cloud', 1.5);
+          if (this.audio) this.audio.playClick();
+          for (let p = 0; p < 8; p++) {
+            this.particles.spawn(proj.x, proj.y, {
+              vx: (Math.random() - 0.5) * 40,
+              vy: (Math.random() - 0.5) * 40,
+              color: '#f5f6fa',
+              size: Math.random() * 5 + 3,
+              life: 0.6,
+              glow: false
+            });
+          }
+          this.projectiles.splice(i, 1);
+          projDestroyed = true;
+        } else if (proj.element === SPELL_TYPES.FROST) {
+          // Frost leaves ice trail
+          if (Math.random() < 0.15) {
+            this.spawnAreaEffect(proj.x, proj.y, 25, 'ice_trail', 2.0);
+          }
+        }
+      } else if (projTheme === 'gardens' && proj.element === SPELL_TYPES.FIRE) {
+        // Fire ignites tall grass
+        const tx = Math.floor(proj.x / 40);
+        const ty = Math.floor(proj.y / 40);
+        if (tx >= 0 && tx < this.levelManager.tileWidth && ty >= 0 && ty < this.levelManager.tileHeight) {
+          const hash = (tx * 17 + ty * 31) % 100;
+          if (hash >= 50 && hash < 75) {
+            this.spawnAreaEffect(tx * 40 + 20, ty * 40 + 20, 30, 'fire_pool', 2.0);
+          }
+        }
+      }
+
+      if (projDestroyed) continue;
 
       // Check level obstacles collisions
       let hitObstacle = false;
@@ -2435,6 +2683,26 @@ export class Game {
         continue;
       }
 
+      // Pool region mechanic: Fire pools extinguish to steam
+      const aeSx = Math.max(0, Math.min(2, Math.floor(ae.x / 2000)));
+      const aeSy = Math.max(0, Math.min(2, Math.floor(ae.y / 2000)));
+      const aeTheme = (this.levelManager.sectorThemes && this.levelManager.sectorThemes[`${aeSx},${aeSy}`]) || 'dungeon';
+      if (aeTheme === 'pool' && (ae.type === 'fire_pool' || ae.type === 'fireball_burst')) {
+        ae.type = 'steam_cloud';
+        ae.radius *= 1.25;
+        // spawn steam particles
+        for (let p = 0; p < 5; p++) {
+          this.particles.spawn(ae.x + (Math.random() - 0.5) * ae.radius, ae.y + (Math.random() - 0.5) * ae.radius, {
+            vx: (Math.random() - 0.5) * 15,
+            vy: -15 - Math.random() * 15,
+            color: '#f5f6fa',
+            size: Math.random() * 6 + 4,
+            life: 0.5,
+            glow: false
+          });
+        }
+      }
+
       // Ticks damage / status effects every 0.2s
       ae.tickTimer += dt;
       const isTick = ae.tickTimer >= 0.25;
@@ -2534,6 +2802,32 @@ export class Game {
         }
       }
 
+      else if (ae.type === 'ice_trail') {
+        this.enemies.forEach((enemy) => {
+          if (enemy.dead) return;
+          const dist = Math.hypot(enemy.x - ae.x, enemy.y - ae.y);
+          if (dist <= ae.radius) {
+            enemy.applyStatus(SPELL_TYPES.FROST, 1.5);
+          }
+        });
+        
+        const pDist = Math.hypot(this.player.x - ae.x, this.player.y - ae.y);
+        if (pDist <= ae.radius) {
+          this.player.onIceTrail = true;
+        }
+
+        if (Math.random() < 0.1) {
+          this.particles.spawn(ae.x + (Math.random() - 0.5) * ae.radius, ae.y + (Math.random() - 0.5) * ae.radius, {
+            vx: (Math.random() - 0.5) * 8,
+            vy: (Math.random() - 0.5) * 8,
+            color: '#b2fefb',
+            size: Math.random() * 2 + 1,
+            life: 0.35,
+            glow: true
+          });
+        }
+      }
+
       else if (ae.type === 'chrono_slow') {
         // Slow down enemies in zone
         this.enemies.forEach((enemy) => {
@@ -2574,6 +2868,22 @@ export class Game {
         this.enemies[i].update(enemyDt, this.player);
       }
     }
+
+    // Update Companions (unlocked via AbilityTree)
+    if (!this.companions) this.companions = [];
+    if (this.player.unlockedCompanion1 && !this.companions.some(c => c.type === 1)) {
+      this.companions.push(new Companion(this, 1, this.player));
+    }
+    if (this.player.unlockedCompanion2 && !this.companions.some(c => c.type === 2)) {
+      this.companions.push(new Companion(this, 2, this.player));
+    }
+    if (!this.player.unlockedCompanion1 && this.companions.some(c => c.type === 1)) {
+      this.companions = this.companions.filter(c => c.type !== 1);
+    }
+    if (!this.player.unlockedCompanion2 && this.companions.some(c => c.type === 2)) {
+      this.companions = this.companions.filter(c => c.type !== 2);
+    }
+    this.companions.forEach(comp => comp.update(dt));
 
     // Flush dead enemies + process pending spawns in one safe batch
     this.flushDeadEnemies();
@@ -2704,6 +3014,18 @@ export class Game {
     if (idx !== -1) {
       this.levelManager.obstacles.splice(idx, 1);
     }
+    if (this.levelManager.allObstacles) {
+      const idxAll = this.levelManager.allObstacles.indexOf(obs);
+      if (idxAll !== -1) {
+        this.levelManager.allObstacles.splice(idxAll, 1);
+      }
+    }
+    if (this.levelManager.fullExplosiveBarrels) {
+      const idxFull = this.levelManager.fullExplosiveBarrels.indexOf(obs);
+      if (idxFull !== -1) {
+        this.levelManager.fullExplosiveBarrels.splice(idxFull, 1);
+      }
+    }
 
     this.screenShake = 15;
     if (this.audio) this.audio.playExplosion();
@@ -2751,7 +3073,7 @@ export class Game {
     }
     
     // Apply camera shake translation
-    if (this.screenShake > 0) {
+    if (this.screenShake > 0 && this.enableScreenShake) {
       const dx = (Math.random() - 0.5) * this.screenShake;
       const dy = (Math.random() - 0.5) * this.screenShake;
       this.ctx.translate(dx, dy);
@@ -2767,47 +3089,22 @@ export class Game {
       
       this.ctx.save();
       if (ae.type === 'singularity') {
-        // Glowing purple vortex ring
-        this.ctx.strokeStyle = 'rgba(165, 94, 234, 0.45)';
-        this.ctx.lineWidth = 4;
-        this.ctx.shadowBlur = 15;
+        ctx.save();
+        this.ctx.shadowBlur = 10;
         this.ctx.shadowColor = '#a55eea';
-        this.ctx.beginPath();
-        this.ctx.arc(rx, ry, ae.radius, 0, Math.PI * 2);
-        this.ctx.stroke();
-
-        // Singularity core
-        this.ctx.fillStyle = '#06070d';
-        this.ctx.beginPath();
-        this.ctx.arc(rx, ry, 15, 0, Math.PI * 2);
-        this.ctx.fill();
+        this.drawPixelCircle(this.ctx, rx, ry, ae.radius, null, 'rgba(165, 94, 234, 0.5)', 4, 8);
+        ctx.restore();
+        this.drawPixelCircle(this.ctx, rx, ry, 16, '#06070d', null, 0, 8);
       } else if (ae.type === 'steam_cloud') {
-        this.ctx.fillStyle = 'rgba(245, 246, 250, 0.12)';
-        this.ctx.beginPath();
-        this.ctx.arc(rx, ry, ae.radius, 0, Math.PI * 2);
-        this.ctx.fill();
+        this.drawPixelCircle(this.ctx, rx, ry, ae.radius, 'rgba(245, 246, 250, 0.14)', null, 0, 8);
       } else if (ae.type === 'fire_pool') {
-        this.ctx.fillStyle = 'rgba(255, 71, 87, 0.15)';
-        this.ctx.beginPath();
-        this.ctx.arc(rx, ry, ae.radius, 0, Math.PI * 2);
-        this.ctx.fill();
+        this.drawPixelCircle(this.ctx, rx, ry, ae.radius, 'rgba(255, 71, 87, 0.16)', null, 0, 8);
       } else if (ae.type === 'chrono_slow') {
-        this.ctx.fillStyle = 'rgba(255, 159, 67, 0.08)';
-        this.ctx.beginPath();
-        this.ctx.arc(rx, ry, ae.radius, 0, Math.PI * 2);
-        this.ctx.fill();
-        this.ctx.strokeStyle = 'rgba(255, 159, 67, 0.2)';
-        this.ctx.stroke();
+        this.drawPixelCircle(this.ctx, rx, ry, ae.radius, 'rgba(255, 159, 67, 0.08)', 'rgba(255, 159, 67, 0.2)', 2, 8);
       } else if (ae.type === 'frost_slow') {
-        this.ctx.fillStyle = 'rgba(0, 210, 213, 0.08)';
-        this.ctx.beginPath();
-        this.ctx.arc(rx, ry, ae.radius, 0, Math.PI * 2);
-        this.ctx.fill();
-        this.ctx.strokeStyle = 'rgba(0, 210, 213, 0.2)';
-        this.ctx.lineWidth = 1;
-        this.ctx.beginPath();
-        this.ctx.arc(rx, ry, ae.radius, 0, Math.PI * 2);
-        this.ctx.stroke();
+        this.drawPixelCircle(this.ctx, rx, ry, ae.radius, 'rgba(0, 210, 213, 0.08)', 'rgba(0, 210, 213, 0.2)', 2, 8);
+      } else if (ae.type === 'ice_trail') {
+        this.drawPixelCircle(this.ctx, rx, ry, ae.radius, 'rgba(178, 254, 251, 0.45)', 'rgba(72, 219, 251, 0.6)', 2, 8);
       }
       this.ctx.restore();
     });
@@ -2832,6 +3129,11 @@ export class Game {
       if (!enemy.dead) enemy.draw(this.ctx, this.assets);
     });
 
+    // Draw Companions
+    if (this.companions) {
+      this.companions.forEach((comp) => comp.draw(this.ctx, this.assets));
+    }
+
     // Draw spell projectiles
     this.projectiles.forEach((proj) => {
       this.assets.draw(this.ctx, proj.spriteKey, proj.x - this.camera.x, proj.y - this.camera.y, proj.radius * 2);
@@ -2839,6 +3141,11 @@ export class Game {
 
     // Draw graphical particle impacts & damage text
     this.particles.draw(this.ctx, this.camera);
+
+    // Underground Caverns limited light mechanic
+    if (this.levelManager && this.levelManager.theme === 'underground') {
+      this.drawUndergroundDarkness();
+    }
 
     this.ctx.restore();
 
@@ -2851,6 +3158,37 @@ export class Game {
     if (this.state === 'PLAYING') {
       this.drawMinimap();
     }
+  }
+
+  drawUndergroundDarkness() {
+    this.ctx.save();
+    
+    // Center at player coordinates (world space)
+    const px = this.player.x;
+    const py = this.player.y;
+    
+    // Pulsate the lantern light radius slightly
+    const time = Date.now() * 0.003;
+    const pulsate = Math.sin(time) * 4;
+    const lightRadius = 140 + pulsate;
+    
+    // Viewport coordinates in world space
+    const vx = this.camera.x - 200;
+    const vy = this.camera.y - 200;
+    const vw = this.canvas.width + 400;
+    const vh = this.canvas.height + 400;
+    
+    // Create radial gradient overlay
+    const grad = this.ctx.createRadialGradient(px, py, 25, px, py, lightRadius);
+    grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    grad.addColorStop(0.5, 'rgba(5, 5, 12, 0.45)');
+    grad.addColorStop(0.85, 'rgba(5, 5, 12, 0.94)');
+    grad.addColorStop(1, 'rgba(5, 5, 12, 0.99)');
+    
+    this.ctx.fillStyle = grad;
+    this.ctx.fillRect(vx, vy, vw, vh);
+    
+    this.ctx.restore();
   }
 
   drawFloorGrid() {
@@ -3043,40 +3381,37 @@ export class Game {
       }
     }
     
-    // Draw shrines
+    // Draw shrines (blocky squares)
     lvl.shrines.forEach(shrine => {
       const tx = Math.floor(shrine.x / 40);
       const ty = Math.floor(shrine.y / 40);
       if (lvl.exploredGrid[tx][ty]) {
         ctx.fillStyle = '#70a1ff';
-        ctx.beginPath();
-        ctx.arc(tx * scale + scale / 2, ty * scale + scale / 2, Math.max(3, scale * 1.2), 0, Math.PI * 2);
-        ctx.fill();
+        const sz = Math.max(5, Math.round(scale * 1.5));
+        ctx.fillRect(tx * scale + scale / 2 - sz / 2, ty * scale + scale / 2 - sz / 2, sz, sz);
       }
     });
     
-    // Draw chests
+    // Draw chests (blocky squares)
     lvl.chests.forEach(chest => {
       const tx = Math.floor(chest.x / 40);
       const ty = Math.floor(chest.y / 40);
       if (lvl.exploredGrid[tx][ty]) {
         ctx.fillStyle = '#eccc68';
-        ctx.beginPath();
-        ctx.arc(tx * scale + scale / 2, ty * scale + scale / 2, Math.max(3, scale * 1.2), 0, Math.PI * 2);
-        ctx.fill();
+        const sz = Math.max(5, Math.round(scale * 1.5));
+        ctx.fillRect(tx * scale + scale / 2 - sz / 2, ty * scale + scale / 2 - sz / 2, sz, sz);
       }
     });
     
-    // Draw player
+    // Draw player (blocky bordered square)
     const pTx = Math.floor(this.player.x / 40);
     const pTy = Math.floor(this.player.y / 40);
     ctx.fillStyle = '#ffffff';
+    const psz = Math.max(6, Math.round(scale * 1.8));
+    ctx.fillRect(pTx * scale + scale / 2 - psz / 2, pTy * scale + scale / 2 - psz / 2, psz, psz);
     ctx.strokeStyle = '#eccc68';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(pTx * scale + scale / 2, pTy * scale + scale / 2, Math.max(4, scale * 1.5), 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.strokeRect(pTx * scale + scale / 2 - psz / 2, pTy * scale + scale / 2 - psz / 2, psz, psz);
     
     ctx.restore();
   }
@@ -3100,11 +3435,9 @@ export class Game {
       ctx.filter = `hue-rotate(${this.player.hueShift}deg)`;
     }
     
-    // Draw trail shadow
+    // Draw trail shadow (flat blocky rect)
     ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-    ctx.beginPath();
-    ctx.arc(px, py + 16, 12, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillRect(px - 10, py + 14, 20, 3);
 
     // Draw player base sprite (scaled to 48px or 64px)
     this.assets.draw(ctx, 'player', px, py, 48, fIdx, 0);
@@ -3126,10 +3459,7 @@ export class Game {
       ctx.save();
       ctx.shadowBlur = 10;
       ctx.shadowColor = '#a55eea';
-      ctx.fillStyle = 'rgba(165, 94, 234, 0.4)';
-      ctx.beginPath();
-      ctx.arc(w / 2, h / 2, 24, 0, Math.PI * 2);
-      ctx.fill();
+      this.drawPixelCircle(ctx, w / 2, h / 2, 24, 'rgba(165, 94, 234, 0.4)', null, 0, 4);
       ctx.restore();
       
       this.assets.draw(ctx, 'icon_fireball', w / 2, h / 2, 40);
@@ -3139,10 +3469,7 @@ export class Game {
       ctx.save();
       ctx.shadowBlur = 10;
       ctx.shadowColor = '#2ed573';
-      ctx.fillStyle = 'rgba(46, 213, 115, 0.3)';
-      ctx.beginPath();
-      ctx.arc(w / 2, h / 2, 24, 0, Math.PI * 2);
-      ctx.fill();
+      this.drawPixelCircle(ctx, w / 2, h / 2, 24, 'rgba(46, 213, 115, 0.3)', null, 0, 4);
       ctx.restore();
 
       this.assets.draw(ctx, 'enemy_slime', w / 2, h / 2, 32, 0);
@@ -3167,6 +3494,7 @@ export class Game {
     // Reset game entities
     this.projectiles = [];
     this.enemies = [];
+    this.companions = [];
     this.items = [];
     this.areaEffects = [];
     this.score = 0;
@@ -3399,6 +3727,7 @@ export class Game {
     // Clear entities
     this.projectiles = [];
     this.enemies = [];
+    this.companions = [];
     this.items = [];
     this.areaEffects = [];
     
@@ -3422,5 +3751,158 @@ export class Game {
 
     this.setState('MENU');
     this.updateHUD();
+  }
+
+  saveSettings() {
+    const settings = {
+      musicVolume: Math.round(this.audio ? this.audio.musicVolume * 100 : 35),
+      sfxVolume: Math.round(this.audio ? this.audio.sfxVolume * 100 : 55),
+      isMuted: this.audio ? this.audio.isMuted : false,
+      renderDistance: this.renderDistance,
+      enableScreenShake: this.enableScreenShake,
+      enableGlowEffects: this.enableGlowEffects,
+      showDamageNumbers: this.showDamageNumbers,
+      showEnemyHealthbars: this.showEnemyHealthbars,
+      showFloorGrid: this.showFloorGrid,
+      lowParticleMode: this.lowParticleMode,
+      showSpellTrails: this.showSpellTrails
+    };
+    localStorage.setItem('aetherweaver_settings', JSON.stringify(settings));
+  }
+
+  loadSettings() {
+    try {
+      const data = localStorage.getItem('aetherweaver_settings');
+      if (data) {
+        const settings = JSON.parse(data);
+        if (settings.renderDistance !== undefined) this.renderDistance = settings.renderDistance;
+        this.enableScreenShake = settings.enableScreenShake !== undefined ? settings.enableScreenShake : true;
+        this.enableGlowEffects = settings.enableGlowEffects !== undefined ? settings.enableGlowEffects : true;
+        if (this.particles) this.particles.enableGlowEffects = this.enableGlowEffects;
+        this.showDamageNumbers = settings.showDamageNumbers !== undefined ? settings.showDamageNumbers : true;
+        this.showEnemyHealthbars = settings.showEnemyHealthbars !== undefined ? settings.showEnemyHealthbars : true;
+        this.showFloorGrid = settings.showFloorGrid !== undefined ? settings.showFloorGrid : true;
+        this.lowParticleMode = settings.lowParticleMode !== undefined ? settings.lowParticleMode : false;
+        if (this.particles) this.particles.lowParticleMode = this.lowParticleMode;
+        this.showSpellTrails = settings.showSpellTrails !== undefined ? settings.showSpellTrails : true;
+
+        if (this.audio) {
+          if (settings.musicVolume !== undefined) this.audio.setMusicVolume(settings.musicVolume / 100);
+          if (settings.sfxVolume !== undefined) this.audio.setSfxVolume(settings.sfxVolume / 100);
+          if (settings.isMuted !== undefined) {
+            this.audio.isMuted = settings.isMuted;
+            if (this.audio._musicEl) {
+              this.audio._musicEl.muted = this.audio.isMuted;
+              this.audio._musicEl.volume = this.audio.isMuted ? 0 : this.audio.musicVolume;
+            }
+          }
+        }
+      } else {
+        this.renderDistance = 1200;
+        this.enableScreenShake = true;
+        this.enableGlowEffects = true;
+        if (this.particles) this.particles.enableGlowEffects = true;
+        this.showDamageNumbers = true;
+        this.showEnemyHealthbars = true;
+        this.showFloorGrid = true;
+        this.lowParticleMode = false;
+        if (this.particles) this.particles.lowParticleMode = false;
+        this.showSpellTrails = true;
+      }
+    } catch (e) {
+      console.warn("Failed to load settings from localStorage:", e);
+    }
+  }
+
+  drawPixelCircle(ctx, cx, cy, radius, fillStyle, strokeStyle, strokeWidth = 2, blockSize = 8) {
+    const startX = Math.floor((cx - radius) / blockSize) * blockSize;
+    const endX = Math.ceil((cx + radius) / blockSize) * blockSize;
+    const startY = Math.floor((cy - radius) / blockSize) * blockSize;
+    const endY = Math.ceil((cy + radius) / blockSize) * blockSize;
+
+    ctx.save();
+    if (fillStyle) {
+      ctx.fillStyle = fillStyle;
+      for (let x = startX; x <= endX; x += blockSize) {
+        for (let y = startY; y <= endY; y += blockSize) {
+          const dx = x + blockSize / 2 - cx;
+          const dy = y + blockSize / 2 - cy;
+          if (dx * dx + dy * dy <= radius * radius) {
+            ctx.fillRect(x, y, blockSize, blockSize);
+          }
+        }
+      }
+    }
+
+    if (strokeStyle) {
+      ctx.fillStyle = strokeStyle;
+      for (let x = startX; x <= endX; x += blockSize) {
+        for (let y = startY; y <= endY; y += blockSize) {
+          const dx = x + blockSize / 2 - cx;
+          const dy = y + blockSize / 2 - cy;
+          const distSq = dx * dx + dy * dy;
+          const outerR = radius;
+          const innerR = radius - strokeWidth;
+          if (distSq <= outerR * outerR && distSq > innerR * innerR) {
+            ctx.fillRect(x, y, blockSize, blockSize);
+          }
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  checkProgressionOnUnlock() {
+    if (this.abilityTree.isPlayerTree1Completed()) {
+      if (!this.player.unlockedCompanion1) {
+        this.player.unlockedCompanion1 = true;
+        this.uiNotifyCombo("COMPANION UNLOCKED!", "fire");
+        this.particles.spawnText(this.player.x, this.player.y - 35, "PET DRAGON UNLOCKED!", { color: '#ff4757', fontSize: 13, fontPixel: true, life: 3.0 });
+        
+        const tabBtn = document.getElementById('tab-companion1');
+        if (tabBtn) tabBtn.classList.remove('hidden');
+        const tabsContainer = document.getElementById('tree-tabs');
+        if (tabsContainer) tabsContainer.classList.remove('hidden');
+        
+        if (!this.companions.some(c => c.type === 1)) {
+          this.companions.push(new Companion(this, 1, this.player));
+        }
+      }
+    }
+
+    if (this.abilityTree.isCompanion1TreeCompleted()) {
+      if (!this.player.completedCompanion1Tree) {
+        this.player.completedCompanion1Tree = true;
+        
+        if (!this.player.completedCompanion1TreeAwarded) {
+          this.player.completedCompanion1TreeAwarded = true;
+          const opRelic = {
+            id: 'relic_archon_crown',
+            name: 'Archon Crown',
+            desc: '★ LEGENDARY: +100% all Damage, +100 Max HP, +100 Max MP.',
+            sprite: 'relic_ring',
+            stats: { allDamage: 1.0, maxHp: 100, maxMp: 100 }
+          };
+          this.player.runeStorage.push(opRelic);
+          this.uiNotifyCombo("LEGENDARY LOOT AWARDED!", "hybrid");
+          this.particles.spawnText(this.player.x, this.player.y - 45, "LEGENDARY ARCHON CROWN RECEIVED!", { color: '#7d5fff', fontSize: 13, fontPixel: true, life: 4.0 });
+        }
+      }
+    }
+
+    if (this.abilityTree.isPlayerTree2Completed()) {
+      if (!this.player.unlockedCompanion2) {
+        this.player.unlockedCompanion2 = true;
+        this.uiNotifyCombo("COMPANION 2 UNLOCKED!", "time");
+        this.particles.spawnText(this.player.x, this.player.y - 35, "CHRONO GRIFFIN UNLOCKED!", { color: '#ff9f43', fontSize: 13, fontPixel: true, life: 3.0 });
+        
+        const tabBtn = document.getElementById('tab-companion2');
+        if (tabBtn) tabBtn.classList.remove('hidden');
+        
+        if (!this.companions.some(c => c.type === 2)) {
+          this.companions.push(new Companion(this, 2, this.player));
+        }
+      }
+    }
   }
 }

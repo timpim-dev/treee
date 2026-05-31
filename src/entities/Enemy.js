@@ -207,11 +207,13 @@ export class Enemy {
     game.particles.createExplosion(this.x, this.y, hitColor, 8, 80, 2);
 
     // Spawn damage numbers
-    game.particles.spawnText(this.x, this.y - 12, `${finalDamage}`, {
-      color: isCrit ? '#f1c40f' : '#ffffff',
-      fontSize: isCrit ? 13 : 10,
-      weight: isCrit ? 'bold' : 'normal'
-    });
+    if (game.showDamageNumbers) {
+      game.particles.spawnText(this.x, this.y - 12, `${finalDamage}`, {
+        color: isCrit ? '#f1c40f' : '#ffffff',
+        fontSize: isCrit ? 13 : 10,
+        weight: isCrit ? 'bold' : 'normal'
+      });
+    }
 
     // Void Horror reaction (Teleport away when hit)
     if ((this.type === 'horror' || this.type === 'horror_elite') && this.teleportCooldown <= 0) {
@@ -392,6 +394,11 @@ export class Enemy {
     // Chrono Warden is immune to slow downs
     if (this.type === 'warden') {
       speedMult = 1.0;
+    }
+
+    // Pool region speed reduction
+    if (this.game.levelManager && this.game.levelManager.theme === 'pool' && this.type !== 'warden') {
+      speedMult *= 0.65; // 35% slower in water
     }
 
     const currentSpeed = this.speed * speedMult;
@@ -634,18 +641,32 @@ export class Enemy {
     }
 
     // ── Local pillar repulsion (prevents clipping into wall edges) ────────
-    // This is purely reactive/corrective, NOT the main navigation driver.
+    // This is purely reactive/corrective, check via 3x3 grid look-up
     let repX = 0, repY = 0;
-    for (const obs of lvl.obstacles) {
-      if (obs.type !== 'pillar') continue;
-      const odx = this.x - obs.x;
-      const ody = this.y - obs.y;
-      const odist = Math.hypot(odx, ody);
-      const zone = this.radius + obs.radius + 6;
-      if (odist < zone && odist > 0.01) {
-        const strength = (zone - odist) / zone;
-        repX += (odx / odist) * strength;
-        repY += (ody / odist) * strength;
+    const tx = Math.floor(this.x / 40);
+    const ty = Math.floor(this.y / 40);
+    
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const ntx = tx + dx;
+        const nty = ty + dy;
+        if (ntx >= 0 && ntx < lvl.tileWidth && nty >= 0 && nty < lvl.tileHeight) {
+          if (lvl.tileGrid[ntx][nty] === 1) {
+            const obsX = ntx * 40 + 20;
+            const obsY = nty * 40 + 20;
+            const obsRadius = 20;
+            
+            const odx = this.x - obsX;
+            const ody = this.y - obsY;
+            const odist = Math.hypot(odx, ody);
+            const zone = this.radius + obsRadius + 6;
+            if (odist < zone && odist > 0.01) {
+              const strength = (zone - odist) / zone;
+              repX += (odx / odist) * strength;
+              repY += (ody / odist) * strength;
+            }
+          }
+        }
       }
     }
     const repMag = Math.hypot(repX, repY);
@@ -675,8 +696,36 @@ export class Enemy {
 
     // Post-move push-out — two passes to resolve corner cases
     for (let pass = 0; pass < 2; pass++) {
+      // 1. Grid pillars
+      const curTx = Math.floor(this.x / 40);
+      const curTy = Math.floor(this.y / 40);
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const ntx = curTx + dx;
+          const nty = curTy + dy;
+          if (ntx >= 0 && ntx < lvl.tileWidth && nty >= 0 && nty < lvl.tileHeight) {
+            if (lvl.tileGrid[ntx][nty] === 1) {
+              const obsX = ntx * 40 + 20;
+              const obsY = nty * 40 + 20;
+              const obsRadius = 20;
+              
+              const odx = this.x - obsX;
+              const ody = this.y - obsY;
+              const odist = Math.hypot(odx, ody);
+              const minD = this.radius + obsRadius + 1;
+              if (odist < minD && odist > 0.01) {
+                const ang = Math.atan2(ody, odx);
+                this.x = obsX + Math.cos(ang) * minD;
+                this.y = obsY + Math.sin(ang) * minD;
+              }
+            }
+          }
+        }
+      }
+      
+      // 2. Barrels in lvl.obstacles
       for (const obs of lvl.obstacles) {
-        if (obs.type !== 'pillar' && obs.type !== 'explosive_barrel') continue;
+        if (obs.type !== 'explosive_barrel') continue;
         const odx = this.x - obs.x;
         const ody = this.y - obs.y;
         const odist = Math.hypot(odx, ody);
@@ -685,6 +734,72 @@ export class Enemy {
           const ang = Math.atan2(ody, odx);
           this.x = obs.x + Math.cos(ang) * minD;
           this.y = obs.y + Math.sin(ang) * minD;
+        }
+      }
+    }
+
+    // Stuck in wall detection & resolution for enemy
+    const curTx = Math.floor(this.x / 40);
+    const curTy = Math.floor(this.y / 40);
+    let isStuck = false;
+    if (curTx >= 0 && curTx < lvl.tileWidth && curTy >= 0 && curTy < lvl.tileHeight) {
+      if (lvl.tileGrid[curTx][curTy] === 1) {
+        isStuck = true;
+      }
+    }
+
+    if (!isStuck) {
+      // Check if deeply inside a pillar
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const ntx = curTx + dx;
+          const nty = curTy + dy;
+          if (ntx >= 0 && ntx < lvl.tileWidth && nty >= 0 && nty < lvl.tileHeight) {
+            if (lvl.tileGrid[ntx][nty] === 1) {
+              const obsX = ntx * 40 + 20;
+              const obsY = nty * 40 + 20;
+              if (Math.hypot(this.x - obsX, this.y - obsY) < 18) {
+                isStuck = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (isStuck) {
+      // Find nearest empty block
+      let nearestTile = null;
+      let minDistSq = Infinity;
+      const searchRadius = 15;
+
+      for (let dx = -searchRadius; dx <= searchRadius; dx++) {
+        for (let dy = -searchRadius; dy <= searchRadius; dy++) {
+          const nx = curTx + dx;
+          const ny = curTy + dy;
+          if (nx >= 0 && nx < lvl.tileWidth && ny >= 0 && ny < lvl.tileHeight) {
+            if (lvl.tileGrid[nx][ny] === 0 || lvl.tileGrid[nx][ny] === 2 || lvl.tileGrid[nx][ny] === 3) {
+              const tileCenterX = nx * 40 + 20;
+              const tileCenterY = ny * 40 + 20;
+              const distSq = dx * dx + dy * dy;
+              if (distSq < minDistSq) {
+                minDistSq = distSq;
+                nearestTile = { x: tileCenterX, y: tileCenterY };
+              }
+            }
+          }
+        }
+      }
+
+      if (nearestTile) {
+        this.x = nearestTile.x;
+        this.y = nearestTile.y;
+        this._path = [];
+        this._pathTimer = 0;
+        
+        if (this.game.particles) {
+          this.game.particles.createExplosion(this.x, this.y, '#ff4757', 8, 40, 1.5);
         }
       }
     }
@@ -728,11 +843,11 @@ export class Enemy {
   }
 
   draw(ctx, assetManager) {
-    // Shadow
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-    ctx.beginPath();
-    ctx.arc(this.x - this.game.camera.x, this.y - this.game.camera.y + this.radius - 2, this.radius - 2, 0, Math.PI * 2);
-    ctx.fill();
+    const inGrass = this.isInTallGrass();
+
+    // 8-bit block shadow (flat rect)
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+    ctx.fillRect(this.x - this.game.camera.x - (this.radius - 2), this.y - this.game.camera.y + this.radius - 4, (this.radius - 2) * 2, 3);
 
     const isFacingLeft = this.game.player.x < this.x;
     const fIdx = Math.floor(this.frameTimer * 5) % 2; // simple walk animation cycles (frame 0 and 1)
@@ -742,6 +857,9 @@ export class Enemy {
     if (this.type === 'slime_mini') size = 16;
 
     ctx.save();
+    if (inGrass) {
+      ctx.globalAlpha = 0.25; // fade out inside tall grass
+    }
     
     // Apply dynamic color tint filters based on level theme
     const theme = this.getLocalTheme();
@@ -776,7 +894,7 @@ export class Enemy {
     ctx.restore();
 
     // Draw tiny Health Bar over non-boss enemies
-    if (this.hp < this.maxHp && this.type !== 'archon') {
+    if (this.game.showEnemyHealthbars && !inGrass && this.hp < this.maxHp && this.type !== 'archon') {
       const rx = this.x - this.game.camera.x;
       const ry = this.y - this.game.camera.y - this.radius - 8;
       const bw = 24;
@@ -789,5 +907,21 @@ export class Enemy {
       ctx.fillStyle = '#ff4757';
       ctx.fillRect(rx - bw/2, ry, fillW, bh);
     }
+  }
+
+  isInTallGrass() {
+    if (!this.game.levelManager) return false;
+    const tx = Math.floor(this.x / 40);
+    const ty = Math.floor(this.y / 40);
+    if (tx >= 0 && tx < this.game.levelManager.tileWidth && ty >= 0 && ty < this.game.levelManager.tileHeight) {
+      const sx = Math.floor(tx / 50);
+      const sy = Math.floor(ty / 50);
+      const theme = (this.game.levelManager.sectorThemes && this.game.levelManager.sectorThemes[`${sx},${sy}`]) || 'dungeon';
+      if (theme === 'gardens') {
+        const hash = (tx * 17 + ty * 31) % 100;
+        return hash >= 50 && hash < 75;
+      }
+    }
+    return false;
   }
 }

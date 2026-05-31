@@ -143,19 +143,21 @@ export const SpellBook = {
       const dashDist = 120 * (player.modifiers.dashDistance || 1.0);
       
       // Spawn trail particles
-      const particleCount = 10;
-      for (let i = 0; i < particleCount; i++) {
-        const t = i / particleCount;
-        const tx = player.x + Math.cos(angle) * dashDist * t;
-        const ty = player.y + Math.sin(angle) * dashDist * t;
-        game.particles.spawn(tx, ty, {
-          vx: (Math.random() - 0.5) * 20,
-          vy: (Math.random() - 0.5) * 20,
-          color: player.modifiers.lightningDash ? '#fff200' : '#ffa502',
-          size: Math.random() * 3 + 2,
-          life: 0.3,
-          glow: true
-        });
+      if (game.showSpellTrails) {
+        const particleCount = 10;
+        for (let i = 0; i < particleCount; i++) {
+          const t = i / particleCount;
+          const tx = player.x + Math.cos(angle) * dashDist * t;
+          const ty = player.y + Math.sin(angle) * dashDist * t;
+          game.particles.spawn(tx, ty, {
+            vx: (Math.random() - 0.5) * 20,
+            vy: (Math.random() - 0.5) * 20,
+            color: player.modifiers.lightningDash ? '#fff200' : '#ffa502',
+            size: Math.random() * 3 + 2,
+            life: 0.3,
+            glow: true
+          });
+        }
       }
 
       // Check if player has lightning dash upgrade (leaves chain lightning)
@@ -394,6 +396,326 @@ export const SpellBook = {
       game.particles.createExplosion(player.x, player.y, '#ff9f43', 25, 160, 4);
       game.particles.spawnText(player.x, player.y - 35, 'COOLDOWNS RESET!', { color: '#ff9f43', fontSize: 12, fontPixel: true, life: 2.0 });
       game.screenShake = 6;
+    }
+  },
+
+  // --- TIER 14 ACTIVE SPELLS ---
+  solar_beam: {
+    id: 'solar_beam',
+    name: 'Solar Beam',
+    element: SPELL_TYPES.FIRE,
+    cooldown: 4.0,
+    manaCost: 20,
+    damage: 12,
+    description: 'Channels a piercing solar laser beam that burns all enemies in its path.',
+    cast(player, targetAngle, game) {
+      const range = 300;
+      const dx = Math.cos(targetAngle);
+      const dy = Math.sin(targetAngle);
+      for (let dist = 10; dist < range; dist += 15) {
+        const bx = player.x + dx * dist;
+        const by = player.y + dy * dist;
+        game.particles.spawn(bx, by, {
+          vx: (Math.random() - 0.5) * 20,
+          vy: (Math.random() - 0.5) * 20,
+          color: '#ff4757',
+          size: Math.random() * 4 + 3,
+          life: 0.25,
+          glow: true
+        });
+        game.enemies.forEach(enemy => {
+          if (enemy.dead) return;
+          const edist = Math.hypot(enemy.x - bx, enemy.y - by);
+          if (edist <= enemy.radius + 15) {
+            enemy.takeDamage(Math.round(12 * (player.modifiers.fireDamage || 1.0) * (player.modifiers.allDamage || 1.0)), true, game);
+            enemy.applyStatus(SPELL_TYPES.FIRE, 2.0);
+          }
+        });
+      }
+      if (game.audio) game.audio.playFire();
+      game.particles.spawnText(player.x, player.y - 30, 'SOLAR BEAM', { color: '#ff4757', fontSize: 11, fontPixel: true });
+    }
+  },
+
+  glacial_fissure: {
+    id: 'glacial_fissure',
+    name: 'Glacial Fissure',
+    element: SPELL_TYPES.FROST,
+    cooldown: 5.0,
+    manaCost: 25,
+    damage: 40,
+    description: 'Creates a wave of frost spikes along the ground, freezing everything in its path.',
+    cast(player, targetAngle, game) {
+      const dx = Math.cos(targetAngle);
+      const dy = Math.sin(targetAngle);
+      for (let step = 0; step < 8; step++) {
+        setTimeout(() => {
+          if (game.state !== 'PLAYING') return;
+          const dist = step * 40 + 30;
+          const fx = player.x + dx * dist;
+          const fy = player.y + dy * dist;
+          game.particles.createExplosion(fx, fy, '#10ac84', 6, 40, 4);
+          game.spawnAreaEffect(fx, fy, 40, 'frost_slow', 1.5);
+          game.enemies.forEach(enemy => {
+            if (enemy.dead) return;
+            const edist = Math.hypot(enemy.x - fx, enemy.y - fy);
+            if (edist <= enemy.radius + 25) {
+              enemy.takeDamage(Math.round(40 * (player.modifiers.frostDamage || 1.0) * (player.modifiers.allDamage || 1.0)), true, game);
+              enemy.applyStatus(SPELL_TYPES.FROST, 3.0);
+              enemy.applyFreeze(2.0);
+            }
+          });
+        }, step * 80);
+      }
+      if (game.audio) game.audio.playFreeze();
+    }
+  },
+
+  void_beam: {
+    id: 'void_beam',
+    name: 'Void Beam',
+    element: SPELL_TYPES.VOID,
+    cooldown: 4.5,
+    manaCost: 22,
+    damage: 15,
+    description: 'Fires a gravity-inducing laser beam that pulls enemies into its line of fire.',
+    cast(player, targetAngle, game) {
+      const range = 320;
+      const dx = Math.cos(targetAngle);
+      const dy = Math.sin(targetAngle);
+      for (let dist = 10; dist < range; dist += 16) {
+        const bx = player.x + dx * dist;
+        const by = player.y + dy * dist;
+        game.particles.spawn(bx, by, {
+          vx: (Math.random() - 0.5) * 10,
+          vy: (Math.random() - 0.5) * 10,
+          color: '#a55eea',
+          size: Math.random() * 4 + 3,
+          life: 0.3,
+          glow: true
+        });
+        game.enemies.forEach(enemy => {
+          if (enemy.dead) return;
+          const edist = Math.hypot(enemy.x - bx, enemy.y - by);
+          if (edist <= enemy.radius + 40) {
+            const pullAngle = Math.atan2(by - enemy.y, bx - enemy.x);
+            enemy.x += Math.cos(pullAngle) * 4;
+            enemy.y += Math.sin(pullAngle) * 4;
+            if (edist <= enemy.radius + 15) {
+              enemy.takeDamage(Math.round(15 * (player.modifiers.voidDamage || 1.0) * (player.modifiers.allDamage || 1.0)), true, game);
+              enemy.applyStatus(SPELL_TYPES.VOID, 2.0);
+            }
+          }
+        });
+      }
+      if (game.audio) game.audio.playTeleport();
+    }
+  },
+
+  time_bubble: {
+    id: 'time_bubble',
+    name: 'Time Bubble',
+    element: SPELL_TYPES.TIME,
+    cooldown: 8.0,
+    manaCost: 25,
+    description: 'Creates a localized field that slows enemies and enemy projectiles by 90%.',
+    cast(player, targetAngle, game) {
+      const worldMouse = game.getWorldMouse();
+      game.spawnAreaEffect(worldMouse.x, worldMouse.y, 100, 'chrono_slow', 4.0);
+      game.particles.createExplosion(worldMouse.x, worldMouse.y, '#ff9f43', 15, 80, 4);
+      game.particles.spawnText(worldMouse.x, worldMouse.y - 20, 'TIME BUBBLE', { color: '#ff9f43', fontSize: 12, fontPixel: true });
+      if (game.audio) game.audio.playTeleport();
+    }
+  },
+
+  thunderbolt: {
+    id: 'thunderbolt',
+    name: 'Thunderbolt',
+    element: SPELL_TYPES.LIGHTNING,
+    cooldown: 5.0,
+    manaCost: 20,
+    damage: 60,
+    description: 'Strikes the nearest enemy with a massive lightning bolt, zapping adjacent targets.',
+    cast(player, targetAngle, game) {
+      let nearest = null;
+      let minDist = 350;
+      game.enemies.forEach(enemy => {
+        if (enemy.dead || enemy.isInTallGrass()) return;
+        const dist = Math.hypot(enemy.x - player.x, enemy.y - player.y);
+        if (dist < minDist) {
+          minDist = dist;
+          nearest = enemy;
+        }
+      });
+      if (nearest) {
+        game.triggerChainLightning(nearest.x, nearest.y - 300, 60, 4, 180);
+        nearest.takeDamage(Math.round(60 * (player.modifiers.lightningDamage || 1.0) * (player.modifiers.allDamage || 1.0)), true, game);
+        nearest.applyStatus(SPELL_TYPES.LIGHTNING, 3.0);
+      } else {
+        const mouse = game.getWorldMouse();
+        game.triggerChainLightning(mouse.x, mouse.y - 300, 40, 3, 100);
+      }
+      if (game.audio) game.audio.playLightning();
+    }
+  },
+
+  // --- TIER 20 ULTIMATE SPELLS ---
+  volcanic_eruption: {
+    id: 'volcanic_eruption',
+    name: 'Volcanic Eruption',
+    element: SPELL_TYPES.FIRE,
+    cooldown: 18.0,
+    manaCost: 50,
+    description: 'Summons three fire geysers that continuously shoot fireballs in all directions for 4 seconds.',
+    cast(player, targetAngle, game) {
+      const spots = [
+        { dx: -60, dy: -30 },
+        { dx: 60, dy: -30 },
+        { dx: 0, dy: 50 }
+      ];
+      spots.forEach((spot) => {
+        const gx = player.x + spot.dx;
+        const gy = player.y + spot.dy;
+        game.spawnAreaEffect(gx, gy, 45, 'fire_pool', 4.0);
+        game.particles.spawnText(gx, gy - 20, 'GEYSER!', { color: '#ff4757', fontSize: 10, fontPixel: true });
+        
+        let ticks = 0;
+        const interval = setInterval(() => {
+          if (game.state !== 'PLAYING' || ticks >= 8) {
+            clearInterval(interval);
+            return;
+          }
+          ticks++;
+          for (let i = 0; i < 4; i++) {
+            const ang = (i / 4) * Math.PI * 2 + ticks * 0.2;
+            game.projectiles.push({
+              x: gx,
+              y: gy,
+              vx: Math.cos(ang) * 280,
+              vy: Math.sin(ang) * 280,
+              damage: Math.round(20 * (player.modifiers.fireDamage || 1.0) * (player.modifiers.allDamage || 1.0)),
+              radius: 6,
+              element: SPELL_TYPES.FIRE,
+              spriteKey: 'proj_fire',
+              isPlayerOwned: true,
+              life: 1.5,
+              id: 'volcanic_fireball'
+            });
+          }
+          if (game.audio) game.audio.playFire();
+        }, 500);
+      });
+    }
+  },
+
+  absolute_zero: {
+    id: 'absolute_zero',
+    name: 'Absolute Zero',
+    element: SPELL_TYPES.FROST,
+    cooldown: 20.0,
+    manaCost: 60,
+    description: 'Instantly freezes all enemies on the screen and inflicts heavy frost damage over time.',
+    cast(player, targetAngle, game) {
+      game.screenShake = 10;
+      game.enemies.forEach(enemy => {
+        if (enemy.dead) return;
+        enemy.takeDamage(Math.round(50 * (player.modifiers.frostDamage || 1.0) * (player.modifiers.allDamage || 1.0)), true, game);
+        enemy.applyStatus(SPELL_TYPES.FROST, 5.0);
+        enemy.applyFreeze(4.0);
+        game.particles.createExplosion(enemy.x, enemy.y, '#10ac84', 8, 80, 3);
+      });
+      game.particles.spawnText(player.x, player.y - 40, 'ABSOLUTE ZERO!', { color: '#10ac84', fontSize: 16, fontPixel: true });
+      if (game.audio) game.audio.playFreeze();
+    }
+  },
+
+  void_singularity_collapse: {
+    id: 'void_singularity_collapse',
+    name: 'Singularity Collapse',
+    element: SPELL_TYPES.VOID,
+    cooldown: 16.0,
+    manaCost: 55,
+    description: 'Summons a giant gravitational black hole that pulls enemies in, then collapses in a massive void blast.',
+    cast(player, targetAngle, game) {
+      const mouse = game.getWorldMouse();
+      const tx = mouse.x;
+      const ty = mouse.y;
+      game.spawnAreaEffect(tx, ty, 150, 'singularity', 4.0);
+      game.particles.createExplosion(tx, ty, '#a55eea', 30, 150, 5);
+      game.particles.spawnText(tx, ty - 30, 'BLACK HOLE!', { color: '#a55eea', fontSize: 14, fontPixel: true });
+      
+      setTimeout(() => {
+        if (game.state !== 'PLAYING') return;
+        game.enemies.forEach(enemy => {
+          if (enemy.dead) return;
+          const dist = Math.hypot(enemy.x - tx, enemy.y - ty);
+          if (dist <= 160) {
+            enemy.takeDamage(Math.round(120 * (player.modifiers.voidDamage || 1.0) * (player.modifiers.allDamage || 1.0)), true, game);
+            enemy.applyStatus(SPELL_TYPES.VOID, 4.0);
+            const pushAngle = Math.atan2(enemy.y - ty, enemy.x - tx);
+            enemy.applyKnockback(Math.cos(pushAngle) * 300, Math.sin(pushAngle) * 300);
+          }
+        });
+        game.particles.createExplosion(tx, ty, '#a55eea', 40, 250, 8);
+        game.screenShake = 15;
+        if (game.audio) game.audio.playExplosion();
+        game.particles.spawnText(tx, ty - 30, 'COLLAPSE!', { color: '#a55eea', fontSize: 18, fontPixel: true });
+      }, 4000);
+    }
+  },
+
+  temporal_rewind: {
+    id: 'temporal_rewind',
+    name: 'Temporal Rewind',
+    element: SPELL_TYPES.TIME,
+    cooldown: 24.0,
+    manaCost: 30,
+    description: 'Records health, mana, and position. Rewinds them back to their states from 4 seconds ago.',
+    cast(player, targetAngle, game) {
+      if (player.rewindHistory && player.rewindHistory.length > 0) {
+        const oldState = player.rewindHistory[0];
+        game.particles.createExplosion(player.x, player.y, '#ff9f43', 15, 80, 3);
+        
+        player.x = oldState.x;
+        player.y = oldState.y;
+        player.hp = Math.min(player.getMaxHp(), oldState.hp);
+        player.mp = Math.min(player.getMaxMp(), oldState.mp);
+        
+        game.particles.createExplosion(player.x, player.y, '#ff9f43', 20, 100, 4);
+        game.particles.spawnText(player.x, player.y - 30, 'TIME REWOUND!', { color: '#ff9f43', fontSize: 12, fontPixel: true });
+      } else {
+        player.hp = player.getMaxHp();
+        player.mp = player.getMaxMp();
+        game.particles.spawnText(player.x, player.y - 30, 'TIME RESET!', { color: '#ff9f43', fontSize: 12, fontPixel: true });
+      }
+      if (game.audio) game.audio.playTeleport();
+    }
+  },
+
+  storm_deity_wrath: {
+    id: 'storm_deity_wrath',
+    name: 'Storm Wrath',
+    element: SPELL_TYPES.LIGHTNING,
+    cooldown: 18.0,
+    manaCost: 45,
+    description: 'Becomes the Storm Deity. Automatically strikes all enemies on the screen with lightning every 0.4 seconds for 4 seconds.',
+    cast(player, targetAngle, game) {
+      game.particles.spawnText(player.x, player.y - 45, 'STORM DEITY WRATH!', { color: '#f1c40f', fontSize: 15, fontPixel: true });
+      let ticks = 0;
+      const interval = setInterval(() => {
+        if (game.state !== 'PLAYING' || ticks >= 10) {
+          clearInterval(interval);
+          return;
+        }
+        ticks++;
+        game.enemies.forEach(enemy => {
+          if (enemy.dead || enemy.isInTallGrass()) return;
+          game.triggerChainLightning(enemy.x, enemy.y - 250, 30, 2, 100);
+          enemy.takeDamage(Math.round(30 * (player.modifiers.lightningDamage || 1.0) * (player.modifiers.allDamage || 1.0)), true, game);
+          enemy.applyStatus(SPELL_TYPES.LIGHTNING, 2.0);
+        });
+        if (game.audio) game.audio.playLightning();
+      }, 400);
     }
   }
 };

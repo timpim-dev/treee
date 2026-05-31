@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-By9R3b8Q.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-CfaG-ouR.css">
+  <script type="module" crossorigin src="/assets/main-CEof9-2G.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/main-CFEaPZlh.css">
 </head>
 <body>
   <!-- Main Game Canvas Container -->
@@ -164,25 +164,11 @@
             <button id="btn-play-menu" class="btn-menu">PLAY</button>
             <button id="btn-customize-menu" class="btn-menu">CHARACTER CUSTOMIZATION</button>
             <button id="btn-how-to" class="btn-menu">HOW TO PLAY</button>
+            <button class="btn-menu" onclick="window.open('./wiki/', '_blank')">WIKI & ARCHIVES</button>
+            <button id="btn-leaderboard-menu" class="btn-menu">LEADERBOARD</button>
             <button id="btn-credits-menu" class="btn-menu">CREDITS</button>
             <button id="btn-contact-menu" class="btn-menu">CONTACT</button>
-            <button id="btn-menu-mute" class="btn-menu secondary">MUTE AUDIO</button>
-            <div class="volume-controls-box">
-              <div class="volume-slider-group">
-                <div class="volume-header">
-                  <span class="volume-label">MUSIC VOLUME</span>
-                  <span id="lbl-menu-music-val" class="volume-value">35%</span>
-                </div>
-                <input type="range" id="sld-menu-music" min="0" max="100" value="35" class="volume-slider">
-              </div>
-              <div class="volume-slider-group">
-                <div class="volume-header">
-                  <span class="volume-label">SFX VOLUME</span>
-                  <span id="lbl-menu-sfx-val" class="volume-value">55%</span>
-                </div>
-                <input type="range" id="sld-menu-sfx" min="0" max="100" value="55" class="volume-slider">
-              </div>
-            </div>
+            <button id="btn-settings-menu" class="btn-menu">SETTINGS</button>
           </div>
         </div>
       </div>
@@ -190,31 +176,40 @@
 
     <!-- 2. HUGE ABILITY TREE -->
     <div id="panel-ability-tree" class="panel-overlay hidden">
-      <div class="tree-header">
-        <h2>THE AETHER WEB</h2>
-        <div class="tree-stats">
-          <span>Aether Shards: <strong id="tree-shards">0</strong></span>
-          <span>Aether Points (AP): <strong id="tree-ap" class="text-glow">0</strong></span>
-          <span id="tree-rebirth-badge" class="hidden" style="color:#c39aff; font-size:0.8rem;">✦ Rebirth <strong id="tree-rebirth-count">0</strong></span>
+      <div class="tree-content-wrapper">
+        <div class="tree-header">
+          <h2>THE AETHER WEB</h2>
+          <div class="tree-stats">
+            <span>Aether Shards: <strong id="tree-shards">0</strong></span>
+            <span>Aether Points (AP): <strong id="tree-ap" class="text-glow">0</strong></span>
+            <span id="tree-rebirth-badge" class="hidden" style="color:#c39aff; font-size:0.8rem;">✦ Rebirth <strong id="tree-rebirth-count">0</strong></span>
+          </div>
+          <button id="btn-close-tree" class="btn-close">&times;</button>
         </div>
-        <button id="btn-close-tree" class="btn-close">&times;</button>
-      </div>
-      
-      <!-- Canvas for Ability Tree Node network -->
-      <div id="tree-canvas-container">
-        <canvas id="tree-canvas" draggable="false"></canvas>
-        <div class="tree-controls">
-          <button id="btn-tree-zoom-in" class="btn-circle">+</button>
-          <button id="btn-tree-zoom-out" class="btn-circle">-</button>
-          <button id="btn-tree-reset" class="btn-tree-secondary">Reset Zoom</button>
-          <button id="btn-refund-tree" class="btn-tree-secondary danger">Refund All (-10 Shards)</button>
+
+        <!-- Tab Layout for Ability Trees -->
+        <div id="tree-tabs" class="tree-tabs-container hidden">
+          <button class="tree-tab-btn active" data-view="player">PLAYER WEB</button>
+          <button class="tree-tab-btn hidden" data-view="companion1" id="tab-companion1">BABY DRAGON WEB</button>
+          <button class="tree-tab-btn hidden" data-view="companion2" id="tab-companion2">CHRONO GRIFFIN WEB</button>
         </div>
-        <div id="tree-tooltip" class="tree-node-tooltip hidden">
-          <h3 id="node-tooltip-title">Node Title</h3>
-          <div id="node-tooltip-type" class="node-type">Keystone</div>
-          <p id="node-tooltip-desc">Description of the node goes here...</p>
-          <div id="node-tooltip-cost">Cost: 1 AP</div>
-          <div id="node-tooltip-status" class="node-status-locked">Locked</div>
+        
+        <!-- Canvas for Ability Tree Node network -->
+        <div id="tree-canvas-container">
+          <canvas id="tree-canvas" draggable="false"></canvas>
+          <div class="tree-controls">
+            <button id="btn-tree-zoom-in" class="btn-circle">+</button>
+            <button id="btn-tree-zoom-out" class="btn-circle">-</button>
+            <button id="btn-tree-reset" class="btn-tree-secondary">Reset Zoom</button>
+            <button id="btn-refund-tree" class="btn-tree-secondary danger">Refund All (-10 Shards)</button>
+          </div>
+          <div id="tree-tooltip" class="tree-node-tooltip hidden">
+            <h3 id="node-tooltip-title">Node Title</h3>
+            <div id="node-tooltip-type" class="node-type">Keystone</div>
+            <p id="node-tooltip-desc">Description of the node goes here...</p>
+            <div id="node-tooltip-cost">Cost: 1 AP</div>
+            <div id="node-tooltip-status" class="node-status-locked">Locked</div>
+          </div>
         </div>
       </div>
     </div>
@@ -331,24 +326,101 @@
           <button id="btn-resume-game" class="btn-menu">RESUME</button>
           <button id="btn-pause-tree" class="btn-menu">OPEN ABILITY TREE</button>
           <button id="btn-pause-spellmap" class="btn-menu">SPELL LOADOUT</button>
-          <button id="btn-toggle-mute" class="btn-menu secondary">MUTE AUDIO</button>
+          <button class="btn-menu" onclick="window.open('./wiki/', '_blank')">WIKI & ARCHIVES</button>
+          <button id="btn-settings-pause" class="btn-menu">SETTINGS</button>
+          <button id="btn-pause-menu" class="btn-menu secondary">QUIT TO MENU</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- settings. SETTINGS PANEL -->
+    <div id="panel-settings" class="panel-overlay hidden">
+      <div class="menu-content text-center" style="max-width: 450px;">
+        <h1>SETTINGS</h1>
+        <div class="menu-buttons">
+          <button id="btn-settings-mute" class="btn-menu" style="margin-bottom: 20px;">MUTE AUDIO</button>
+          
           <div class="volume-controls-box">
             <div class="volume-slider-group">
               <div class="volume-header">
                 <span class="volume-label">MUSIC VOLUME</span>
-                <span id="lbl-pause-music-val" class="volume-value">35%</span>
+                <span id="lbl-settings-music-val" class="volume-value">35%</span>
               </div>
-              <input type="range" id="sld-pause-music" min="0" max="100" value="35" class="volume-slider">
+              <input type="range" id="sld-settings-music" min="0" max="100" value="35" class="volume-slider">
             </div>
+            
             <div class="volume-slider-group">
               <div class="volume-header">
                 <span class="volume-label">SFX VOLUME</span>
-                <span id="lbl-pause-sfx-val" class="volume-value">55%</span>
+                <span id="lbl-settings-sfx-val" class="volume-value">55%</span>
               </div>
-              <input type="range" id="sld-pause-sfx" min="0" max="100" value="55" class="volume-slider">
+              <input type="range" id="sld-settings-sfx" min="0" max="100" value="55" class="volume-slider">
+            </div>
+            
+            <div class="volume-slider-group" style="margin-top: 6px;">
+              <div class="volume-header">
+                <span class="volume-label">RENDER DISTANCE</span>
+                <span id="lbl-settings-render-val" class="volume-value">1200px</span>
+              </div>
+              <input type="range" id="sld-settings-render" min="600" max="2400" step="200" value="1200" class="volume-slider">
             </div>
           </div>
-          <button id="btn-pause-menu" class="btn-menu secondary">QUIT TO MENU</button>
+
+          <div class="settings-toggles-box">
+            <div class="settings-toggles-grid">
+              <div class="setting-toggle-group">
+                <label class="setting-toggle">
+                  <input type="checkbox" id="chk-settings-shake" checked>
+                  <span class="checkbox-custom"></span>
+                  <span>SCREEN SHAKE</span>
+                </label>
+              </div>
+              <div class="setting-toggle-group">
+                <label class="setting-toggle">
+                  <input type="checkbox" id="chk-settings-glow" checked>
+                  <span class="checkbox-custom"></span>
+                  <span>GLOW EFFECTS</span>
+                </label>
+              </div>
+              <div class="setting-toggle-group">
+                <label class="setting-toggle">
+                  <input type="checkbox" id="chk-settings-damage" checked>
+                  <span class="checkbox-custom"></span>
+                  <span>DAMAGE NUMBERS</span>
+                </label>
+              </div>
+              <div class="setting-toggle-group">
+                <label class="setting-toggle">
+                  <input type="checkbox" id="chk-settings-healthbars" checked>
+                  <span class="checkbox-custom"></span>
+                  <span>ENEMY HP BARS</span>
+                </label>
+              </div>
+              <div class="setting-toggle-group">
+                <label class="setting-toggle">
+                  <input type="checkbox" id="chk-settings-floor" checked>
+                  <span class="checkbox-custom"></span>
+                  <span>FLOOR DETAILS</span>
+                </label>
+              </div>
+              <div class="setting-toggle-group">
+                <label class="setting-toggle">
+                  <input type="checkbox" id="chk-settings-particles">
+                  <span class="checkbox-custom"></span>
+                  <span>LOW PARTICLES</span>
+                </label>
+              </div>
+              <div class="setting-toggle-group" style="grid-column: span 2;">
+                <label class="setting-toggle">
+                  <input type="checkbox" id="chk-settings-trails" checked>
+                  <span class="checkbox-custom"></span>
+                  <span>SHOW SPELL TRAILS</span>
+                </label>
+              </div>
+            </div>
+          </div>
+          
+          <button id="btn-close-settings" class="btn-menu secondary" style="margin-top: 20px;">BACK</button>
         </div>
       </div>
     </div>

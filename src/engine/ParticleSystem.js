@@ -6,12 +6,15 @@ export class ParticleSystem {
   constructor() {
     this.particles = [];
     this.textParticles = [];
+    this.enableGlowEffects = true;
+    this.lowParticleMode = false;
   }
 
   /**
    * Spawns a physical particle
    */
   spawn(x, y, options = {}) {
+    if (this.lowParticleMode && this.particles.length >= 80) return;
     this.particles.push({
       x,
       y,
@@ -54,7 +57,8 @@ export class ParticleSystem {
    * Create an explosion of particles
    */
   createExplosion(x, y, color, count = 15, speed = 120, size = 4) {
-    for (let i = 0; i < count; i++) {
+    const finalCount = this.lowParticleMode ? Math.max(2, Math.floor(count / 3)) : count;
+    for (let i = 0; i < finalCount; i++) {
       const angle = Math.random() * Math.PI * 2;
       const velocity = (0.3 + Math.random() * 0.7) * speed;
       this.spawn(x, y, {
@@ -129,7 +133,7 @@ export class ParticleSystem {
       ctx.globalAlpha = alpha;
       ctx.fillStyle = p.color;
 
-      if (p.glow) {
+      if (p.glow && this.enableGlowEffects) {
         ctx.shadowBlur = 10;
         ctx.shadowColor = p.color;
       } else {
@@ -137,9 +141,7 @@ export class ParticleSystem {
       }
 
       if (p.shape === 'circle') {
-        ctx.beginPath();
-        ctx.arc(rx, ry, p.size, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(Math.round(rx - p.size), Math.round(ry - p.size), Math.round(p.size * 2), Math.round(p.size * 2));
       } else if (p.shape === 'square') {
         ctx.fillRect(rx - p.size, ry - p.size, p.size * 2, p.size * 2);
       } else if (p.shape === 'spark') {

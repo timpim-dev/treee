@@ -204,6 +204,16 @@ export class Player {
       healthBonus:     0,   // +X flat max HP
     };
 
+    // Rewind history buffer & timer
+    this.rewindHistory = [];
+    this.rewindTimer = 0;
+
+    // Companion progression flags
+    this.unlockedCompanion1 = false;
+    this.unlockedCompanion2 = false;
+    this.completedCompanion1Tree = false;
+    this.completedCompanion1TreeAwarded = false;
+
     // Load local save progress if existing
     this.loadGameState();
   }
@@ -249,7 +259,19 @@ export class Player {
       iceNovaFreeze: false,
       stormCallAoe: false,
       shadowBlinkDmg: false,
-      timeWarpHaste: false
+      timeWarpHaste: false,
+      companion1_speed: 0,
+      companion1_damage: 0,
+      companion1_triple_shot: false,
+      companion1_emperor_meteor: false,
+      companion2_speed: 0,
+      companion2_damage: 0,
+      companion2_chain_zap: false,
+      fireManaReduce: 0,
+      frostPierceExtra: 0,
+      voidPullRate: 0,
+      hasteDurationBonus: 0,
+      freezeDurationBonus: 0
     };
 
     // Check unlocked spells tracker
@@ -360,6 +382,17 @@ export class Player {
     this.mp = Math.round(mpRatio * this.getMaxMp());
     
     this.game.updateHUD();
+
+    // Check tree completions and set companion flags
+    if (tree && tree.isPlayerTree1Completed && tree.isPlayerTree1Completed()) {
+      this.unlockedCompanion1 = true;
+    }
+    if (tree && tree.isCompanion1TreeCompleted && tree.isCompanion1TreeCompleted()) {
+      this.completedCompanion1Tree = true;
+    }
+    if (tree && tree.isPlayerTree2Completed && tree.isPlayerTree2Completed()) {
+      this.unlockedCompanion2 = true;
+    }
   }
 
   getMaxHp() {
@@ -383,6 +416,11 @@ export class Player {
       multiplier += 0.5; // +50% speed
     }
 
+    // Slippery Ice Trail boost
+    if (this.onIceTrail) {
+      multiplier += 0.4; // +40% speed boost sliding on ice
+    }
+
     // Check if player is standing in a frost_slow or void singularity zone
     if (this.game && this.game.areaEffects) {
       for (const ae of this.game.areaEffects) {
@@ -394,6 +432,11 @@ export class Player {
           }
         }
       }
+    }
+
+    // Pool water slowdown
+    if (this.game.levelManager && this.game.levelManager.theme === 'pool') {
+      multiplier *= 0.65; // 35% slower in pool water
     }
 
     return this.baseSpeed * multiplier;
@@ -480,11 +523,13 @@ export class Player {
     
     if (this.game.audio) this.game.audio.playHurt();
 
-    this.game.particles.spawnText(this.x, this.y - 20, `-${finalDamage}`, {
-      color: '#ff4757',
-      fontSize: 13,
-      weight: 'bold'
-    });
+    if (this.game.showDamageNumbers) {
+      this.game.particles.spawnText(this.x, this.y - 20, `-${finalDamage}`, {
+        color: '#ff4757',
+        fontSize: 13,
+        weight: 'bold'
+      });
+    }
 
     if (this.hp <= 0) {
       this.hp = 0;
@@ -529,6 +574,18 @@ export class Player {
   }
 
   update(dt) {
+    // Rewind history capture (once every 0.1s)
+    if (!this.rewindHistory) this.rewindHistory = [];
+    this.rewindTimer = (this.rewindTimer || 0) + dt;
+    if (this.rewindTimer >= 0.1) {
+      this.rewindTimer = 0;
+      this.rewindHistory.push({ x: this.x, y: this.y, hp: this.hp, mp: this.mp });
+      if (this.rewindHistory.length > 40) {
+        this.rewindHistory.shift();
+      }
+    }
+
+    this.onIceTrail = false;
     // Regenerate HP and Mana
     const hpReg = (this.modifiers.healthRegen || 0.2) * dt;
     this.hp = Math.min(this.getMaxHp(), this.hp + hpReg);
@@ -658,20 +715,106 @@ export class Player {
     this.x = Math.max(this.radius + 40, Math.min(lvl.width - this.radius - 40, this.x));
     this.y = Math.max(this.radius + 40, Math.min(lvl.height - this.radius - 40, this.y));
 
-    // Handle collision with stone pillar obstacles
-    lvl.obstacles.forEach((obs) => {
-      if (obs.type === 'pillar') {
-        const dx = this.x - obs.x;
-        const dy = this.y - obs.y;
-        const dist = Math.hypot(dx, dy);
-        const minDist = this.radius + obs.radius;
-        if (dist < minDist) {
-          const angle = Math.atan2(dy, dx);
-          this.x = obs.x + Math.cos(angle) * minDist;
-          this.y = obs.y + Math.sin(angle) * minDist;
+    // Handle collision with stone pillar obstacles via 3x3 grid look-up
+    const ptx = Math.floor(this.x / 40);
+    const pty = Math.floor(this.y / 40);
+    
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const ntx = ptx + dx;
+        const nty = pty + dy;
+        if (ntx >= 0 && ntx < lvl.tileWidth && nty >= 0 && nty < lvl.tileHeight) {
+          if (lvl.tileGrid[ntx][nty] === 1) {
+            const obsX = ntx * 40 + 20;
+            const obsY = nty * 40 + 20;
+            const obsRadius = 20;
+            
+            const odx = this.x - obsX;
+            const ody = this.y - obsY;
+            const odist = Math.hypot(odx, ody);
+            const minDist = this.radius + obsRadius;
+            
+            if (odist < minDist && odist > 0.01) {
+              const angle = Math.atan2(ody, odx);
+              this.x = obsX + Math.cos(angle) * minDist;
+              this.y = obsY + Math.sin(angle) * minDist;
+            }
+          }
         }
       }
-    });
+    }
+
+    // Stuck in wall detection & resolution
+    const curTx = Math.floor(this.x / 40);
+    const curTy = Math.floor(this.y / 40);
+    let isStuck = false;
+    if (curTx >= 0 && curTx < lvl.tileWidth && curTy >= 0 && curTy < lvl.tileHeight) {
+      if (lvl.tileGrid[curTx][curTy] === 1) {
+        isStuck = true;
+      }
+    }
+
+    if (!isStuck) {
+      // Check if deeply inside any pillar
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const ntx = curTx + dx;
+          const nty = curTy + dy;
+          if (ntx >= 0 && ntx < lvl.tileWidth && nty >= 0 && nty < lvl.tileHeight) {
+            if (lvl.tileGrid[ntx][nty] === 1) {
+              const obsX = ntx * 40 + 20;
+              const obsY = nty * 40 + 20;
+              if (Math.hypot(this.x - obsX, this.y - obsY) < 18) {
+                isStuck = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (isStuck) {
+      // Find nearest empty block
+      let nearestTile = null;
+      let minDistSq = Infinity;
+      const searchRadius = 15;
+
+      for (let dx = -searchRadius; dx <= searchRadius; dx++) {
+        for (let dy = -searchRadius; dy <= searchRadius; dy++) {
+          const nx = curTx + dx;
+          const ny = curTy + dy;
+          if (nx >= 0 && nx < lvl.tileWidth && ny >= 0 && ny < lvl.tileHeight) {
+            if (lvl.tileGrid[nx][ny] === 0 || lvl.tileGrid[nx][ny] === 2 || lvl.tileGrid[nx][ny] === 3) {
+              const tileCenterX = nx * 40 + 20;
+              const tileCenterY = ny * 40 + 20;
+              const distSq = dx * dx + dy * dy;
+              if (distSq < minDistSq) {
+                minDistSq = distSq;
+                nearestTile = { x: tileCenterX, y: tileCenterY };
+              }
+            }
+          }
+        }
+      }
+
+      if (nearestTile) {
+        this.x = nearestTile.x;
+        this.y = nearestTile.y;
+        this.vx = 0;
+        this.vy = 0;
+        
+        if (this.game.particles) {
+          this.game.particles.createExplosion(this.x, this.y, '#eccc68', 12, 60, 2);
+          this.game.particles.spawnText(this.x, this.y - 30, "UNSTUCK!", {
+            color: '#eccc68',
+            fontSize: 10,
+            fontPixel: true,
+            life: 1.5
+          });
+        }
+      }
+    }
   }
 
   wispShootNearestEnemy(wispIndex = 0, totalWisps = 1) {
@@ -680,7 +823,7 @@ export class Player {
     let minDist = trackRange;
 
     // Each additional wisp targets a different enemy (offset by index in sorted list)
-    const sorted = [...this.game.enemies].filter(e => !e.dead).sort((a, b) =>
+    const sorted = [...this.game.enemies].filter(e => !e.dead && !e.isInTallGrass()).sort((a, b) =>
       Math.hypot(a.x - this.x, a.y - this.y) - Math.hypot(b.x - this.x, b.y - this.y)
     );
     const target = sorted[wispIndex % sorted.length] || null;
@@ -819,7 +962,11 @@ export class Player {
       unlockedDoors: this.game.levelManager?.unlockedDoors ? Array.from(this.game.levelManager.unlockedDoors) : [],
       earnedAchievements: this.earnedAchievements || [],
       frozenEnemiesCount: this.frozenEnemiesCount || 0,
-      dashCastCount: this.dashCastCount || 0
+      dashCastCount: this.dashCastCount || 0,
+      unlockedCompanion1: this.unlockedCompanion1,
+      unlockedCompanion2: this.unlockedCompanion2,
+      completedCompanion1Tree: this.completedCompanion1Tree,
+      completedCompanion1TreeAwarded: this.completedCompanion1TreeAwarded
     };
 
     for (const key in this.game.abilityTree.nodes) {
@@ -856,6 +1003,10 @@ export class Player {
         this.earnedAchievements = progress.earnedAchievements || [];
         this.frozenEnemiesCount = progress.frozenEnemiesCount || 0;
         this.dashCastCount = progress.dashCastCount || 0;
+        this.unlockedCompanion1 = progress.unlockedCompanion1 || false;
+        this.unlockedCompanion2 = progress.unlockedCompanion2 || false;
+        this.completedCompanion1Tree = progress.completedCompanion1Tree || false;
+        this.completedCompanion1TreeAwarded = progress.completedCompanion1TreeAwarded || false;
         if (this.game.levelManager) {
           if (progress.theme) this.game.levelManager.theme = progress.theme;
           if (progress.unlockedSectors) {
@@ -914,11 +1065,9 @@ export class Player {
   }
 
   draw(ctx, assetManager, frameIndex) {
-    // Draw trail shadow
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-    ctx.beginPath();
-    ctx.arc(this.x - this.game.camera.x, this.y - this.game.camera.y + 6, this.radius - 2, 0, Math.PI * 2);
-    ctx.fill();
+    // Draw 8-bit trail shadow (flat blocky rect)
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.32)';
+    ctx.fillRect(this.x - this.game.camera.x - (this.radius - 2), this.y - this.game.camera.y + 5, (this.radius - 2) * 2, 3);
 
     const worldMouse = this.game.getWorldMouse();
     const mx = worldMouse.x;
@@ -942,15 +1091,12 @@ export class Player {
       const cx = this.x - this.game.camera.x;
       const cy = this.y - this.game.camera.y;
 
-      // Orbit ring hint
+      // Orbit ring hint (retro blocky dashed square)
       ctx.save();
       ctx.strokeStyle = 'rgba(255, 226, 0, 0.12)';
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 6]);
-      ctx.beginPath();
-      ctx.arc(cx, cy, ORBIT_R, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.strokeRect(cx - ORBIT_R, cy - ORBIT_R, ORBIT_R * 2, ORBIT_R * 2);
       ctx.restore();
 
       for (let i = 0; i < ORB_COUNT; i++) {
@@ -958,38 +1104,32 @@ export class Player {
         const ox = cx + Math.cos(orbAngle) * ORBIT_R;
         const oy = cy + Math.sin(orbAngle) * ORBIT_R;
 
-        // Glow
+        // Glow (blocky square)
         ctx.save();
-        ctx.shadowBlur = 14;
+        ctx.shadowBlur = 10;
         ctx.shadowColor = '#fff200';
         ctx.fillStyle = '#fff200';
-        ctx.beginPath();
-        ctx.arc(ox, oy, 7, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(ox - 5, oy - 5, 10, 10);
         ctx.restore();
 
-        // Inner bright core
+        // Inner bright core (blocky square)
         ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(ox, oy, 3, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(ox - 2, oy - 2, 4, 4);
       }
     }
 
-    // Draw buffs indicator rings under player
+    // Draw buffs indicator rings under player (drawn as strokeRect)
     if (this.buffs.damage > 0) {
-      ctx.strokeStyle = 'rgba(255, 71, 87, 0.4)';
+      ctx.strokeStyle = 'rgba(255, 71, 87, 0.45)';
       ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(this.x - this.game.camera.x, this.y - this.game.camera.y, this.radius + 3, 0, Math.PI*2);
-      ctx.stroke();
+      const r = this.radius + 3;
+      ctx.strokeRect(this.x - this.game.camera.x - r, this.y - this.game.camera.y - r, r * 2, r * 2);
     }
     if (this.buffs.haste > 0) {
-      ctx.strokeStyle = 'rgba(255, 159, 67, 0.4)';
+      ctx.strokeStyle = 'rgba(255, 159, 67, 0.45)';
       ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(this.x - this.game.camera.x, this.y - this.game.camera.y, this.radius + 5, 0, Math.PI*2);
-      ctx.stroke();
+      const r = this.radius + 5;
+      ctx.strokeRect(this.x - this.game.camera.x - r, this.y - this.game.camera.y - r, r * 2, r * 2);
     }
 
     if (isFacingLeft) {
@@ -1010,10 +1150,9 @@ export class Player {
         const wx = this.x + Math.cos(this.wispAngle + orbitOffset) * wispRadius - this.game.camera.x;
         const wy = this.y + Math.sin(this.wispAngle + orbitOffset) * wispRadius - this.game.camera.y;
         
-        ctx.fillStyle = 'rgba(0,0,0,0.2)';
-        ctx.beginPath();
-        ctx.arc(wx, wy + 4, 3, 0, Math.PI*2);
-        ctx.fill();
+        // Draw 8-bit shadow (flat rect)
+        ctx.fillStyle = 'rgba(0,0,0,0.22)';
+        ctx.fillRect(wx - 3, wy + 3, 6, 2);
 
         assetManager.draw(ctx, 'item_wisp', wx, wy, 12, this.game.frameIndex * 4);
       }

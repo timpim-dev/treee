@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AETHERWEAVER WIKI - Rune Archives</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Press+Start+2P&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-dark: #04050a;
+      --bg-panel: #0a0c16;
+      --border-color: #2c2f48;
+      --border-accent: #7d5fff;
+      --color-text: #dcdde1;
+      --color-text-dim: #7f8c8d;
+      
+      --color-fire: #ff4757;
+      --color-frost: #70a1ff;
+      --color-lightning: #eccc68;
+      --color-void: #a55eea;
+      --color-time: #ff9f43;
+      --color-aether: #7d5fff;
+      
+      --glow-aether: 0 0 10px rgba(125, 95, 255, 0.6);
+      --font-header: 'Press Start 2P', monospace;
+      --font-sub: 'Orbitron', sans-serif;
+      --font-body: 'Outfit', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--color-text);
+      font-family: var(--font-body);
+      line-height: 1.6;
+      font-size: 15px;
+      overflow-x: hidden;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #020306;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border: 2px solid #020306;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--color-aether);
+    }
+
+    header {
+      background: #060812;
+      border-bottom: 4px double var(--border-accent);
+      padding: 20px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+
+    .logo-container {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .logo-main {
+      font-family: var(--font-header);
+      font-size: 20px;
+      color: #fff;
+      text-shadow: var(--glow-aether);
+      letter-spacing: 2px;
+    }
+
+    .logo-sub {
+      font-family: var(--font-sub);
+      font-size: 11px;
+      color: var(--color-aether);
+      font-weight: 700;
+      letter-spacing: 3px;
+    }
+
+    .header-right {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .btn-game {
+      background: var(--color-aether);
+      color: #fff;
+      font-family: var(--font-header);
+      font-size: 10px;
+      padding: 10px 18px;
+      border: 3px double #fff;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s steps(2);
+      image-rendering: pixelated;
+    }
+
+    .btn-game:hover {
+      background: #fff;
+      color: var(--bg-dark);
+      border-color: var(--color-aether);
+      box-shadow: 0 0 12px rgba(255,255,255,0.4);
+    }
+
+    .wiki-container {
+      display: flex;
+      max-width: 1400px;
+      margin: 30px auto;
+      padding: 0 20px;
+      gap: 30px;
+      min-height: calc(100vh - 160px);
+    }
+
+    /* Sidebar Navigation */
+    aside {
+      width: 280px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .wiki-box {
+      background: var(--bg-panel);
+      border: 4px double var(--border-color);
+      padding: 20px;
+      box-shadow: 4px 4px 0 rgba(0,0,0,0.5);
+    }
+
+    .wiki-box-title {
+      font-family: var(--font-sub);
+      font-size: 14px;
+      font-weight: 900;
+      color: #fff;
+      border-bottom: 2px solid var(--border-color);
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .search-box {
+      position: relative;
+    }
+
+    .search-input {
+      width: 100%;
+      background: #020306;
+      border: 2px solid var(--border-color);
+      color: #fff;
+      padding: 10px 12px;
+      font-family: var(--font-sub);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--color-aether);
+      box-shadow: var(--glow-aether);
+    }
+
+    .nav-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .nav-item-btn {
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: 2px solid transparent;
+      color: var(--color-text-dim);
+      padding: 8px 12px;
+      font-family: var(--font-sub);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s steps(2);
+    }
+
+    .nav-item-btn:hover {
+      color: #fff;
+      background: #111424;
+      border-color: var(--border-color);
+    }
+
+    .nav-item-btn.active {
+      color: #fff;
+      background: #181c36;
+      border-color: var(--color-aether);
+      box-shadow: var(--glow-aether);
+    }
+
+    /* Main Content Area */
+    main {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 35px;
+      min-width: 0; /* Prevents flex items from expanding past container */
+    }
+
+    .wiki-section {
+      display: none;
+      animation: section-fade 0.25s steps(4) forwards;
+    }
+
+    .wiki-section.active {
+      display: block;
+    }
+
+    @keyframes section-fade {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    h1.sec-title {
+      font-family: var(--font-header);
+      font-size: 18px;
+      color: #fff;
+      margin-bottom: 20px;
+      text-shadow: var(--glow-aether);
+      border-left: 6px solid var(--color-aether);
+      padding-left: 15px;
+    }
+
+    p.sec-intro {
+      font-size: 16px;
+      color: #a4b0be;
+      margin-bottom: 25px;
+    }
+
+    /* Wiki Cards & Grids */
+    .wiki-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .wiki-card {
+      background: var(--bg-panel);
+      border: 4px double var(--border-color);
+      padding: 22px;
+      box-shadow: 4px 4px 0 rgba(0,0,0,0.5);
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+
+    .wiki-card:hover {
+      border-color: var(--color-aether);
+    }
+
+    .card-element-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-family: var(--font-header);
+      font-size: 8px;
+      padding: 4px 8px;
+      border: 1px solid currentColor;
+      text-transform: uppercase;
+      font-weight: 700;
+      background: rgba(0,0,0,0.4);
+    }
+
+    .wiki-card-title {
+      font-family: var(--font-sub);
+      font-size: 16px;
+      color: #fff;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .wiki-card-subtitle {
+      font-family: var(--font-sub);
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--color-text-dim);
+      margin-top: -6px;
+      margin-bottom: 12px;
+    }
+
+    .wiki-card p {
+      color: #a4b0be;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* Highlights & Colored Text */
+    .text-fire { color: var(--color-fire); text-shadow: 0 0 5px rgba(255, 71, 87, 0.4); }
+    .text-frost { color: var(--color-frost); text-shadow: 0 0 5px rgba(112, 161, 255, 0.4); }
+    .text-lightning { color: var(--color-lightning); text-shadow: 0 0 5px rgba(236, 204, 104, 0.4); }
+    .text-void { color: var(--color-void); text-shadow: 0 0 5px rgba(165, 94, 234, 0.4); }
+    .text-time { color: var(--color-time); text-shadow: 0 0 5px rgba(255, 159, 99, 0.4); }
+    .text-aether { color: var(--color-aether); text-shadow: var(--glow-aether); }
+    .text-glow { color: #fff; text-shadow: 0 0 8px #fff; }
+
+    /* Tables */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      margin-top: 20px;
+      border: 4px double var(--border-color);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--font-sub);
+      font-size: 13px;
+      background: var(--bg-panel);
+    }
+
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    th {
+      background: #060812;
+      color: #fff;
+      font-weight: 900;
+      letter-spacing: 1px;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: #111424;
+    }
+
+    /* Keycaps & Buttons */
+    .keycap {
+      background: #333;
+      color: #fff;
+      border: 2px solid #555;
+      border-bottom: 4px solid #111;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+      font-weight: bold;
+      font-size: 12px;
+      display: inline-block;
+      margin: 0 2px;
+    }
+
+    /* List items in Cards */
+    .wiki-card ul {
+      list-style-position: inside;
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .wiki-card li {
+      font-size: 13.5px;
+      color: #a4b0be;
+    }
+
+    .wiki-card li strong {
+      color: #fff;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 900px) {
+      .wiki-container {
+        flex-direction: column;
+      }
+      aside {
+        width: 100%;
+      }
+      .wiki-grid-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="logo-container">
+      <span class="logo-main">AETHERWEAVER</span>
+      <span class="logo-sub">THE SPELLBOOK ARCHIVES & WIKI</span>
+    </div>
+    <div class="header-right">
+      <a href="../" class="btn-game">BACK TO GAME</a>
+    </div>
+  </header>
+
+  <!-- Wiki Content Area -->
+  <div class="wiki-container">
+    
+    <!-- Sidebar Navigation -->
+    <aside>
+      <!-- Search -->
+      <div class="wiki-box">
+        <h3 class="wiki-box-title">🔍 SEARCH ARCHIVES</h3>
+        <div class="search-box">
+          <input type="text" id="wiki-search" placeholder="Type to search..." class="search-input">
+        </div>
+      </div>
+      
+      <!-- Nav Categories -->
+      <div class="wiki-box">
+        <h3 class="wiki-box-title">📖 CATEGORIES</h3>
+        <ul class="nav-list">
+          <li><button class="nav-item-btn active" data-category="overview">Overview</button></li>
+          <li><button class="nav-item-btn" data-category="controls">Basic Controls</button></li>
+          <li><button class="nav-item-btn" data-category="elements">Magic Branches</button></li>
+          <li><button class="nav-item-btn" data-category="spells">Spell Book</button></li>
+          <li><button class="nav-item-btn" data-category="companions">Companions & Progression</button></li>
+          <li><button class="nav-item-btn" data-category="regions">World Regions</button></li>
+          <li><button class="nav-item-btn" data-category="combos">Elemental Synergies</button></li>
+          <li><button class="nav-item-btn" data-category="satchel">Satchel & Gear</button></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content Panel -->
+    <main>
+      
+      <!-- 1. OVERVIEW -->
+      <section class="wiki-section active" id="sec-overview">
+        <h1 class="sec-title">GAME OVERVIEW</h1>
+        <p class="sec-intro">Welcome to <strong>Aetherweaver: Rune Odyssey</strong>, a premium chiptune-themed roguelike bullet-heaven and dynamic spell-crafting adventure. You play as a Runeweaver manipulating elemental shards to defend against the onslaught of chaotic anomalies.</p>
+        
+        <div class="wiki-grid-2">
+          <div class="wiki-card">
+            <h3 class="wiki-card-title">✨ Spell Weaving & Combos</h3>
+            <p>Combine element statuses on enemies to trigger devastating reaction combos. Freeze wet targets, overload charged nodes, ignite vaporized clouds, or pull singularties into supernovas!</p>
+          </div>
+          <div class="wiki-card">
+            <h3 class="wiki-card-title">⚡ The Aether Web</h3>
+            <p>Level up to gain Aether Points (AP) and map your destiny across a massive 24-Tier progression tree. Progressing unlocks companion companions who possess their own distinct upgrade webs!</p>
+          </div>
+          <div class="wiki-card">
+            <h3 class="wiki-card-title">🌎 Procedural Sectors</h3>
+            <p>Explore a seamless 3x3 layout of distinct environmental zones. Collect Rune Keys to unlock boundary doors, and adapt to regional mechanics like water drag, limited visibility, or tall grass stealth.</p>
+          </div>
+          <div class="wiki-card">
+            <h3 class="wiki-card-title">🎒 Satchel & Equipment</h3>
+            <p>Defeat monsters, locate shrines, and unlock chests to loot rare Runes and Gear items. Equipping gear increases your damage multipliers, max shields, or spell efficiency.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. CONTROLS -->
+      <section class="wiki-section" id="sec-controls">
+        <h1 class="sec-title">BASIC CONTROLS</h1>
+        <p class="sec-intro">Command your Runeweaver using standard desktop key bindings. Use the mouse to target and aim projectives.</p>
+        
+        <div class="wiki-box" style="padding: 0;">
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Action</th>
+                  <th>Key / Control</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Movement</strong></td>
+                  <td><span class="keycap">W</span> <span class="keycap">A</span> <span class="keycap">S</span> <span class="keycap">D</span> or <span class="keycap">▲</span> <span class="keycap">◀</span> <span class="keycap">▼</span> <span class="keycap">▶</span></td>
+                  <td>Move your Runeweaver across the sector.</td>
+                </tr>
+                <tr>
+                  <td><strong>Primary Spell</strong></td>
+                  <td><span class="keycap">Left Click</span> (LMB)</td>
+                  <td>Cast your primary slotted elemental bolt toward the cursor.</td>
+                </tr>
+                <tr>
+                  <td><strong>Secondary Spell</strong></td>
+                  <td><span class="keycap">Right Click</span> (RMB)</td>
+                  <td>Cast your secondary slotted spell (e.g. Novas, shields).</td>
+                </tr>
+                <tr>
+                  <td><strong>Utility / Dash</strong></td>
+                  <td><span class="keycap">Space</span></td>
+                  <td>Cast your mobility spell to dodge projectiles and phase through hazards.</td>
+                </tr>
+                <tr>
+                  <td><strong>Ultimate Spell</strong></td>
+                  <td><span class="keycap">Q</span></td>
+                  <td>Cast your massive high-cooldown ultimate spell.</td>
+                </tr>
+                <tr>
+                  <td><strong>Extra Spell 1</strong></td>
+                  <td><span class="keycap">E</span></td>
+                  <td>Cast active spell slotted in Extra 1 position.</td>
+                </tr>
+                <tr>
+                  <td><strong>Hotbar 6 & 7</strong></td>
+                  <td><span class="keycap">1</span> and <span class="keycap">2</span></td>
+                  <td>Cast spells slotted in Hotbar slots 6 & 7 (unlocked in progression).</td>
+                </tr>
+                <tr>
+                  <td><strong>Aether Web</strong></td>
+                  <td><span class="keycap">⚡ Tree Button</span> or <span class="keycap">Esc</span> (Pause)</td>
+                  <td>Open the active skill progression webs.</td>
+                </tr>
+                <tr>
+                  <td><strong>Dungeon Map</strong></td>
+                  <td><span class="keycap">Tab</span> or <span class="keycap">M</span></td>
+                  <td>Open the 3x3 sector map overview.</td>
+                </tr>
+                <tr>
+                  <td><strong>Inventory</strong></td>
+                  <td><span class="keycap">I</span></td>
+                  <td>Open your Satchel to equip weapons, robes, or runes.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. MAGIC ELEMENTS -->
+      <section class="wiki-section" id="sec-elements">
+        <h1 class="sec-title">MAGIC BRANCHES</h1>
+        <p class="sec-intro">There are five core elemental elements of magic in the Aether Web. Master a single element or combine nodes to craft hybrid builds.</p>
+        
+        <div class="wiki-grid-2">
+          <div class="wiki-card" style="border-color: var(--color-fire)">
+            <span class="card-element-badge text-fire">Fire</span>
+            <h3 class="wiki-card-title text-fire">Pyromancy</h3>
+            <p>High offensive power focusing on burning targets, launching molten meteors, and leaving pools of flame on the ground. Synergizes with Void for explosions or Frost for steam.</p>
+          </div>
+          
+          <div class="wiki-card" style="border-color: var(--color-frost)">
+            <span class="card-element-badge text-frost">Frost</span>
+            <h3 class="wiki-card-title text-frost">Cryomancy</h3>
+            <p>Excellent crowd control focused on slowing targets, freezing anomalies solid, and creating slippery ice paths. Synergizes with Fire for steam and Lightning for superconductor blasts.</p>
+          </div>
+          
+          <div class="wiki-card" style="border-color: var(--color-lightning)">
+            <span class="card-element-badge text-lightning">Lightning</span>
+            <h3 class="wiki-card-title text-lightning">Electromancy</h3>
+            <p>Rapid projectile speed, chaining shock bolts across multiple targets, and maintaining defensive electric spheres that zap anything within melee range.</p>
+          </div>
+          
+          <div class="wiki-card" style="border-color: var(--color-void)">
+            <span class="card-element-badge text-void">Void</span>
+            <h3 class="wiki-card-title text-void">Voidmancy</h3>
+            <p>Unleashes heavy gravitational anomalies. Shoots gravity bolts that warp paths and creates deep black holes that drag all surrounding enemies into their centers.</p>
+          </div>
+
+          <div class="wiki-card" style="border-color: var(--color-time)">
+            <span class="card-element-badge text-time">Time</span>
+            <h3 class="wiki-card-title text-time">Chronomancy</h3>
+            <p>Controls the flow of battle. Grants massive movement velocity, reduces cooldowns, slows local target states, and rewinds your position and health/mana 4 seconds into the past.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. SPELLS -->
+      <section class="wiki-section" id="sec-spells">
+        <h1 class="sec-title">SPELL BOOK</h1>
+        <p class="sec-intro">List of active spells that can be unlocked in the Aether Web and mapped to your action hotbar.</p>
+        
+        <div class="wiki-grid-2">
+          <div class="wiki-card">
+            <span class="card-element-badge text-fire">Active Pyromancy</span>
+            <h3 class="wiki-card-title">Pyromancy Spells</h3>
+            <ul>
+              <li><strong>Fireball</strong> (Primary): Shoots a flaming orb that ignites targets.</li>
+              <li><strong>Fire Nova</strong> (Secondary): Releases a rings of fire pushing enemies back.</li>
+              <li><strong>Fire Blink</strong> (Utility): Teleports forward, leaving a burst of flame.</li>
+              <li><strong>Volcanic Eruption</strong> (Ultimate): Cracks the ground to spawn erupting magma vents.</li>
+              <li><strong>Solar Beam</strong> (Ultimate): Channels a continuous column of fire towards target.</li>
+            </ul>
+          </div>
+          
+          <div class="wiki-card">
+            <span class="card-element-badge text-frost">Active Cryomancy</span>
+            <h3 class="wiki-card-title">Cryomancy Spells</h3>
+            <ul>
+              <li><strong>Ice Spike</strong> (Primary): Fires a freezing shard that slows enemies.</li>
+              <li><strong>Ice Nova</strong> (Secondary): Freezes nearby enemies in a frosty shockwave.</li>
+              <li><strong>Frost Step</strong> (Utility): Dashes forward leaving an icy trail.</li>
+              <li><strong>Glacial Fissure</strong> (Ultimate): Summons freezing pillars that burst into shards.</li>
+              <li><strong>Blizzard</strong> (Ultimate): Summons a massive vortex of sleet and ice.</li>
+            </ul>
+          </div>
+          
+          <div class="wiki-card">
+            <span class="card-element-badge text-lightning">Active Electromancy</span>
+            <h3 class="wiki-card-title">Electromancy Spells</h3>
+            <ul>
+              <li><strong>Spark Bolt</strong> (Primary): Quick bolt that chain-shocks nearby monsters.</li>
+              <li><strong>Volt Shield</strong> (Secondary): Orbiting spark barriers that shock attackers.</li>
+              <li><strong>Volt Dash</strong> (Utility): Dash forward transforming into an electric spark.</li>
+              <li><strong>Lightning Storm</strong> (Ultimate): Summons periodic lightning strikes on enemies.</li>
+            </ul>
+          </div>
+          
+          <div class="wiki-card">
+            <span class="card-element-badge text-void">Active Voidmancy</span>
+            <h3 class="wiki-card-title">Voidmancy Spells</h3>
+            <ul>
+              <li><strong>Gravity Bolt</strong> (Primary): Shoots a heavy bolt that curves slightly towards enemies.</li>
+              <li><strong>Singularity</strong> (Secondary): Creates a vortex drawing anomalies inward.</li>
+              <li><strong>Void Singularity</strong> (Ultimate): Cracks the spatial fabric creating a massive black hole.</li>
+            </ul>
+          </div>
+
+          <div class="wiki-card">
+            <span class="card-element-badge text-time">Active Chronomancy</span>
+            <h3 class="wiki-card-title">Chronomancy Spells</h3>
+            <ul>
+              <li><strong>Chrono Distortion</strong> (Utility): Distorts local coordinates to bypass blockages.</li>
+              <li><strong>Temporal Rewind</strong> (Ultimate): Restores position, health, and mana to their states 4 seconds ago.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. COMPANIONS -->
+      <section class="wiki-section" id="sec-companions">
+        <h1 class="sec-title">COMPANIONS & PROGRESSION</h1>
+        <p class="sec-intro">Unlock magical companions that accompany you in combat, providing auto-attack damage, buffs, and custom skill webs.</p>
+        
+        <div class="wiki-card">
+          <h3 class="wiki-card-title">🐉 Companion 1: Baby Pyro-Dragon</h3>
+          <p style="margin-bottom: 12px;">Unlocked by completing the first **Player Skill Tree (Tiers 1-12)**. Follows you in battle, firing fiery projectiles at nearby targets.</p>
+          <ul>
+            <li><strong>Dragon Tree</strong>: Access a dedicated web (Tiers 1-7 initially).</li>
+            <li><strong>Legendary Loot</strong>: Completing the Baby Dragon tree awards the legendary <strong class="text-lightning">Archon Crown</strong> relic (+100% all Damage, +100 Max HP, +100 Max MP) and expands the dragon's tree to Tiers 8-12.</li>
+            <li><strong>Meteor Emperor Node</strong>: A keystone upgrade that grants your dragon a 20% chance to drop giant burning meteors on enemies upon impact.</li>
+          </ul>
+        </div>
+
+        <div class="wiki-card" style="margin-top: 20px;">
+          <h3 class="wiki-card-title">🦅 Companion 2: Chrono Griffin</h3>
+          <p style="margin-bottom: 12px;">Unlocked by completing the **Expanded Player Skill Tree (Tiers 13-18)**. Fires temporal lightning arcs that slow and chain between targets.</p>
+          <ul>
+            <li><strong>Chrono Griffin Tree</strong>: Unlocks its own dedicated tree.</li>
+            <li><strong>Double Progression</strong>: Unlocking Companion 2 expands the main Player Web to its final, massive **Tiers 19-24**, allowing you to unlock tier-24 ultimate mancies.</li>
+            <li><strong>Temporal Loop Node</strong>: Upgrades attacks to chain-shock targets and delay enemy statuses.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 6. REGIONS -->
+      <section class="wiki-section" id="sec-regions">
+        <h1 class="sec-title">WORLD REGIONS</h1>
+        <p class="sec-intro">Explore a seamless grid of 3x3 sectors, each possessing custom brick textures, monster types, audio loops, and unique mechanics.</p>
+        
+        <div class="wiki-grid-2">
+          <div class="wiki-card">
+            <h3 class="wiki-card-title text-glow">🏰 Dark Dungeon</h3>
+            <p class="wiki-card-subtitle">Default Sector</p>
+            <p>The standard sector with moderate obstacle layouts. Plays chiptune temple synth tracks.</p>
+          </div>
+          
+          <div class="wiki-card" style="border-color: #2ed573;">
+            <h3 class="wiki-card-title" style="color: #2ed573;">🌳 Harmonious Gardens</h3>
+            <p class="wiki-card-subtitle">Gardens Sector</p>
+            <p style="margin-bottom: 8px;">Spawns patches of tall grass and plants. Plays chiptune forest melodies.</p>
+            <ul>
+              <li><strong>Tall Grass Stealth</strong>: Monsters inside grass fade out, hide health bars, and are immune to wisp/blizzard targeting.</li>
+              <li><strong>Ignition</strong>: Fire spells passing through grass set the tiles aflame, spawning temporary fire pools.</li>
+            </ul>
+          </div>
+          
+          <div class="wiki-card" style="border-color: #1e272e;">
+            <h3 class="wiki-card-title" style="color: #57606f;">🪨 Deep Caverns</h3>
+            <p class="wiki-card-subtitle">Underground Sector</p>
+            <p style="margin-bottom: 8px;">Dark rocky environment. Plays deep cave synth ambient loops.</p>
+            <ul>
+              <li><strong>Lantern Glow</strong>: The screen is enveloped in darkness except for a pulsated glowing circle centered on the player.</li>
+            </ul>
+          </div>
+          
+          <div class="wiki-card" style="border-color: var(--color-frost);">
+            <h3 class="wiki-card-title text-frost">🌊 Triton Pools</h3>
+            <p class="wiki-card-subtitle">Water Pools Sector</p>
+            <p style="margin-bottom: 8px;">Flooded water channels. Plays freezing land chiptune tracks.</p>
+            <ul>
+              <li><strong>Water Drag</strong>: Players and enemies suffer a 35% speed penalty.</li>
+              <li><strong>Extinguishment</strong>: Fire spells/pools entering water are vaporized into steam, dealing fire DoT.</li>
+              <li><strong>Ice Trails</strong>: Ice projectiles leave frozen paths. Walking on them boosts player speed by 40% (slippery), while freezing and slowing enemies.</li>
+            </ul>
+          </div>
+
+          <div class="wiki-card" style="border-color: #ff9f43; grid-column: span 2;">
+            <h3 class="wiki-card-title" style="color: #ff9f43;">⚠️ Limitless Backrooms</h3>
+            <p class="wiki-card-subtitle">Glitched Sector (0.5% Transition Chance)</p>
+            <p>A yellow-wallpapered glitched maze populated by erratic monsters like "The Smiler" and "The Entity". Plays desert ambient tracks. Bypasses regular dungeon generation.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7. COMBOS -->
+      <section class="wiki-section" id="sec-combos">
+        <h1 class="sec-title">ELEMENTAL SYNERGIES</h1>
+        <p class="sec-intro">Trigger elemental reaction events by stacking two different statuses on a target, unleashing screen-clearing effects.</p>
+        
+        <div class="wiki-grid-2">
+          <div class="wiki-card" style="border-color: #ff7675;">
+            <h3 class="wiki-card-title" style="color: #ff7675;">💨 Superheated Steam</h3>
+            <p class="wiki-card-subtitle">Fire + Frost</p>
+            <p>Creating steam on a wet or burning target spawns a scalding steam cloud. The cloud deals high fire damage-over-time (DoT) inside its boundary block and expands slightly.</p>
+          </div>
+          
+          <div class="wiki-card" style="border-color: #00dec9;">
+            <h3 class="wiki-card-title" style="color: #00dec9;">⚡ Superconductive Freeze</h3>
+            <p class="wiki-card-subtitle">Lightning + Frost</p>
+            <p>Hitting a frozen or slowed enemy with lightning triggers superconductor discharge. Deals massive instant shock damage and freezes all adjacent enemies in a chain reaction.</p>
+          </div>
+          
+          <div class="wiki-card" style="border-color: #d63031;">
+            <h3 class="wiki-card-title" style="color: #d63031;">💥 Supernova Singularity</h3>
+            <p class="wiki-card-subtitle">Void + Fire</p>
+            <p>Firing a pyromancy spell into a Void black hole singularity triggers a supernova explosion. The black hole collapses instantly and explodes in a massive radius, dealing screen-clearing fire/void damage.</p>
+          </div>
+          
+          <div class="wiki-card" style="border-color: #ff9f43;">
+            <h3 class="wiki-card-title" style="color: #ff9f43;">⏳ Temporal Overload</h3>
+            <p class="wiki-card-subtitle">Time + Lightning</p>
+            <p>Combining Time warp effects with shock charges sparks temporal overload. Instantly grants the player a 30% cooldown reduction and a 50% movement speed boost accompanied by sparkling sparks.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 8. SATCHEL -->
+      <section class="wiki-section" id="sec-satchel">
+        <h1 class="sec-title">SATCHEL & GEAR</h1>
+        <p class="sec-intro">Open your Satchel using <span class="keycap">I</span> to manage your equipment (robes, weapons, active spells, runes, and achievements).</p>
+        
+        <div class="wiki-card">
+          <h3 class="wiki-card-title">🛡️ Equipment Categories</h3>
+          <p style="margin-bottom: 8px;">Equip rare chests and weapons obtained from shrines or dropped from bosses to upgrade your attributes:</p>
+          <ul>
+            <li><strong>Weapons</strong>: Increases spell damage, speeds up projectiles, or adds pierce counters.</li>
+            <li><strong>Helmets & Robes</strong>: Provides shield multipliers, increases max mana, and speeds up mana regeneration rates.</li>
+            <li><strong>Equipped Runes</strong>: Grants passive modifiers (e.g. +10% pyromancy speed, +15% frost freeze chance).</li>
+          </ul>
+        </div>
+        
+        <div class="wiki-card" style="margin-top: 20px;">
+          <h3 class="wiki-card-title">🏆 Achievement Badges</h3>
+          <p style="margin-bottom: 8px;">Earn permanent achievements that serialize alongside your save file. Examples include:</p>
+          <ul>
+            <li><strong>Flora Explorer</strong>: Explore the Harmonious Gardens sector.</li>
+            <li><strong>The Glitched</strong>: Discover the Limitless Backrooms.</li>
+            <li><strong>AP Master</strong>: Spend 10 Aether Points inside the skill tree.</li>
+            <li><strong>Archon Slayer</strong>: Defeat the wave-10 Aether Archon boss anomaly.</li>
+          </ul>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Interactive JavaScript -->
+  <script>
+    // 1. Navigation Tab Switches
+    const navButtons = document.querySelectorAll('.nav-item-btn');
+    const sections = document.querySelectorAll('.wiki-section');
+
+    navButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        // Toggle Nav States
+        navButtons.forEach(b => b.classList.toggle('active', b === btn));
+        
+        // Show Active Section
+        const targetCat = btn.getAttribute('data-category');
+        sections.forEach(sec => {
+          if (sec.id === `sec-${targetCat}`) {
+            sec.classList.add('active');
+          } else {
+            sec.classList.remove('active');
+          }
+        });
+        
+        // Reset Search Input
+        document.getElementById('wiki-search').value = '';
+        filterCards('');
+      });
+    });
+
+    // 2. Search filtering
+    const searchInput = document.getElementById('wiki-search');
+    searchInput.addEventListener('input', (e) => {
+      const term = e.target.value.toLowerCase();
+      filterCards(term);
+    });
+
+    function filterCards(term) {
+      const cards = document.querySelectorAll('.wiki-card, tr');
+      
+      // If search has text, show the sections containing results, or filter globally
+      if (term === '') {
+        // Show cards based on active section
+        cards.forEach(card => {
+          card.style.display = '';
+        });
+        return;
+      }
+      
+      // Force sections containing matches to become visible, or hide individual card anomalies
+      cards.forEach(card => {
+        const text = card.textContent.toLowerCase();
+        if (text.includes(term)) {
+          card.style.display = '';
+          // Ensure parent section is visible
+          const sec = card.closest('.wiki-section');
+          if (sec) sec.classList.add('active');
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+  </script>
+</body>
+</html>

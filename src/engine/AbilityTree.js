@@ -1,6 +1,7 @@
 /**
  * AbilityTree - Interactive Pan & Zoom Runic Web
- * Manages 100+ interconnected nodes that grant passive and active upgrades.
+ * Manages interconnected nodes that grant passive and active upgrades.
+ * Supports Player, Companion 1, and Companion 2 trees.
  */
 import { SPELL_TYPES } from './Spells.js';
 
@@ -23,13 +24,14 @@ export class AbilityTree {
     this.hoveredNode = null;
     this.selectedNode = null;
     
+    this.currentView = 'player'; // 'player', 'companion1', 'companion2'
+    
     this.initTree();
   }
 
   /**
    * Generates the full ability tree.
-   * Each branch is completely self-contained — no cross-branch edges.
-   * Hybrid synergy nodes are accessible only from the root cluster, not from branches.
+   * Includes extended Player Tiers (13-24) and Companion Trees.
    */
   initTree() {
     // ── Root ──────────────────────────────────────────────────────────────
@@ -37,10 +39,11 @@ export class AbilityTree {
       id: 'root', name: 'Aether Core',
       desc: 'The spark of all rune-weaving. +5% XP gain. Unlocks all elemental paths.',
       x: 0, y: 0, cost: 0, unlocked: true, connections: [],
-      stats: { xpGain: 0.05 }, type: 'root', element: 'aether'
+      stats: { xpGain: 0.05 }, type: 'root', element: 'aether',
+      view: 'player', expansion: 0
     };
 
-    // Branch angles (evenly spread, no overlap)
+    // Branch angles
     const branches = [
       { type: SPELL_TYPES.FIRE,      angle: -Math.PI / 2,                       color: '#ff4757', name: 'Pyromancy'   },
       { type: SPELL_TYPES.FROST,     angle: -Math.PI / 2 - (2*Math.PI)/5,       color: '#10ac84', name: 'Cryomancy'   },
@@ -49,17 +52,7 @@ export class AbilityTree {
       { type: SPELL_TYPES.LIGHTNING, angle: -Math.PI / 2 + (2*Math.PI)/5,       color: '#f1c40f', name: 'Electromancy'},
     ];
 
-    // ── Per-branch node data ───────────────────────────────────────────────
-    // Format: array of 12 entries indexed by tier (0=t1 … 11=t12)
-    // Each entry: { name, desc, stats, cost?, type? }
-    // ── Layout rule ────────────────────────────────────────────────────────
-    // t2  = first (basic) spell unlock    — cheap, early reward
-    // t4  = second (upgraded) spell unlock
-    // t6  = major amplifier node (cost 2)
-    // t7  = third (advanced) spell unlock — mid-tree reward
-    // t10 = first keystone               (cost 3)
-    // t12 = second keystone              (cost 3)
-    // remaining tiers = stat nodes
+    // Branch nodes details (Tiers 1 - 24)
     const branchData = {
       [SPELL_TYPES.FIRE]: [
         /* t1  */ { name: 'Ember Touch',       desc: '+10% Fire Damage.',                               stats: { fireDamage: 0.10 } },
@@ -68,12 +61,24 @@ export class AbilityTree {
         /* t4  */ { name: 'Flame Fissure',     desc: 'Unlocks Spell: Flame Wave (LMB upgrade).',        stats: { unlockSpell: 'flame_wave' },            type: 'unlock' },
         /* t5  */ { name: 'Scorching Aura',    desc: '+10% Fire Dmg, +5 Max HP.',                       stats: { fireDamage: 0.10, maxHp: 5 } },
         /* t6  */ { name: 'Pyro Amplifier',    desc: '+20% Fire Dmg, +10% Cast Speed.',                 stats: { fireDamage: 0.20, castSpeed: 0.10 },    type: 'major', cost: 2 },
-        /* t7  */ { name: 'Meteor Strike',     desc: 'Unlocks Spell: Meteor Strike (Q) — delayed AoE impact.', stats: { unlockSpell: 'meteor_strike' }, type: 'unlock', cost: 2 },
+        /* t7  */ { name: 'Meteor Strike',     desc: 'Unlocks Spell: Meteor Strike (Q).',               stats: { unlockSpell: 'meteor_strike' },        type: 'unlock', cost: 2 },
         /* t8  */ { name: 'Ash Shroud',        desc: '+6% Dmg Reduction, +8% Fire Dmg.',                stats: { damageReduction: 0.06, fireDamage: 0.08 } },
         /* t9  */ { name: 'Magma Heart',       desc: '+0.4 HP Regen/s, +12% Fire Dmg.',                 stats: { healthRegen: 0.4, fireDamage: 0.12 } },
         /* t10 */ { name: 'Cinder Rain',       desc: 'Keystone: Fireball explodes on hit, 30% AoE dmg.', stats: { fireballExplode: true },              type: 'keystone', cost: 3 },
         /* t11 */ { name: 'Solar Flare',       desc: '+15% Fire Dmg, +0.3 HP Regen/s.',                 stats: { fireDamage: 0.15, healthRegen: 0.3 } },
         /* t12 */ { name: 'Inferno Ascent',    desc: 'Keystone: +10% all Dmg, +25% Fire Dmg.',          stats: { fireDamage: 0.25, allDamage: 0.10 },    type: 'keystone', cost: 3 },
+        /* t13 */ { name: 'Lava Core',         desc: '+15% Fire Damage.',                               stats: { fireDamage: 0.15 } },
+        /* t14 */ { name: 'Solar Beam',        desc: 'Unlocks Spell: Solar Beam (Active LMB).',          stats: { unlockSpell: 'solar_beam' },            type: 'unlock' },
+        /* t15 */ { name: 'Magma Flow',        desc: '+12% Fire Damage, +8 Max HP.',                    stats: { fireDamage: 0.12, maxHp: 8 } },
+        /* t16 */ { name: 'Conflagration',     desc: '+20% Fire Damage, +5% Crit Chance.',              stats: { fireDamage: 0.20, critChance: 0.05 },   type: 'major', cost: 2 },
+        /* t17 */ { name: 'Volcano Core',      desc: '+15% Fire Damage, +0.5 HP Regen/s.',              stats: { fireDamage: 0.15, healthRegen: 0.5 } },
+        /* t18 */ { name: 'Avatar of Fire',    desc: 'Keystone: Fire spells consume 25% less mana.',     stats: { fireManaReduce: 0.25, fireDamage: 0.20 }, type: 'keystone', cost: 3 },
+        /* t19 */ { name: 'Solar Heat',        desc: '+20% Fire Damage, +10% Cast Speed.',              stats: { fireDamage: 0.20, castSpeed: 0.10 } },
+        /* t20 */ { name: 'Volcanic Wrath',    desc: 'Unlocks Spell: Volcanic Eruption (Active Ult).',   stats: { unlockSpell: 'volcanic_eruption' },     type: 'unlock', cost: 2 },
+        /* t21 */ { name: 'Supernova Touch',   desc: '+25% Fire Damage, +10 Max HP.',                   stats: { fireDamage: 0.25, maxHp: 10 } },
+        /* t22 */ { name: 'Infernal Will',     desc: '+30% Fire Damage, +15 Max Mana.',                 stats: { fireDamage: 0.30, maxMp: 15 },          type: 'major', cost: 2 },
+        /* t23 */ { name: 'Magma Soul',        desc: '+35% Fire Damage, +0.6 HP Regen/s.',              stats: { fireDamage: 0.35, healthRegen: 0.6 } },
+        /* t24 */ { name: 'God of Fire',       desc: 'Keystone: Fire spells deal +50% damage.',         stats: { fireDamage: 0.50 },                    type: 'keystone', cost: 3 },
       ],
       [SPELL_TYPES.FROST]: [
         /* t1  */ { name: 'Frost Veil',        desc: '+10% Frost Damage.',                              stats: { frostDamage: 0.10 } },
@@ -82,12 +87,24 @@ export class AbilityTree {
         /* t4  */ { name: 'Glacial Orb',       desc: 'Unlocks Spell: Blizzard Orb (RMB upgrade).',      stats: { unlockSpell: 'blizzard_orb' },          type: 'unlock' },
         /* t5  */ { name: 'Crystalline Shell', desc: '+8% Dmg Reduction, +5 Max HP.',                   stats: { damageReduction: 0.08, maxHp: 5 } },
         /* t6  */ { name: 'Cryo Amplifier',    desc: '+20% Frost Dmg, +0.5 Mana Regen/s.',              stats: { frostDamage: 0.20, manaRegen: 0.5 },    type: 'major', cost: 2 },
-        /* t7  */ { name: 'Ice Nova',          desc: 'Unlocks Spell: Ice Nova (RMB) — frost ring burst.', stats: { unlockSpell: 'ice_nova' },            type: 'unlock', cost: 2 },
+        /* t7  */ { name: 'Ice Nova',          desc: 'Unlocks Spell: Ice Nova (RMB).',                  stats: { unlockSpell: 'ice_nova' },              type: 'unlock', cost: 2 },
         /* t8  */ { name: 'Deep Freeze',       desc: '+10% Frost Dmg, slow lasts longer.',               stats: { frostDamage: 0.10, spellDuration: 0.15 } },
         /* t9  */ { name: 'Glacial Stride',    desc: '+5% Move Speed, +6% Frost Dmg.',                   stats: { speed: 0.05, frostDamage: 0.06 } },
         /* t10 */ { name: 'Glacial Tomb',      desc: 'Keystone: Frost Spike pierces + freeze on chill.', stats: { frostPierce: true, freezeOnChill: true }, type: 'keystone', cost: 3 },
         /* t11 */ { name: 'Cryo Lattice',      desc: '+15% Frost Dmg, +0.4 Mana Regen/s.',              stats: { frostDamage: 0.15, manaRegen: 0.4 } },
         /* t12 */ { name: 'Absolute Zero',     desc: 'Keystone: Ice Nova fully freezes all hit enemies.', stats: { iceNovaFreeze: true, frostDamage: 0.20 }, type: 'keystone', cost: 3 },
+        /* t13 */ { name: 'Frostbite',         desc: '+15% Frost Damage.',                              stats: { frostDamage: 0.15 } },
+        /* t14 */ { name: 'Glacial Fissure',   desc: 'Unlocks Spell: Glacial Fissure (Active RMB).',    stats: { unlockSpell: 'glacial_fissure' },        type: 'unlock' },
+        /* t15 */ { name: 'Permafrost Shield', desc: '+10% Frost Damage, +2% Dmg Reduction.',           stats: { frostDamage: 0.10, damageReduction: 0.02 } },
+        /* t16 */ { name: 'Teal Citadel',      desc: '+20% Frost Damage, +10 Max HP.',                  stats: { frostDamage: 0.20, maxHp: 10 },          type: 'major', cost: 2 },
+        /* t17 */ { name: 'Crystal Stride',    desc: '+6% Move Speed, +12% Frost Damage.',              stats: { speed: 0.06, frostDamage: 0.12 } },
+        /* t18 */ { name: 'Eternal Frost',     desc: 'Keystone: Frost Spike pierces +2 targets.',       stats: { frostPierceExtra: 2 },                  type: 'keystone', cost: 3 },
+        /* t19 */ { name: 'Absolute Chill',    desc: '+20% Frost Damage, +0.5 Mana Regen/s.',           stats: { frostDamage: 0.20, manaRegen: 0.5 } },
+        /* t20 */ { name: 'Absolute Zero',     desc: 'Unlocks Spell: Absolute Zero (Active Ultimate).', stats: { unlockSpell: 'absolute_zero' },        type: 'unlock', cost: 2 },
+        /* t21 */ { name: 'Glacial Shell',     desc: '+4% Dmg Reduction, +12 Max HP.',                  stats: { damageReduction: 0.04, maxHp: 12 } },
+        /* t22 */ { name: 'Cryo Lattice Max',  desc: '+25% Frost Damage, +20 Max Mana.',                stats: { frostDamage: 0.25, maxMp: 20 },          type: 'major', cost: 2 },
+        /* t23 */ { name: 'Zero Point Energy', desc: '+30% Frost Damage, +0.6 Mana Regen/s.',           stats: { frostDamage: 0.30, manaRegen: 0.6 } },
+        /* t24 */ { name: 'God of Frost',      desc: 'Keystone: Freeze duration +2 seconds.',           stats: { freezeDurationBonus: 2.0, frostDamage: 0.20 }, type: 'keystone', cost: 3 },
       ],
       [SPELL_TYPES.VOID]: [
         /* t1  */ { name: 'Dark Rift',         desc: '+4% Void Dmg, +4% Void AoE.',                     stats: { voidDamage: 0.04, voidArea: 0.04 } },
@@ -96,12 +113,24 @@ export class AbilityTree {
         /* t4  */ { name: 'Null Field',        desc: '+8% Void AoE, +5 Max Mana.',                       stats: { voidArea: 0.08, maxMp: 5 } },
         /* t5  */ { name: 'Entropy Surge',     desc: '+10% Void Dmg, +2% Crit Chance.',                  stats: { voidDamage: 0.10, critChance: 0.02 } },
         /* t6  */ { name: 'Void Amplifier',    desc: '+20% Void Dmg, +8% Void AoE.',                     stats: { voidDamage: 0.20, voidArea: 0.08 },     type: 'major', cost: 2 },
-        /* t7  */ { name: 'Shadow Blink',      desc: 'Unlocks Spell: Shadow Blink (Space) — void teleport.', stats: { unlockSpell: 'shadow_blink' },     type: 'unlock', cost: 2 },
+        /* t7  */ { name: 'Shadow Blink',      desc: 'Unlocks Spell: Shadow Blink (Space).',            stats: { unlockSpell: 'shadow_blink' },          type: 'unlock', cost: 2 },
         /* t8  */ { name: 'Shadow Pulse',      desc: '+8% Void Dmg, +3% Move Speed.',                    stats: { voidDamage: 0.08, speed: 0.03 } },
         /* t9  */ { name: 'Annihilation',      desc: '+12% Void Dmg, +5 Max Mana.',                      stats: { voidDamage: 0.12, maxMp: 5 } },
         /* t10 */ { name: 'Shattered Dimension', desc: 'Keystone: Singularity + Fire projectile = Supernova!', stats: { supernovaEnabled: true },         type: 'keystone', cost: 3 },
         /* t11 */ { name: 'Event Horizon',     desc: '+15% Void Dmg, wider Singularity pull.',            stats: { voidDamage: 0.15, voidArea: 0.15 } },
         /* t12 */ { name: 'Dimension Break',   desc: 'Keystone: Shadow Blink explosion deals double damage.', stats: { shadowBlinkDmg: true, voidDamage: 0.20 }, type: 'keystone', cost: 3 },
+        /* t13 */ { name: 'Singularity Hold',  desc: '+15% Void Damage.',                               stats: { voidDamage: 0.15 } },
+        /* t14 */ { name: 'Void Beam',         desc: 'Unlocks Spell: Void Beam (Active LMB).',          stats: { unlockSpell: 'void_beam' },            type: 'unlock' },
+        /* t15 */ { name: 'Entropic Pull',     desc: '+8% Void AoE, +8 Max Mana.',                      stats: { voidArea: 0.08, maxMp: 8 } },
+        /* t16 */ { name: 'Eldritch Flesh',    desc: '+20% Void Damage, +12 Max HP.',                   stats: { voidDamage: 0.20, maxHp: 12 },          type: 'major', cost: 2 },
+        /* t17 */ { name: 'Event Horizon Max', desc: '+15% Void Damage, +10% Void AoE.',                stats: { voidDamage: 0.15, voidArea: 0.10 } },
+        /* t18 */ { name: 'Collapse Pulse',    desc: 'Keystone: Singularity pull rate +40%.',           stats: { voidPullRate: 0.4 },                    type: 'keystone', cost: 3 },
+        /* t19 */ { name: 'Dimensional Tear',  desc: '+20% Void Damage, +5% Crit Chance.',              stats: { voidDamage: 0.20, critChance: 0.05 } },
+        /* t20 */ { name: 'Nether Collapse',   desc: 'Unlocks Spell: Singularity Collapse (Active Ult).', stats: { unlockSpell: 'void_singularity_collapse' }, type: 'unlock', cost: 2 },
+        /* t21 */ { name: 'Chaos Shield',      desc: '+3% Dmg Reduction, +15 Max HP.',                  stats: { damageReduction: 0.03, maxHp: 15 } },
+        /* t22 */ { name: 'Nether Weaver',     desc: '+25% Void Damage, +25 Max Mana.',                 stats: { voidDamage: 0.25, maxMp: 25 },          type: 'major', cost: 2 },
+        /* t23 */ { name: 'Dark Nebula',       desc: '+30% Void Damage, +15% Void AoE.',                stats: { voidDamage: 0.30, voidArea: 0.15 } },
+        /* t24 */ { name: 'God of Void',       desc: 'Keystone: Spells deal +40% Void Damage.',         stats: { voidDamage: 0.40 },                    type: 'keystone', cost: 3 },
       ],
       [SPELL_TYPES.TIME]: [
         /* t1  */ { name: 'Time Sense',        desc: '+4% Cooldown Reduction.',                          stats: { cooldownReduction: 0.04 } },
@@ -109,13 +138,25 @@ export class AbilityTree {
         /* t3  */ { name: 'Swift Step',        desc: '+3% Move Speed, +4% CDR.',                         stats: { speed: 0.03, cooldownReduction: 0.04 } },
         /* t4  */ { name: 'Haste Weave',       desc: '+5% Move Speed, +5% CDR.',                         stats: { speed: 0.05, cooldownReduction: 0.05 } },
         /* t5  */ { name: 'Slipstream',        desc: '+5% Move Speed, +5 Max Mana.',                     stats: { speed: 0.05, maxMp: 5 } },
-        /* t6  */ { name: 'Epoch Shift',       desc: 'Unlocks Spell: Temporal Shift (Q) — 80% slow.',    stats: { unlockSpell: 'chrono_shift' },          type: 'unlock', cost: 2 },
-        /* t7  */ { name: 'Time Warp',         desc: 'Unlocks Spell: Time Warp (Q upgrade) — resets all cooldowns.', stats: { unlockSpell: 'time_warp' }, type: 'unlock', cost: 2 },
+        /* t6  */ { name: 'Epoch Shift',       desc: 'Unlocks Spell: Temporal Shift (Q).',               stats: { unlockSpell: 'chrono_shift' },          type: 'unlock', cost: 2 },
+        /* t7  */ { name: 'Time Warp',         desc: 'Unlocks Spell: Time Warp (Q upgrade).',            stats: { unlockSpell: 'time_warp' },             type: 'unlock', cost: 2 },
         /* t8  */ { name: 'Phase Walk',        desc: '+8% Move Speed, +6% CDR.',                         stats: { speed: 0.08, cooldownReduction: 0.06 } },
         /* t9  */ { name: 'Time Dilation',     desc: '+6% CDR, +5% Move Speed.',                         stats: { cooldownReduction: 0.06, speed: 0.05 } },
-        /* t10 */ { name: 'Temporal Reflex',   desc: 'Keystone: Dash leaves slowing decoy + 3s speed boost.', stats: { chronoDashSlow: true, dashSpeedBoost: 1.0 }, type: 'keystone', cost: 3 },
+        /* t10 */ { name: 'Temporal Reflex',   desc: 'Keystone: Dash leaves slowing decoy.',             stats: { chronoDashSlow: true },                 type: 'keystone', cost: 3 },
         /* t11 */ { name: 'Chrono Mastery',    desc: '+8% CDR, +5% Move Speed.',                         stats: { cooldownReduction: 0.08, speed: 0.05 } },
         /* t12 */ { name: 'Paradox Engine',    desc: 'Keystone: Time Warp also grants 3s speed boost.',  stats: { timeWarpHaste: true, cooldownReduction: 0.10 }, type: 'keystone', cost: 3 },
+        /* t13 */ { name: 'Temporal Haste',    desc: '+6% Cooldown Reduction.',                         stats: { cooldownReduction: 0.06 } },
+        /* t14 */ { name: 'Time Bubble',       desc: 'Unlocks Spell: Time Bubble (Active Space).',      stats: { unlockSpell: 'time_bubble' },           type: 'unlock' },
+        /* t15 */ { name: 'Swift Chrono',      desc: '+5% Move Speed, +4% CDR.',                        stats: { speed: 0.05, cooldownReduction: 0.04 } },
+        /* t16 */ { name: 'Paradox Loop',      desc: '+15 Max HP, +10 Max Mana.',                       stats: { maxHp: 15, maxMp: 10 },                 type: 'major', cost: 2 },
+        /* t17 */ { name: 'Chronos Ward',      desc: '+6% CDR, +3% Dmg Reduction.',                     stats: { cooldownReduction: 0.06, damageReduction: 0.03 } },
+        /* t18 */ { name: 'Temporal Echo',     desc: 'Keystone: Haste buff duration +2s.',              stats: { hasteDurationBonus: 2.0 },              type: 'keystone', cost: 3 },
+        /* t19 */ { name: 'Future Sight',      desc: '+8% CDR, +5% Move Speed.',                        stats: { cooldownReduction: 0.08, speed: 0.05 } },
+        /* t20 */ { name: 'Temporal Rewind',   desc: 'Unlocks Spell: Temporal Rewind (Active Ultimate).', stats: { unlockSpell: 'temporal_rewind' },        type: 'unlock', cost: 2 },
+        /* t21 */ { name: 'Slipstream Aura',   desc: '+8% Move Speed, +10 Max HP.',                     stats: { speed: 0.08, maxHp: 10 } },
+        /* t22 */ { name: 'Quantum Leap',      desc: '+10% CDR, +15 Max Mana.',                         stats: { cooldownReduction: 0.10, maxMp: 15 },   type: 'major', cost: 2 },
+        /* t23 */ { name: 'Dilation Aura',     desc: '+8% Move Speed, +8% CDR.',                        stats: { speed: 0.08, cooldownReduction: 0.08 } },
+        /* t24 */ { name: 'God of Time',       desc: 'Keystone: Resets all cooldowns on 20% CDR.',      stats: { cooldownReduction: 0.12 },              type: 'keystone', cost: 3 },
       ],
       [SPELL_TYPES.LIGHTNING]: [
         /* t1  */ { name: 'Static Charge',     desc: '+5% Lightning Dmg, +3% Cast Speed.',               stats: { lightningDamage: 0.05, castSpeed: 0.03 } },
@@ -124,17 +165,28 @@ export class AbilityTree {
         /* t4  */ { name: 'Thunderous Barrier', desc: 'Unlocks Spell: Volt Shield (E upgrade).',         stats: { unlockSpell: 'volt_shield' },           type: 'unlock' },
         /* t5  */ { name: 'Conductivity',      desc: '+8% Lightning Dmg, +5 Max Mana.',                  stats: { lightningDamage: 0.08, maxMp: 5 } },
         /* t6  */ { name: 'Bolt Amplifier',    desc: '+20% Lightning Dmg, +8% Cast Speed.',              stats: { lightningDamage: 0.20, castSpeed: 0.08 }, type: 'major', cost: 2 },
-        /* t7  */ { name: 'Storm Call',        desc: 'Unlocks Spell: Storm Call (E upgrade) — 5s lightning storm.', stats: { unlockSpell: 'storm_call' }, type: 'unlock', cost: 2 },
+        /* t7  */ { name: 'Storm Call',        desc: 'Unlocks Spell: Storm Call (E upgrade).',          stats: { unlockSpell: 'storm_call' },            type: 'unlock', cost: 2 },
         /* t8  */ { name: 'Chain Reaction',    desc: '+1 Tesla Bolt chain jump.',                        stats: { teslaJumps: 1, lightningDamage: 0.05 } },
         /* t9  */ { name: 'Surge Capacitor',   desc: '+10% Lightning Dmg, Tesla restores 0.5 mana/hit.', stats: { lightningDamage: 0.10, teslaManaGain: 0.5 } },
         /* t10 */ { name: 'Conductive Surge',  desc: 'Keystone: +3 Tesla chain jumps + 1 mana per hit.', stats: { teslaJumps: 3, teslaManaGain: 1.0 },   type: 'keystone', cost: 3 },
         /* t11 */ { name: 'Thunderhead',       desc: '+12% Lightning Dmg, Storm Call hits +1 enemy.',    stats: { lightningDamage: 0.12, stormCallAoe: true } },
         /* t12 */ { name: 'Overload',          desc: 'Keystone: Dash triggers chain lightning.',         stats: { lightningDash: true, lightningDamage: 0.20 }, type: 'keystone', cost: 3 },
+        /* t13 */ { name: 'Static Charge Up',  desc: '+15% Lightning Damage.',                          stats: { lightningDamage: 0.15 } },
+        /* t14 */ { name: 'Thunderbolt',       desc: 'Unlocks Spell: Thunderbolt (Active E).',          stats: { unlockSpell: 'thunderbolt' },           type: 'unlock' },
+        /* t15 */ { name: 'Volt Surge',        desc: '+8% Cast Speed, +8 Max Mana.',                    stats: { castSpeed: 0.08, maxMp: 8 } },
+        /* t16 */ { name: 'Storm Shield',      desc: '+20% Lightning Damage, +12 Max HP.',              stats: { lightningDamage: 0.20, maxHp: 12 },     type: 'major', cost: 2 },
+        /* t17 */ { name: 'High Voltage',      desc: '+1 Tesla Bolt chain jump, +10% Lightning.',       stats: { teslaJumps: 1, lightningDamage: 0.10 } },
+        /* t18 */ { name: 'Lightning Cascade',  desc: 'Keystone: Tesla zaps chain-jump +1 target.',      stats: { teslaJumps: 1, lightningDamage: 0.15 }, type: 'keystone', cost: 3 },
+        /* t19 */ { name: 'Superconductor',    desc: '+20% Lightning Damage, +8% Cast Speed.',          stats: { lightningDamage: 0.20, castSpeed: 0.08 } },
+        /* t20 */ { name: 'Storm Deity Wrath', desc: 'Unlocks Spell: Storm Wrath (Active Ultimate).',   stats: { unlockSpell: 'storm_deity_wrath' },     type: 'unlock', cost: 2 },
+        /* t21 */ { name: 'Ionic Bond',        desc: '+3% Dmg Reduction, +15 Max HP.',                  stats: { damageReduction: 0.03, maxHp: 15 } },
+        /* t22 */ { name: 'Magnetic Field',    desc: '+25% Lightning Damage, +25 Max Mana.',            stats: { lightningDamage: 0.25, maxMp: 25 },     type: 'major', cost: 2 },
+        /* t23 */ { name: 'Thunderous Echo',   desc: '+30% Lightning Damage, +10% Cast Speed.',         stats: { lightningDamage: 0.30, castSpeed: 0.10 } },
+        /* t24 */ { name: 'God of Lightning',  desc: 'Keystone: Lightning spells deal +40% damage.',    stats: { lightningDamage: 0.40 },                type: 'keystone', cost: 3 }
       ],
     };
 
     // Side-node data per branch and tier
-    // left = defensive/utility, right = mana/offensive
     const sideData = {
       [SPELL_TYPES.FIRE]: {
         left:  (t) => ({ name: 'Flame Ward',    desc: `+${6 + t} Max HP, +1.5% Dmg Reduction.`, stats: { maxHp: 6 + t, damageReduction: 0.015 } }),
@@ -158,8 +210,8 @@ export class AbilityTree {
       },
     };
 
-    // ── Build each branch ─────────────────────────────────────────────────
-    const TIERS = 12;
+    // ── Build each branch (24 Tiers) ──────────────────────────────────────
+    const TIERS = 24;
     const TIER_STEP = 88;
     const TIER_OFFSET = 45;
 
@@ -172,11 +224,12 @@ export class AbilityTree {
 
       for (let tier = 1; tier <= TIERS; tier++) {
         const distance = tier * TIER_STEP + TIER_OFFSET;
-        // Gentle serpentine so nodes don't all pile on the same line
         const curAngle = bAngle + Math.sin(tier * 0.7) * 0.08;
 
         const td = data[tier - 1];
+        if (!td) continue;
         const mainId = `${bType}_t${tier}_m`;
+        const expGroup = tier <= 12 ? 0 : (tier <= 18 ? 1 : 2);
 
         this.nodes[mainId] = {
           id: mainId,
@@ -189,7 +242,9 @@ export class AbilityTree {
           connections: [prevId],
           stats: td.stats,
           type: td.type ?? 'normal',
-          element: bType
+          element: bType,
+          view: 'player',
+          expansion: expGroup
         };
         this.nodes[prevId].connections.push(mainId);
 
@@ -205,7 +260,9 @@ export class AbilityTree {
           y: Math.round(Math.sin(leftAngle) * (distance + 28)),
           cost: 1, unlocked: false,
           connections: [mainId],
-          stats: ld.stats, type: 'normal', element: bType
+          stats: ld.stats, type: 'normal', element: bType,
+          view: 'player',
+          expansion: expGroup
         };
         this.nodes[mainId].connections.push(leftId);
 
@@ -221,20 +278,20 @@ export class AbilityTree {
           y: Math.round(Math.sin(rightAngle) * (distance + 28)),
           cost: 1, unlocked: false,
           connections: [mainId],
-          stats: rd.stats, type: 'normal', element: bType
+          stats: rd.stats, type: 'normal', element: bType,
+          view: 'player',
+          expansion: expGroup
         };
         this.nodes[mainId].connections.push(rightId);
 
         prevId = mainId;
       }
 
-      // Gate: connect first tier node to root
       this.nodes['root'].connections.push(`${bType}_t1_m`);
     });
 
     // ── Wisp Companion Sub-tree (aether branch, pointing straight down) ───
-    // All 6 wisp nodes hang off each other — completely isolated from elemental branches
-    const wispAngle = Math.PI / 2; // straight down
+    const wispAngle = Math.PI / 2;
     const wispNodes = [
       { id: 'wisp_t1', name: 'Void Wisp',       desc: 'Summons an orbital wisp that shoots tracking sparks at enemies (8 dmg).',     stats: { unlockWisp: true },        type: 'unlock',   cost: 2, dist: 100 },
       { id: 'wisp_t2', name: 'Wisp Sharpening', desc: 'Wisp deals +8 bonus damage per shot.',                                         stats: { wispDamage: 1 },           type: 'normal',   cost: 1, dist: 175 },
@@ -245,7 +302,6 @@ export class AbilityTree {
       { id: 'wisp_t7', name: 'Wisp Swarm',      desc: 'Keystone: Wisps fire at 3x speed and deal +16 bonus damage total.',           stats: { wispSpeed: 2, wispDamage: 2 }, type: 'keystone', cost: 3, dist: 555 },
     ];
 
-    // Place along the down-angle with a tiny serpentine
     wispNodes.forEach((wn, i) => {
       const ang = wispAngle + Math.sin(i * 0.8) * 0.06;
       const x = Math.round(Math.cos(ang) * wn.dist);
@@ -255,45 +311,19 @@ export class AbilityTree {
         id: wn.id, name: wn.name, desc: wn.desc,
         x, y, cost: wn.cost, unlocked: false,
         connections: [parent],
-        stats: wn.stats, type: wn.type, element: 'aether'
+        stats: wn.stats, type: wn.type, element: 'aether',
+        view: 'player', expansion: 0
       };
       this.nodes[parent].connections.push(wn.id);
     });
 
-    // ── Aether Mastery nodes (root cluster, accessible from root only) ────
-    // These replace the old cross-branch hybrid nodes.
-    // They sit in gaps between branches but connect ONLY to the root ring.
+    // ── Aether Mastery nodes (root cluster) ────
     const aetherMastery = [
-      {
-        id: 'aether_regen',   name: 'Aether Regen',
-        desc: '+0.5 HP Regen/s, +0.5 Mana Regen/s.',
-        x: -85, y: -50,
-        stats: { healthRegen: 0.5, manaRegen: 0.5 }, type: 'normal', cost: 1
-      },
-      {
-        id: 'aether_vitality', name: 'Aether Vitality',
-        desc: '+20 Max HP, +10 Max Mana.',
-        x: 85, y: -50,
-        stats: { maxHp: 20, maxMp: 10 }, type: 'normal', cost: 1
-      },
-      {
-        id: 'aether_focus',   name: 'Aether Focus',
-        desc: '+5% CDR, +5% Cast Speed.',
-        x: 0, y: -100,
-        stats: { cooldownReduction: 0.05, castSpeed: 0.05 }, type: 'normal', cost: 1
-      },
-      {
-        id: 'aether_power',   name: 'Aether Power',
-        desc: '+8% all Spell Damage.',
-        x: -95, y: 25,
-        stats: { allDamage: 0.08 }, type: 'major', cost: 2
-      },
-      {
-        id: 'aether_fortune', name: 'Aether Fortune',
-        desc: '+15% XP gain, +5% Shard drops.',
-        x: 95, y: 25,
-        stats: { xpGain: 0.15 }, type: 'normal', cost: 1
-      },
+      { id: 'aether_regen',   name: 'Aether Regen',     desc: '+0.5 HP Regen/s, +0.5 Mana Regen/s.', x: -85, y: -50,  stats: { healthRegen: 0.5, manaRegen: 0.5 }, type: 'normal', cost: 1 },
+      { id: 'aether_vitality', name: 'Aether Vitality',  desc: '+20 Max HP, +10 Max Mana.',           x: 85,  y: -50,  stats: { maxHp: 20, maxMp: 10 },             type: 'normal', cost: 1 },
+      { id: 'aether_focus',   name: 'Aether Focus',     desc: '+5% CDR, +5% Cast Speed.',            x: 0,   y: -100, stats: { cooldownReduction: 0.05, castSpeed: 0.05 }, type: 'normal', cost: 1 },
+      { id: 'aether_power',   name: 'Aether Power',     desc: '+8% all Spell Damage.',               x: -95, y: 25,   stats: { allDamage: 0.08 },                  type: 'major',  cost: 2 },
+      { id: 'aether_fortune', name: 'Aether Fortune',   desc: '+15% XP gain, +5% Shard drops.',       x: 95,  y: 25,   stats: { xpGain: 0.15 },                     type: 'normal', cost: 1 },
     ];
 
     aetherMastery.forEach(am => {
@@ -301,19 +331,89 @@ export class AbilityTree {
         id: am.id, name: am.name, desc: am.desc,
         x: am.x, y: am.y, cost: am.cost, unlocked: false,
         connections: ['root'],
-        stats: am.stats, type: am.type, element: 'aether'
+        stats: am.stats, type: am.type, element: 'aether',
+        view: 'player', expansion: 0
       };
       this.nodes['root'].connections.push(am.id);
+    });
+
+    // ── COMPANION 1 TREE (Baby Pyro-Dragon, view: companion1) ──
+    this.nodes['comp1_root'] = {
+      id: 'comp1_root', name: 'Baby Dragon Core',
+      desc: 'Baby Dragon companion. Attacks nearest enemy with fireballs. Unlocks its skill tree.',
+      x: 0, y: 0, cost: 0, unlocked: true, connections: [],
+      stats: {}, type: 'root', element: 'fire', view: 'companion1', expansion: 0
+    };
+
+    const comp1Data = [
+      /* t1  */ { id: 'comp1_t1', name: 'Dragon Bond',      desc: '+10% Companion Attack Speed.',                        stats: { companion1_speed: 0.10 },               x: -70,  y: -50,  cost: 1, conn: ['comp1_root'],       expansion: 0 },
+      /* t2  */ { id: 'comp1_t2', name: 'Flame Breath',     desc: '+15 Companion Fire Damage.',                           stats: { companion1_damage: 15 },                x: 70,   y: -50,  cost: 1, conn: ['comp1_root'],       expansion: 0 },
+      /* t3  */ { id: 'comp1_t3', name: 'Dragon Scales',    desc: 'Player gains +5% Damage Reduction.',                  stats: { damageReduction: 0.05 },                x: -140, y: -80,  cost: 1, conn: ['comp1_t1'],         expansion: 0 },
+      /* t4  */ { id: 'comp1_t4', name: 'Volcanic Rage',    desc: '+20 Companion Fire Damage.',                           stats: { companion1_damage: 20 },                x: 140,  y: -80,  cost: 1, conn: ['comp1_t2'],         expansion: 0 },
+      /* t5  */ { id: 'comp1_t5', name: 'Cinder Wings',     desc: '+15% Companion Attack Speed, player +5% Move Speed.', stats: { companion1_speed: 0.15, speed: 0.05 },      x: -90,  y: -130, cost: 2, conn: ['comp1_t1'],         expansion: 0 },
+      /* t6  */ { id: 'comp1_t6', name: 'Volcanic Fury',    desc: 'Player gains +20% Fire Damage.',                      stats: { fireDamage: 0.20 },                     x: 90,   y: -130, cost: 2, conn: ['comp1_t2'],         expansion: 0 },
+      /* t7  */ { id: 'comp1_t7', name: 'Infernal Lord',    desc: 'Keystone: Companion shoots 3 fireballs in a spread.',  stats: { companion1_triple_shot: true },         x: 0,    y: -170, cost: 3, conn: ['comp1_t5', 'comp1_t6'], type: 'keystone', expansion: 0 },
+      
+      /* t8  */ { id: 'comp1_t8', name: 'Golden Scales',    desc: 'Player gains +5% Damage Reduction.',                  stats: { damageReduction: 0.05 },                x: -60,  y: -230, cost: 2, conn: ['comp1_t7'],         expansion: 1 },
+      /* t9  */ { id: 'comp1_t9', name: 'Blazing Tail',     desc: '+25 Companion Damage, +10% Companion Attack Speed.',   stats: { companion1_damage: 25, companion1_speed: 0.10 }, x: 60,  y: -230, cost: 2, conn: ['comp1_t7'],    expansion: 1 },
+      /* t10 */ { id: 'comp1_t10',name: 'Solar Glow',       desc: 'Player gains +25% Fire Damage, +15 Max HP.',          stats: { fireDamage: 0.25, maxHp: 15 },          x: -120, y: -280, cost: 2, conn: ['comp1_t8'],         expansion: 1 },
+      /* t11 */ { id: 'comp1_t11',name: 'Draconic Majesty', desc: 'Player gains +15% all Spell Damage.',                 stats: { allDamage: 0.15 },                      x: 120,  y: -280, cost: 2, conn: ['comp1_t9'],         expansion: 1 },
+      /* t12 */ { id: 'comp1_t12',name: 'Dragon Emperor',   desc: 'Keystone: Companion zaps have 20% chance to summon meteors.', stats: { companion1_emperor_meteor: true },   x: 0,    y: -340, cost: 3, conn: ['comp1_t10', 'comp1_t11'], type: 'keystone', expansion: 1 },
+    ];
+
+    comp1Data.forEach(n => {
+      this.nodes[n.id] = {
+        id: n.id, name: n.name, desc: n.desc,
+        x: n.x, y: n.y, cost: n.cost, unlocked: false,
+        connections: [...n.conn],
+        stats: n.stats, type: n.type || 'normal', element: 'fire',
+        view: 'companion1', expansion: n.expansion
+      };
+      n.conn.forEach(parentId => {
+        if (this.nodes[parentId]) this.nodes[parentId].connections.push(n.id);
+      });
+    });
+
+    // ── COMPANION 2 TREE (Chrono Griffin, view: companion2) ──
+    this.nodes['comp2_root'] = {
+      id: 'comp2_root', name: 'Chrono Griffin Core',
+      desc: 'Chrono Griffin companion. Attacks nearest enemy with time-warp zaps. Unlocks its skill tree.',
+      x: 0, y: 0, cost: 0, unlocked: true, connections: [],
+      stats: {}, type: 'root', element: 'time', view: 'companion2', expansion: 0
+    };
+
+    const comp2Data = [
+      /* t1  */ { id: 'comp2_t1', name: 'Time Warp Wing',   desc: '+10% Companion Attack Speed.',                        stats: { companion2_speed: 0.10 },               x: -70,  y: -50,  cost: 1, conn: ['comp2_root'],       expansion: 0 },
+      /* t2  */ { id: 'comp2_t2', name: 'Temporal Beak',    desc: '+15 Companion Time Damage.',                           stats: { companion2_damage: 15 },                x: 70,   y: -50,  cost: 1, conn: ['comp2_root'],       expansion: 0 },
+      /* t3  */ { id: 'comp2_t3', name: 'Griffin Haste',    desc: 'Player gains +5% Move Speed, +5% Cooldown Reduction.',stats: { speed: 0.05, cooldownReduction: 0.05 },  x: -140, y: -80,  cost: 1, conn: ['comp2_t1'],         expansion: 0 },
+      /* t4  */ { id: 'comp2_t4', name: 'Chrono Feathers',  desc: '+20 Companion Time Damage.',                           stats: { companion2_damage: 20 },                x: 140,  y: -80,  cost: 1, conn: ['comp2_t2'],         expansion: 0 },
+      /* t5  */ { id: 'comp2_t5', name: 'Future Vision',    desc: '+15% Companion Attack Speed, player +5% CDR.',        stats: { companion2_speed: 0.15, cooldownReduction: 0.05 }, x: -90, y: -130, cost: 2, conn: ['comp2_t3'],       expansion: 0 },
+      /* t6  */ { id: 'comp2_t6', name: 'Chrono Synergy',   desc: 'Player gains +20% Time Damage, +20 Max Mana.',        stats: { timeDamage: 0.20, maxMp: 20 },          x: 90,   y: -130, cost: 2, conn: ['comp2_t4'],         expansion: 0 },
+      /* t7  */ { id: 'comp2_t7', name: 'Chrono Lord',      desc: 'Keystone: Companion zaps chain-strike up to 3 targets.', stats: { companion2_chain_zap: true },             x: 0,    y: -170, cost: 3, conn: ['comp2_t5', 'comp2_t6'], type: 'keystone', expansion: 0 }
+    ];
+
+    comp2Data.forEach(n => {
+      this.nodes[n.id] = {
+        id: n.id, name: n.name, desc: n.desc,
+        x: n.x, y: n.y, cost: n.cost, unlocked: false,
+        connections: [...n.conn],
+        stats: n.stats, type: n.type || 'normal', element: 'time',
+        view: 'companion2', expansion: n.expansion
+      };
+      n.conn.forEach(parentId => {
+        if (this.nodes[parentId]) this.nodes[parentId].connections.push(n.id);
+      });
     });
   }
 
   /**
-   * Reset all nodes to locked state (except root) and return AP
+   * Reset all nodes to locked state (except roots) and return AP
    */
   refundAll() {
     let refundedPoints = 0;
+    const roots = new Set(['root', 'comp1_root', 'comp2_root']);
     for (const key in this.nodes) {
-      if (key !== 'root' && this.nodes[key].unlocked) {
+      if (!roots.has(key) && this.nodes[key].unlocked) {
         refundedPoints += this.nodes[key].cost;
         this.nodes[key].unlocked = false;
       }
@@ -322,15 +422,66 @@ export class AbilityTree {
   }
 
   /**
+   * Checks if Player Tree 1 is completed (unlocked Pyromancy, Cryomancy, etc. Tiers 1-12 main-line nodes + root)
+   */
+  isPlayerTree1Completed() {
+    const elements = ['fire', 'frost', 'void', 'time', 'lightning'];
+    if (!this.nodes['root'] || !this.nodes['root'].unlocked) return false;
+    for (const el of elements) {
+      for (let tier = 1; tier <= 12; tier++) {
+        const id = `${el}_t${tier}_m`;
+        if (!this.nodes[id] || !this.nodes[id].unlocked) return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Checks if Player Tree 2 is completed (unlocked Pyromancy, Cryomancy, etc. Tiers 13-18 main-line nodes)
+   */
+  isPlayerTree2Completed() {
+    if (!this.isPlayerTree1Completed()) return false;
+    const elements = ['fire', 'frost', 'void', 'time', 'lightning'];
+    for (const el of elements) {
+      for (let tier = 13; tier <= 18; tier++) {
+        const id = `${el}_t${tier}_m`;
+        if (!this.nodes[id] || !this.nodes[id].unlocked) return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Checks if Companion 1's Tree is completed (Tiers 1-7 nodes unlocked)
+   */
+  isCompanion1TreeCompleted() {
+    if (!this.nodes['comp1_root'] || !this.nodes['comp1_root'].unlocked) return false;
+    for (let tier = 1; tier <= 7; tier++) {
+      const id = `comp1_t${tier}`;
+      if (!this.nodes[id] || !this.nodes[id].unlocked) return false;
+    }
+    return true;
+  }
+
+  /**
    * Check if a node is unlockable (connected to an unlocked node and player has AP)
    */
   isUnlockable(node) {
     if (node.unlocked) return false;
     
-    // Must be connected to an unlocked node
+    // Check progression locks
+    if (node.view === 'player') {
+      if (node.expansion === 1 && !this.game.player.unlockedCompanion1) return false;
+      if (node.expansion === 2 && !this.game.player.unlockedCompanion2) return false;
+    } else if (node.view === 'companion1') {
+      if (node.expansion === 1 && !this.game.player.completedCompanion1Tree) return false;
+    }
+
+    // Must be connected to an unlocked node in the SAME view
     let connectedToUnlocked = false;
     for (const connId of node.connections) {
-      if (this.nodes[connId] && this.nodes[connId].unlocked) {
+      const parentNode = this.nodes[connId];
+      if (parentNode && parentNode.unlocked && parentNode.view === node.view) {
         connectedToUnlocked = true;
         break;
       }
@@ -363,16 +514,20 @@ export class AbilityTree {
       
       if (this.game.audio) this.game.audio.playUnlock();
 
-      // Check AP Master achievement
+      // Trigger achievement
       let spent = 0;
+      const roots = new Set(['root', 'comp1_root', 'comp2_root']);
       for (const key in this.nodes) {
-        if (this.nodes[key].unlocked && key !== 'root') {
+        if (this.nodes[key].unlocked && !roots.has(key)) {
           spent += this.nodes[key].cost;
         }
       }
       if (spent >= 10) {
         this.game.unlockAchievement('ap_master');
       }
+
+      // Check immediate progression events on unlock
+      this.game.checkProgressionOnUnlock();
 
       this.game.player.saveGameState();
       return true;
@@ -383,7 +538,6 @@ export class AbilityTree {
 
   /**
    * Visual renderer of the ability tree
-   * Redesigned for clarity: straight lines, larger nodes, readable labels, clean color coding
    */
   draw(canvas, ctx) {
     // Background
@@ -408,9 +562,9 @@ export class AbilityTree {
     for (let gx = Math.floor(startX / gridSize) * gridSize; gx < endX; gx += gridSize) {
       for (let gy = Math.floor(startY / gridSize) * gridSize; gy < endY; gy += gridSize) {
         ctx.beginPath();
-        ctx.arc(gx, gy, 1.2, 0, Math.PI * 2);
+        // 8-bit grid dot (draw square pixel instead of arc)
         ctx.fillStyle = 'rgba(120, 90, 220, 0.12)';
-        ctx.fill();
+        ctx.fillRect(gx - 1, gy - 1, 2, 2);
       }
     }
 
@@ -424,41 +578,60 @@ export class AbilityTree {
       'aether': '#dfe6e9'
     };
 
-    // How many main tiers per branch (must match TIERS in initTree)
-    const TIERS = 12;
-
-    // --- Branch spine glow underlays (drawn first, behind everything) ---
-    for (const bType in elementColor) {
-      if (bType === 'hybrid' || bType === 'aether') continue;
-      const col = elementColor[bType];
-      ctx.save();
-      ctx.strokeStyle = col + '18';
-      ctx.lineWidth = 28;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      for (let tier = 1; tier <= TIERS; tier++) {
-        const mainNode = this.nodes[`${bType}_t${tier}_m`];
-        if (mainNode) ctx.lineTo(mainNode.x, mainNode.y);
-      }
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // --- Connection lines (straight, clean, each edge drawn once) ---
-    const drawnEdges = new Set();
+    // Filter visible nodes based on progression and active tab
+    const visibleNodes = {};
     for (const key in this.nodes) {
       const node = this.nodes[key];
+      if (node.view !== this.currentView) continue;
+      
+      // Check progression lock
+      if (node.view === 'player') {
+        if (node.expansion === 1 && !this.game.player.unlockedCompanion1) continue;
+        if (node.expansion === 2 && !this.game.player.unlockedCompanion2) continue;
+      } else if (node.view === 'companion1') {
+        if (node.expansion === 1 && !this.game.player.completedCompanion1Tree) continue;
+      }
+      visibleNodes[key] = node;
+    }
+
+    // Determine current active player TIERS (max 24)
+    let maxActiveTier = 12;
+    if (this.game.player.unlockedCompanion2) maxActiveTier = 24;
+    else if (this.game.player.unlockedCompanion1) maxActiveTier = 18;
+
+    // --- Branch spine glow underlays (drawn first, behind everything, only in Player Tree) ---
+    if (this.currentView === 'player') {
+      for (const bType in elementColor) {
+        if (bType === 'hybrid' || bType === 'aether') continue;
+        const col = elementColor[bType];
+        ctx.save();
+        ctx.strokeStyle = col + '18';
+        ctx.lineWidth = 28;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        for (let tier = 1; tier <= maxActiveTier; tier++) {
+          const mainNode = visibleNodes[`${bType}_t${tier}_m`];
+          if (mainNode) ctx.lineTo(mainNode.x, mainNode.y);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // --- Connection lines (straight, clean) ---
+    const drawnEdges = new Set();
+    for (const key in visibleNodes) {
+      const node = visibleNodes[key];
       for (const connId of node.connections) {
+        if (!visibleNodes[connId]) continue;
+
         const edgeKey = [key, connId].sort().join('|');
         if (drawnEdges.has(edgeKey)) continue;
         drawnEdges.add(edgeKey);
 
-        const connNode = this.nodes[connId];
-        if (!connNode) continue;
-
-        // Use the non-root end's element color so root→branch edges get the branch color
+        const connNode = visibleNodes[connId];
         const edgeElement = node.element === 'aether' ? connNode.element : node.element;
         const col = elementColor[edgeElement] || '#4a4d6a';
 
@@ -487,50 +660,49 @@ export class AbilityTree {
       }
     }
 
-    // --- Nodes ---
-    for (const key in this.nodes) {
-      const node = this.nodes[key];
+    // --- Draw Nodes ---
+    for (const key in visibleNodes) {
+      const node = visibleNodes[key];
       this._drawNode(ctx, node, elementColor);
     }
 
-    // --- Branch header labels (just outside tier 10) ---
-    const branchHeaders = [
-      { type: SPELL_TYPES.FIRE,      label: 'PYROMANCY',    angle: -Math.PI / 2 },
-      { type: SPELL_TYPES.FROST,     label: 'CRYOMANCY',    angle: -Math.PI / 2 - (2 * Math.PI) / 5 },
-      { type: SPELL_TYPES.VOID,      label: 'VOIDWEAVING',  angle: Math.PI / 2 + (2 * Math.PI) / 10 },
-      { type: SPELL_TYPES.TIME,      label: 'CHRONOMANCY',  angle: Math.PI / 2 - (2 * Math.PI) / 10 },
-      { type: SPELL_TYPES.LIGHTNING, label: 'ELECTROMANCY', angle: -Math.PI / 2 + (2 * Math.PI) / 5 },
-    ];
+    // --- Branch header labels (drawn at the current outer tier limits, player view only) ---
+    if (this.currentView === 'player') {
+      const branchHeaders = [
+        { type: SPELL_TYPES.FIRE,      label: 'PYROMANCY',    angle: -Math.PI / 2 },
+        { type: SPELL_TYPES.FROST,     label: 'CRYOMANCY',    angle: -Math.PI / 2 - (2 * Math.PI) / 5 },
+        { type: SPELL_TYPES.VOID,      label: 'VOIDWEAVING',  angle: Math.PI / 2 + (2 * Math.PI) / 10 },
+        { type: SPELL_TYPES.TIME,      label: 'CHRONOMANCY',  angle: Math.PI / 2 - (2 * Math.PI) / 10 },
+        { type: SPELL_TYPES.LIGHTNING, label: 'ELECTROMANCY', angle: -Math.PI / 2 + (2 * Math.PI) / 5 },
+      ];
 
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    branchHeaders.forEach((header) => {
-      // TIERS=12, TIER_STEP=88, TIER_OFFSET=45 → last node at 12*88+45=1101, header at +60
-      const hDist = TIERS * 88 + 45 + 60;
-      const hx = Math.round(Math.cos(header.angle) * hDist);
-      const hy = Math.round(Math.sin(header.angle) * hDist);
-      const col = elementColor[header.type] || '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      branchHeaders.forEach((header) => {
+        const hDist = maxActiveTier * 88 + 45 + 60;
+        const hx = Math.round(Math.cos(header.angle) * hDist);
+        const hy = Math.round(Math.sin(header.angle) * hDist);
+        const col = elementColor[header.type] || '#ffffff';
 
-      ctx.font = 'bold 11px "Courier New", Courier, monospace';
-      const tw = ctx.measureText(header.label).width;
-      const pad = 7;
+        ctx.font = 'bold 11px "Courier New", Courier, monospace';
+        const tw = ctx.measureText(header.label).width;
+        const pad = 7;
 
-      // Pill background
-      ctx.fillStyle = '#0e1020';
-      ctx.beginPath();
-      ctx.roundRect(hx - tw / 2 - pad, hy - 9, tw + pad * 2, 18, 4);
-      ctx.fill();
+        ctx.fillStyle = '#0e1020';
+        ctx.beginPath();
+        ctx.roundRect(hx - tw / 2 - pad, hy - 9, tw + pad * 2, 18, 4);
+        ctx.fill();
 
-      // Coloured border
-      ctx.strokeStyle = col;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.roundRect(hx - tw / 2 - pad, hy - 9, tw + pad * 2, 18, 4);
-      ctx.stroke();
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(hx - tw / 2 - pad, hy - 9, tw + pad * 2, 18, 4);
+        ctx.stroke();
 
-      ctx.fillStyle = col;
-      ctx.fillText(header.label, hx, hy);
-    });
+        ctx.fillStyle = col;
+        ctx.fillText(header.label, hx, hy);
+      });
+    }
 
     ctx.restore();
   }
@@ -563,9 +735,9 @@ export class AbilityTree {
       ctx.shadowColor = '#7d5fff';
     }
 
-    // Node circle body
+    // Node body (draw retro blocky octagons or squares instead of circles)
     ctx.beginPath();
-    ctx.arc(nx, ny, r, 0, Math.PI * 2);
+    ctx.rect(nx - r, ny - r, r * 2, r * 2);
 
     if (isUnlocked) {
       ctx.fillStyle   = col;
@@ -588,16 +760,14 @@ export class AbilityTree {
     // Inner icon / glyph
     ctx.save();
     ctx.beginPath();
-    ctx.arc(nx, ny, r, 0, Math.PI * 2);
+    ctx.rect(nx - r, ny - r, r * 2, r * 2);
     ctx.clip();
 
     if (node.type === 'root') {
-      // Star-like cross
       ctx.fillStyle = isUnlocked ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.25)';
       ctx.fillRect(nx - 2, ny - 8, 4, 16);
       ctx.fillRect(nx - 8, ny - 2, 16, 4);
     } else if (node.type === 'keystone') {
-      // Diamond shape
       const d = r * 0.55;
       ctx.fillStyle = isUnlocked ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.15)';
       ctx.beginPath();
@@ -608,7 +778,6 @@ export class AbilityTree {
       ctx.closePath();
       ctx.fill();
     } else if (node.type === 'unlock') {
-      // Star / bolt symbol
       ctx.fillStyle = isUnlocked ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.18)';
       ctx.font = `bold ${Math.round(r * 1.1)}px sans-serif`;
       ctx.textAlign = 'center';
@@ -621,13 +790,13 @@ export class AbilityTree {
     }
     ctx.restore();
 
-    // AP cost badge (top-right corner, only for locked nodes)
+    // AP cost badge
     if (!isUnlocked && node.cost > 0) {
       const bx = nx + r * 0.7;
       const by = ny - r * 0.7;
       const br = 6;
       ctx.beginPath();
-      ctx.arc(bx, by, br, 0, Math.PI * 2);
+      ctx.rect(bx - br, by - br, br * 2, br * 2);
       ctx.fillStyle = isUnlockable ? '#7d5fff' : '#23253a';
       ctx.fill();
       ctx.strokeStyle = isUnlockable ? '#b39dff' : '#44475a';
@@ -640,14 +809,13 @@ export class AbilityTree {
       ctx.fillText(node.cost, bx, by + 0.5);
     }
 
-    // Text label below node — full name, word-wrapped if needed
+    // Node text label
     const labelY = ny + r + 5;
-    const maxW   = 80; // px in tree-space
+    const maxW   = 80;
 
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'top';
 
-    // Choose font size based on zoom to keep legibility
     const fontSize = node.type === 'root' ? 9
                    : node.type === 'keystone' || node.type === 'major' || node.type === 'unlock' ? 8
                    : 7;
@@ -661,7 +829,6 @@ export class AbilityTree {
       ctx.fillStyle = '#555877';
     }
 
-    // Word-wrap into up to 2 lines
     const words = node.name.split(' ');
     let line1 = '', line2 = '';
     for (const w of words) {
