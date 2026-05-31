@@ -48,11 +48,13 @@ export class LevelManager {
     this.eventTimer = 15.0; // Random events every 15s
     this.meteorIndicators = [];
     this.backroomsSecretUnlocked = false;
+    this.startSectorX = 0;
+    this.startSectorY = 0;
   }
 
   preGenerateFullMaze() {
-    const cols = 60;
-    const rows = 60;
+    const cols = 120;
+    const rows = 120;
     const cellSize = 200;
     
     this.fullCols = cols;
@@ -63,6 +65,10 @@ export class LevelManager {
     this.fullTileHeight = rows * 5;
     this.maxSectorCols = cols / 10;
     this.maxSectorRows = rows / 10;
+    this.startSectorX = Math.floor(this.maxSectorCols / 2);
+    this.startSectorY = Math.floor(this.maxSectorRows / 2);
+    this.unlockedSectors = new Set([`${this.startSectorX},${this.startSectorY}`]);
+    this.sectorThemes = { [`${this.startSectorX},${this.startSectorY}`]: 'dungeon' };
     
     // Allocate fullTileGrid and exploredGrid once at 300x300, keeping exploredGrid forever
     this.fullTileGrid = [];
@@ -152,7 +158,7 @@ export class LevelManager {
       }
     }
     const allWalls = [...hWalls, ...vWalls];
-    const removeCount = Math.floor(allWalls.length * 0.35);
+    const removeCount = Math.floor(allWalls.length * 0.45);
     for (let i = 0; i < removeCount; i++) {
       const idx = Math.floor(Math.random() * allWalls.length);
       const wall = allWalls.splice(idx, 1)[0];
@@ -225,8 +231,8 @@ export class LevelManager {
     }
     
     // Clear player spawn (middle of the grid at cell (15,15))
-    const spawnCenterX = 15 * 5 + 2;
-    const spawnCenterY = 15 * 5 + 2;
+    const spawnCenterX = this.startSectorX * 50 + 25;
+    const spawnCenterY = this.startSectorY * 50 + 25;
     const spawnRadius = 3;
     for (let x = spawnCenterX - spawnRadius; x <= spawnCenterX + spawnRadius; x++) {
       for (let y = spawnCenterY - spawnRadius; y <= spawnCenterY + spawnRadius; y++) {
@@ -258,6 +264,13 @@ export class LevelManager {
     }
     
     this.mapRevealed = false;
+  }
+
+  getSpawnPoint() {
+    return {
+      x: (this.startSectorX + 0.5) * 2000,
+      y: (this.startSectorY + 0.5) * 2000
+    };
   }
 
   activateBackroomsSecret() {
@@ -313,7 +326,7 @@ export class LevelManager {
       for (let c = 0; c < 10; c++) {
         this.navCells[c] = [];
         for (let r = 0; r < 10; r++) {
-          const fullCell = this.fullNavCells[c + 30][r + 30];
+          const fullCell = this.fullNavCells[c + 55][r + 55];
           this.navCells[c][r] = {
             c, r, visited: true,
             walls: {
@@ -333,7 +346,7 @@ export class LevelManager {
           if (x === 0 || x === 49 || y === 0 || y === 49) {
             this.tileGrid[x][y] = 1;
           } else {
-            this.tileGrid[x][y] = this.fullTileGrid[x + 150][y + 150];
+            this.tileGrid[x][y] = this.fullTileGrid[x + 275][y + 275];
           }
         }
       }
@@ -356,20 +369,20 @@ export class LevelManager {
       return;
     }
     
-    // Regular gameplay: Expanded 6x6 sectors grid layout
-    this.navCols = 60;
-    this.navRows = 60;
+    // Regular gameplay: Expanded 12x12 sectors grid layout
+    this.navCols = 120;
+    this.navRows = 120;
     this.navCellSize = 200;
-    this.width = 12000;
-    this.height = 12000;
-    this.tileWidth = 300;
-    this.tileHeight = 300;
+    this.width = 24000;
+    this.height = 24000;
+    this.tileWidth = 600;
+    this.tileHeight = 600;
     
     this.navCells = [];
-    for (let c = 0; c < 60; c++) {
+    for (let c = 0; c < this.navCols; c++) {
       this.navCells[c] = [];
       const sx = Math.floor(c / 10);
-      for (let r = 0; r < 60; r++) {
+      for (let r = 0; r < this.navRows; r++) {
         const sy = Math.floor(r / 10);
         const sectorKey = `${sx},${sy}`;
         const isUnlocked = this.unlockedSectors.has(sectorKey);
@@ -873,8 +886,9 @@ export class LevelManager {
 
     if (isFirstWave) {
       // Reset player position to center of the new map only on wave 1
-      this.game.player.x = this.width / 2;
-      this.game.player.y = this.height / 2;
+      const spawnPoint = this.getSpawnPoint();
+      this.game.player.x = spawnPoint.x;
+      this.game.player.y = spawnPoint.y;
       this.game.player.vx = 0;
       this.game.player.vy = 0;
 

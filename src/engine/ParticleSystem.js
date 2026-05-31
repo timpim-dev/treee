@@ -141,11 +141,14 @@ export class ParticleSystem {
       }
 
       if (p.shape === 'circle') {
-        ctx.fillRect(Math.round(rx - p.size), Math.round(ry - p.size), Math.round(p.size * 2), Math.round(p.size * 2));
+        ctx.beginPath();
+        ctx.arc(rx, ry, p.size, 0, Math.PI * 2);
+        ctx.fill();
       } else if (p.shape === 'square') {
         ctx.fillRect(rx - p.size, ry - p.size, p.size * 2, p.size * 2);
       } else if (p.shape === 'spark') {
         // Jagged line shape
+        ctx.lineCap = 'round';
         ctx.strokeStyle = p.color;
         ctx.lineWidth = p.size;
         ctx.beginPath();

@@ -155,7 +155,8 @@ export const SpellBook = {
             color: player.modifiers.lightningDash ? '#fff200' : '#ffa502',
             size: Math.random() * 3 + 2,
             life: 0.3,
-            glow: true
+            glow: true,
+            shape: 'spark'
           });
         }
       }
@@ -449,7 +450,8 @@ export const SpellBook = {
           color: '#ff4757',
           size: Math.random() * 4 + 3,
           life: 0.25,
-          glow: true
+          glow: true,
+          shape: 'spark'
         });
         game.enemies.forEach(enemy => {
           if (enemy.dead) return;
@@ -524,7 +526,8 @@ export const SpellBook = {
           color: '#a55eea',
           size: Math.random() * 4 + 3,
           life: 0.3,
-          glow: true
+          glow: true,
+          shape: 'spark'
         });
         game.enemies.forEach(enemy => {
           if (enemy.dead) return;

@@ -46,8 +46,9 @@ export class Game {
     window.addEventListener('click', unlockAudio);
     window.addEventListener('keydown', unlockAudio);
     
-    // Player spawn centered
-    this.player = new Player(this, this.levelManager.width / 2, this.levelManager.height / 2);
+    // Player spawn centered on the active starting sector
+    const spawnPoint = this.levelManager.getSpawnPoint();
+    this.player = new Player(this, spawnPoint.x, spawnPoint.y);
     this.abilityTree.panX = 0;
     this.abilityTree.panY = 0;
     this.player.recalculateModifiers(this.abilityTree);
@@ -1684,8 +1685,9 @@ export class Game {
     this.levelManager = new LevelManager(this);
     
     // Reset player transient states but preserve stats & inventory progression
-    this.player.x = this.levelManager.width / 2;
-    this.player.y = this.levelManager.height / 2;
+    const spawnPoint = this.levelManager.getSpawnPoint();
+    this.player.x = spawnPoint.x;
+    this.player.y = spawnPoint.y;
     this.player.vx = 0;
     this.player.vy = 0;
     this.player.hp = this.player.getMaxHp();
@@ -2515,8 +2517,8 @@ export class Game {
       }
 
       // Region specific projectile mechanics
-      const projSx = Math.max(0, Math.min(2, Math.floor(proj.x / 2000)));
-      const projSy = Math.max(0, Math.min(2, Math.floor(proj.y / 2000)));
+      const projSx = Math.max(0, Math.min(this.levelManager.maxSectorCols - 1, Math.floor(proj.x / 2000)));
+      const projSy = Math.max(0, Math.min(this.levelManager.maxSectorRows - 1, Math.floor(proj.y / 2000)));
       const projTheme = (this.levelManager.sectorThemes && this.levelManager.sectorThemes[`${projSx},${projSy}`]) || 'dungeon';
       
       let projDestroyed = false;
@@ -2695,8 +2697,8 @@ export class Game {
       }
 
       // Pool region mechanic: Fire pools extinguish to steam
-      const aeSx = Math.max(0, Math.min(2, Math.floor(ae.x / 2000)));
-      const aeSy = Math.max(0, Math.min(2, Math.floor(ae.y / 2000)));
+      const aeSx = Math.max(0, Math.min(this.levelManager.maxSectorCols - 1, Math.floor(ae.x / 2000)));
+      const aeSy = Math.max(0, Math.min(this.levelManager.maxSectorRows - 1, Math.floor(ae.y / 2000)));
       const aeTheme = (this.levelManager.sectorThemes && this.levelManager.sectorThemes[`${aeSx},${aeSy}`]) || 'dungeon';
       if (aeTheme === 'pool' && (ae.type === 'fire_pool' || ae.type === 'fireball_burst')) {
         ae.type = 'steam_cloud';
@@ -2774,7 +2776,8 @@ export class Game {
             color: '#a55eea',
             size: 2,
             life: 0.45,
-            glow: true
+            glow: true,
+            shape: 'spark'
           });
         }
       } 
@@ -2834,7 +2837,8 @@ export class Game {
             color: '#b2fefb',
             size: Math.random() * 2 + 1,
             life: 0.35,
-            glow: true
+            glow: true,
+            shape: 'spark'
           });
         }
       }
@@ -3561,8 +3565,9 @@ export class Game {
     this.levelManager.generateObstacles();
 
     // Spawn player in center
-    this.player.x = this.levelManager.width / 2;
-    this.player.y = this.levelManager.height / 2;
+    const spawnPoint = this.levelManager.getSpawnPoint();
+    this.player.x = spawnPoint.x;
+    this.player.y = spawnPoint.y;
     this.player.vx = 0;
     this.player.vy = 0;
     this.player.hp = this.player.getMaxHp();
