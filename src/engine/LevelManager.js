@@ -1798,16 +1798,23 @@ export class LevelManager {
         ctx.lineWidth = 3;
         ctx.strokeRect(rx - 20, ry - 20, 40, 40);
         
-        // Draw locked symbol
-        ctx.fillStyle = '#ffa502';
-        ctx.font = '10px var(--font-pixel)';
+        // Draw a simple pixel lock so the door label stays readable
+        ctx.fillStyle = '#f1c40f';
+        ctx.fillRect(rx - 5, ry - 2, 10, 8);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(rx - 3, ry, 6, 4);
+        ctx.fillStyle = '#f1c40f';
+        ctx.fillRect(rx - 3, ry - 8, 6, 4);
+        ctx.fillRect(rx - 2, ry - 10, 4, 2);
+
+        // Label direction with a clearer font and contrast outline
+        ctx.font = "700 8px 'Orbitron', sans-serif";
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('🔒', rx, ry);
-        
-        // Label direction
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#000';
         ctx.fillStyle = '#ffffff';
-        ctx.font = '6px var(--font-pixel)';
+        ctx.strokeText(door.dir, rx, ry - 12);
         ctx.fillText(door.dir, rx, ry - 12);
       });
     }

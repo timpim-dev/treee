@@ -499,10 +499,10 @@ export class Game {
         document.getElementById('customize-preset-name').innerText = presets[this.customPresetIdx].name;
       });
     }
-    const btnHowTo = document.getElementById('btn-how-to');
-    if (btnHowTo) {
-      btnHowTo.addEventListener('click', () => {
-        this.showPanel('panel-how-to');
+    const btnWiki = document.getElementById('btn-wiki');
+    if (btnWiki) {
+      btnWiki.addEventListener('click', () => {
+        window.open('./wiki/', '_blank');
       });
     }
     const btnCreditsMenu = document.getElementById('btn-credits-menu');
@@ -600,13 +600,6 @@ export class Game {
         this.setState('MENU');
       });
     }
-    const btnCloseHowTo = document.getElementById('btn-close-howto');
-    if (btnCloseHowTo) {
-      btnCloseHowTo.addEventListener('click', () => {
-        this.setState('MENU');
-      });
-    }
-
     // Tutorial Finish button listener
     const btnFinishTutorial = document.getElementById('btn-finish-tutorial');
     if (btnFinishTutorial) {
@@ -651,7 +644,7 @@ export class Game {
         document.getElementById('rebirth-panel').classList.add('hidden');
         this.particles.spawnText(
           this.player.x, this.player.y - 50,
-          `✦ REBIRTH ${this.player.rebirthCount}! AETHER REBORN`, {
+          `REBIRTH ${this.player.rebirthCount}! AETHER REBORN`, {
             color: '#c39aff', fontSize: 14, fontPixel: true, life: 3.0
           }
         );
@@ -982,7 +975,7 @@ export class Game {
       const iconData = currentId ? iconUrl(currentId) : '';
       const col = currentSpell ? (elemColor[currentSpell.element] || '#aaa') : '#555';
       row.innerHTML = `
-        <div class="sm-slot-key">${locked ? '🔒' : def.key}</div>
+        <div class="sm-slot-key">${locked ? 'LOCKED' : def.key}</div>
         ${currentId
           ? `<img class="sm-slot-icon" src="${iconData}" draggable="false">`
           : `<div class="sm-slot-icon" style="border:2px dashed #333;border-radius:2px;"></div>`
@@ -991,7 +984,7 @@ export class Game {
           <div class="sm-slot-name" style="color:${col}">${currentSpell ? currentSpell.name : (locked ? 'LOCKED' : '— empty —')}</div>
           <div class="sm-slot-desc">${def.label}${locked ? ` (unlock at ${def.minSlots} slots)` : ''}</div>
         </div>
-        ${currentId && !locked ? `<button class="sm-slot-clear" data-slot="${def.id}" title="Clear slot">✕</button>` : ''}
+        ${currentId && !locked ? `<button class="sm-slot-clear" data-slot="${def.id}" title="Clear slot">x</button>` : ''}
       `;
 
       if (!locked) {
@@ -1065,7 +1058,7 @@ export class Game {
     };
     const title = names[id] || id;
     
-    this.particles.spawnText(this.player.x, this.player.y - 45, `🏆 ACHIEVEMENT: ${title}!`, {
+    this.particles.spawnText(this.player.x, this.player.y - 45, `ACHIEVEMENT UNLOCKED: ${title}!`, {
       color: '#ffa502',
       fontSize: 11,
       fontPixel: true,
@@ -1111,10 +1104,10 @@ export class Game {
       card.style.alignItems = 'center';
       card.style.gap = '8px';
 
-      const icon = hasUnlocked ? '🏆' : '🔒';
+      const icon = hasUnlocked ? 'OPEN' : 'LOCKED';
       const color = hasUnlocked ? '#eccc68' : '#747d8c';
       card.innerHTML = `
-        <div style="font-size:16px;">${icon}</div>
+        <div style="font-family:var(--font-pixel);font-size:8px;color:${color};text-align:center;line-height:1.2;min-width:36px;">${icon}</div>
         <div style="text-align: left;">
           <strong style="color:${color}; font-family:var(--font-pixel); font-size:9px; display:block; margin-bottom:2px;">${ach.name}</strong>
           <span style="color:#a4b0be; font-size:8px; line-height:1.2; font-family:var(--font-pixel);">${ach.desc}</span>
@@ -1161,7 +1154,7 @@ export class Game {
     card.className = 'inv-relic-card' + (item.type ? ' gear-item' : '');
     if (onClick) card.style.cursor = 'pointer';
     card.innerHTML = `
-      <button class="btn-remove-relic" title="${removeTitle}">✕</button>
+      <button class="btn-remove-relic" title="${removeTitle}">x</button>
       <img class="inv-relic-sprite" src="${iconSrc}" alt="${item.name}" draggable="false">
       <div class="inv-relic-name">${item.name}</div>
       <div class="inv-relic-desc">${item.desc}${clickHint ? `<div class="inv-click-hint">${clickHint}</div>` : ''}</div>
@@ -1863,7 +1856,7 @@ export class Game {
   }
 
   showPanel(panelId) {
-    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-how-to', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-worldmap', 'panel-play-menu', 'panel-customize', 'panel-credits', 'panel-contact', 'panel-settings'];
+    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-worldmap', 'panel-play-menu', 'panel-customize', 'panel-credits', 'panel-contact', 'panel-settings'];
     overlays.forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
@@ -2143,6 +2136,8 @@ export class Game {
     this.drawHTMLIcon('icon-shard-hud', 'item_shard', 12);
     this.drawHTMLIcon('icon-shard-shop', 'item_shard', 12);
     this.drawHTMLIcon('icon-ap-hud', 'item_crystal', 12);
+    this.drawHTMLIcon('icon-key-hud', 'icon_key', 12);
+    this.drawHTMLIcon('icon-satchel-hud', 'icon_satchel', 12);
     
     // Combo lists
     this.drawHTMLIcon('combo-fire-1', 'proj_fire', 10);
@@ -2153,6 +2148,8 @@ export class Game {
     this.drawHTMLIcon('combo-lightning-2', 'proj_lightning', 10);
     this.drawHTMLIcon('combo-void-1', 'proj_void', 10);
     this.drawHTMLIcon('combo-time-1', 'item_wisp', 10);
+    this.drawHTMLIcon('icon-mainmenu-story', 'icon_book', 24);
+    this.drawHTMLIcon('icon-mainmenu-multiplayer', 'icon_sword', 24);
   }
 
   // ----------------------------------------------------
@@ -2497,9 +2494,10 @@ export class Game {
           vx: -proj.vx * 0.15,
           vy: -proj.vy * 0.15,
           color: colors[proj.element] || '#ffffff',
-          size: Math.random() * 2 + 1.5,
-          life: 0.35,
-          glow: true
+          size: Math.random() * 1.5 + 1,
+          life: 0.25,
+          glow: true,
+          shape: 'spark'
         });
       }
 
@@ -3104,7 +3102,7 @@ export class Game {
       } else if (ae.type === 'frost_slow') {
         this.drawPixelCircle(this.ctx, rx, ry, ae.radius, 'rgba(0, 210, 213, 0.08)', 'rgba(0, 210, 213, 0.2)', 2, 8);
       } else if (ae.type === 'ice_trail') {
-        this.drawPixelCircle(this.ctx, rx, ry, ae.radius, 'rgba(178, 254, 251, 0.45)', 'rgba(72, 219, 251, 0.6)', 2, 8);
+        this.drawPixelTrailStamp(this.ctx, rx, ry, 'rgba(178, 254, 251, 0.45)', 'rgba(72, 219, 251, 0.6)');
       }
       this.ctx.restore();
     });
@@ -3465,6 +3463,22 @@ export class Game {
       this.assets.draw(ctx, 'icon_fireball', w / 2, h / 2, 40);
     });
 
+    drawOnCanvas('icon-mainmenu-story', (ctx, w, h) => {
+      ctx.save();
+      ctx.fillStyle = '#020306';
+      ctx.fillRect(0, 0, w, h);
+      this.assets.draw(ctx, 'icon_book', w / 2, h / 2, 40);
+      ctx.restore();
+    });
+
+    drawOnCanvas('icon-mainmenu-multiplayer', (ctx, w, h) => {
+      ctx.save();
+      ctx.fillStyle = '#020306';
+      ctx.fillRect(0, 0, w, h);
+      this.assets.draw(ctx, 'icon_sword', w / 2, h / 2, 40);
+      ctx.restore();
+    });
+
     drawOnCanvas('canvas-mode-tutorial', (ctx, w, h) => {
       ctx.save();
       ctx.shadowBlur = 10;
@@ -3639,7 +3653,7 @@ export class Game {
       this.tutorialOpenedInventory = false;
     } else if (step === 6) {
       if (titleEl) titleEl.innerText = "THE AETHER WEB";
-      if (textEl) textEl.innerText = "You gained 5 AP. Click the '⚡ Tree (5 AP)' notification at the top-right, unlock any node upgrade, then close the tree to proceed.";
+      if (textEl) textEl.innerText = "You gained 5 AP. Click the Tree (5 AP) notification at the top-right, unlock any node upgrade, then close the tree to proceed.";
       
       // Give AP points and update HUD
       this.player.ap = 5;
@@ -3852,6 +3866,27 @@ export class Game {
     ctx.restore();
   }
 
+  drawPixelTrailStamp(ctx, cx, cy, fillStyle, strokeStyle = null) {
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = fillStyle;
+
+    // A compact icy shard stamp instead of a circular blob.
+    ctx.fillRect(Math.round(cx - 5), Math.round(cy - 1), 10, 3);
+    ctx.fillRect(Math.round(cx - 3), Math.round(cy - 4), 6, 2);
+    ctx.fillRect(Math.round(cx - 2), Math.round(cy + 2), 4, 2);
+
+    if (strokeStyle) {
+      ctx.fillStyle = strokeStyle;
+      ctx.fillRect(Math.round(cx - 6), Math.round(cy), 2, 1);
+      ctx.fillRect(Math.round(cx + 4), Math.round(cy), 2, 1);
+      ctx.fillRect(Math.round(cx - 1), Math.round(cy - 5), 2, 1);
+      ctx.fillRect(Math.round(cx - 1), Math.round(cy + 4), 2, 1);
+    }
+
+    ctx.restore();
+  }
+
   checkProgressionOnUnlock() {
     if (this.abilityTree.isPlayerTree1Completed()) {
       if (!this.player.unlockedCompanion1) {
@@ -3879,7 +3914,7 @@ export class Game {
           const opRelic = {
             id: 'relic_archon_crown',
             name: 'Archon Crown',
-            desc: '★ LEGENDARY: +100% all Damage, +100 Max HP, +100 Max MP.',
+            desc: 'LEGENDARY: +100% all Damage, +100 Max HP, +100 Max MP.',
             sprite: 'relic_ring',
             stats: { allDamage: 1.0, maxHp: 100, maxMp: 100 }
           };

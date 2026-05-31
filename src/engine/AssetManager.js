@@ -25,6 +25,8 @@ export class AssetManager {
       'x': '#8854d0', // Dark Void Purple
       't': '#ff9f43', // Time Orange/Amber
       'g': '#eccc68', // Gold
+      'n': '#8b5a2b', // Leather Brown
+      'u': '#c59b6d', // Satchel Tan
     };
 
     this.generateAssets();
@@ -939,6 +941,178 @@ export class AssetManager {
       "ks.vv.......vvsk",
       "ks............sk",
       "ks............sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    // Utility / UI icons
+    this.sprites['icon_lock'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks.............sk",
+      "ks....kkkk....sk",
+      "ks...kwwwwk...sk",
+      "ks...kwwwwk...sk",
+      "ks...kwwwwk...sk",
+      "ks...kkkkkk...sk",
+      "ks...kggggk...sk",
+      "ks...kggggk...sk",
+      "ks...kggggk...sk",
+      "ks...kkkkkk...sk",
+      "ks.............sk",
+      "ks.............sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    this.sprites['icon_key'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks.............sk",
+      "ks....kkk......sk",
+      "ks...kwwwk.....sk",
+      "ks..kwyyywk....sk",
+      "ks..kwywwywk...sk",
+      "ks..kwyyywk....sk",
+      "ks...kwwwk.....sk",
+      "ks....kkk....kssk",
+      "ks..........kttk.",
+      "ks.........kttk..",
+      "ks........kttk...",
+      "ks.......kttk....",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    this.sprites['icon_book'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks.............sk",
+      "ks..kwwwwwk...sk",
+      "ks..kwwwwwk...sk",
+      "ks..kwwwwwk...sk",
+      "ks..kbbbbb k..sk".replace(/ /g, 's'),
+      "ks..kbbbbbsk..sk".replace(/ /g, 's'),
+      "ks..kbbbbbsk..sk".replace(/ /g, 's'),
+      "ks..kbbbbbsk..sk".replace(/ /g, 's'),
+      "ks..kbbbbbsk..sk".replace(/ /g, 's'),
+      "ks..kbbbbbsk..sk".replace(/ /g, 's'),
+      "ks..kwwwwwk...sk",
+      "ks..kwwwwwk...sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    this.sprites['icon_satchel'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks.............sk",
+      "ks....kkkk.....sk",
+      "ks...knnnnk....sk",
+      "ks..knuuuunk...sk",
+      "ks..knuuuunk...sk",
+      "ks..knnwwnnk...sk",
+      "ks..knnnnnnk...sk",
+      "ks..knnkknnk...sk",
+      "ks...knnnnnk....sk",
+      "ks....kkkk.....sk",
+      "ks.............sk",
+      "ks.............sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    this.sprites['icon_trophy'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks.............sk",
+      "ks....kkkk.....sk",
+      "ks...kggggk....sk",
+      "ks..kgyyyygk...sk",
+      "ks..kgywwygk...sk",
+      "ks..kgywwygk...sk",
+      "ks..kgyyyygk...sk",
+      "ks...kggggk....sk",
+      "ks....kkkk.....sk",
+      "ks.....kk......sk",
+      "ks....kwwk.....sk",
+      "ks...kwwwwk....sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    this.sprites['icon_sword'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks.............sk",
+      "ks...k.........sk",
+      "ks..kttk.......sk",
+      "ks..ktttk......sk",
+      "ks...ktttk.....sk",
+      "ks....kwwk.....sk",
+      "ks.....kwwk....sk",
+      "ks......kkk....sk",
+      "ks.....kwwk....sk",
+      "ks....kwwwwk...sk",
+      "ks...kwwwwwwk..sk",
+      "ks..kwwwwwwwwk.sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    this.sprites['icon_tree'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks.............sk",
+      "ks.....k.......sk",
+      "ks....kfk......sk",
+      "ks...kfffk.....sk",
+      "ks..kffifffk...sk",
+      "ks..kffifffk...sk",
+      "ks...kffifk....sk",
+      "ks....kffk.....sk",
+      "ks.....kkk.....sk",
+      "ks.....kak.....sk",
+      "ks....kaaaak...sk",
+      "ks...kaaaaak...sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    this.sprites['icon_warning'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks.....kk......sk",
+      "ks....kwwk.....sk",
+      "ks...kwwwwk....sk",
+      "ks..kwwyywwk...sk",
+      "ks..kwwyywwk...sk",
+      "ks...kwwwwk....sk",
+      "ks....kwwk.....sk",
+      "ks.....kk......sk",
+      "ks.....yy......sk",
+      "ks.....yy......sk",
+      "ks.............sk",
+      "ks.............sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    this.sprites['icon_search'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks.............sk",
+      "ks....kkk......sk",
+      "ks...kwwwk.....sk",
+      "ks..kwwwwwk....sk",
+      "ks..kwwwwwk....sk",
+      "ks...kwwwk.....sk",
+      "ks....kkk..k...sk",
+      "ks........kttk..sk",
+      "ks.......ktttk..sk",
+      "ks......kttk....sk",
+      "ks.....kttk.....sk",
+      "ks....kttk......sk",
       "kssssssssssssssk",
       "kkkkkkkkkkkkkkkk"
     ]]);

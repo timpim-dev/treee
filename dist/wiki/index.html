@@ -302,6 +302,20 @@
       gap: 10px;
     }
 
+    .wiki-icon {
+      width: 16px;
+      height: 16px;
+      display: inline-block;
+      flex: 0 0 auto;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    .wiki-box-title .wiki-icon {
+      width: 14px;
+      height: 14px;
+    }
+
     .wiki-card-subtitle {
       font-family: var(--font-sub);
       font-size: 11px;
@@ -431,7 +445,7 @@
     <aside>
       <!-- Search -->
       <div class="wiki-box">
-        <h3 class="wiki-box-title">🔍 SEARCH ARCHIVES</h3>
+        <h3 class="wiki-box-title"><canvas class="wiki-icon" data-icon="search" width="14" height="14" aria-hidden="true"></canvas> SEARCH ARCHIVES</h3>
         <div class="search-box">
           <input type="text" id="wiki-search" placeholder="Type to search..." class="search-input">
         </div>
@@ -439,7 +453,7 @@
       
       <!-- Nav Categories -->
       <div class="wiki-box">
-        <h3 class="wiki-box-title">📖 CATEGORIES</h3>
+        <h3 class="wiki-box-title"><canvas class="wiki-icon" data-icon="book" width="14" height="14" aria-hidden="true"></canvas> CATEGORIES</h3>
         <ul class="nav-list">
           <li><button class="nav-item-btn active" data-category="overview">Overview</button></li>
           <li><button class="nav-item-btn" data-category="controls">Basic Controls</button></li>
@@ -463,19 +477,19 @@
         
         <div class="wiki-grid-2">
           <div class="wiki-card">
-            <h3 class="wiki-card-title">✨ Spell Weaving & Combos</h3>
+            <h3 class="wiki-card-title"><canvas class="wiki-icon" data-icon="spark" width="16" height="16" aria-hidden="true"></canvas> Spell Weaving & Combos</h3>
             <p>Combine element statuses on enemies to trigger devastating reaction combos. Freeze wet targets, overload charged nodes, ignite vaporized clouds, or pull singularties into supernovas!</p>
           </div>
           <div class="wiki-card">
-            <h3 class="wiki-card-title">⚡ The Aether Web</h3>
+            <h3 class="wiki-card-title"><canvas class="wiki-icon" data-icon="tree" width="16" height="16" aria-hidden="true"></canvas> The Aether Web</h3>
             <p>Level up to gain Aether Points (AP) and map your destiny across a massive 24-Tier progression tree. Progressing unlocks companion companions who possess their own distinct upgrade webs!</p>
           </div>
           <div class="wiki-card">
-            <h3 class="wiki-card-title">🌎 Procedural Sectors</h3>
+            <h3 class="wiki-card-title"><canvas class="wiki-icon" data-icon="globe" width="16" height="16" aria-hidden="true"></canvas> Procedural Sectors</h3>
             <p>Explore a seamless 3x3 layout of distinct environmental zones. Collect Rune Keys to unlock boundary doors, and adapt to regional mechanics like water drag, limited visibility, or tall grass stealth.</p>
           </div>
           <div class="wiki-card">
-            <h3 class="wiki-card-title">🎒 Satchel & Equipment</h3>
+            <h3 class="wiki-card-title"><canvas class="wiki-icon" data-icon="satchel" width="16" height="16" aria-hidden="true"></canvas> Satchel & Equipment</h3>
             <p>Defeat monsters, locate shrines, and unlock chests to loot rare Runes and Gear items. Equipping gear increases your damage multipliers, max shields, or spell efficiency.</p>
           </div>
         </div>
@@ -534,7 +548,7 @@
                 </tr>
                 <tr>
                   <td><strong>Aether Web</strong></td>
-                  <td><span class="keycap">⚡ Tree Button</span> or <span class="keycap">Esc</span> (Pause)</td>
+                  <td><span class="keycap">Tree Button</span> or <span class="keycap">Esc</span> (Pause)</td>
                   <td>Open the active skill progression webs.</td>
                 </tr>
                 <tr>
@@ -659,7 +673,7 @@
         <p class="sec-intro">Unlock magical companions that accompany you in combat, providing auto-attack damage, buffs, and custom skill webs.</p>
         
         <div class="wiki-card">
-          <h3 class="wiki-card-title">🐉 Companion 1: Baby Pyro-Dragon</h3>
+          <h3 class="wiki-card-title"><canvas class="wiki-icon" data-icon="dragon" width="16" height="16" aria-hidden="true"></canvas> Companion 1: Baby Pyro-Dragon</h3>
           <p style="margin-bottom: 12px;">Unlocked by completing the first **Player Skill Tree (Tiers 1-12)**. Follows you in battle, firing fiery projectiles at nearby targets.</p>
           <ul>
             <li><strong>Dragon Tree</strong>: Access a dedicated web (Tiers 1-7 initially).</li>
@@ -669,7 +683,7 @@
         </div>
 
         <div class="wiki-card" style="margin-top: 20px;">
-          <h3 class="wiki-card-title">🦅 Companion 2: Chrono Griffin</h3>
+          <h3 class="wiki-card-title"><canvas class="wiki-icon" data-icon="griffin" width="16" height="16" aria-hidden="true"></canvas> Companion 2: Chrono Griffin</h3>
           <p style="margin-bottom: 12px;">Unlocked by completing the **Expanded Player Skill Tree (Tiers 13-18)**. Fires temporal lightning arcs that slow and chain between targets.</p>
           <ul>
             <li><strong>Chrono Griffin Tree</strong>: Unlocks its own dedicated tree.</li>
@@ -686,13 +700,13 @@
         
         <div class="wiki-grid-2">
           <div class="wiki-card">
-            <h3 class="wiki-card-title text-glow">🏰 Dark Dungeon</h3>
+            <h3 class="wiki-card-title text-glow"><canvas class="wiki-icon" data-icon="dungeon" width="16" height="16" aria-hidden="true"></canvas> Dark Dungeon</h3>
             <p class="wiki-card-subtitle">Default Sector</p>
             <p>The standard sector with moderate obstacle layouts. Plays chiptune temple synth tracks.</p>
           </div>
           
           <div class="wiki-card" style="border-color: #2ed573;">
-            <h3 class="wiki-card-title" style="color: #2ed573;">🌳 Harmonious Gardens</h3>
+            <h3 class="wiki-card-title" style="color: #2ed573;"><canvas class="wiki-icon" data-icon="garden" width="16" height="16" aria-hidden="true"></canvas> Harmonious Gardens</h3>
             <p class="wiki-card-subtitle">Gardens Sector</p>
             <p style="margin-bottom: 8px;">Spawns patches of tall grass and plants. Plays chiptune forest melodies.</p>
             <ul>
@@ -702,7 +716,7 @@
           </div>
           
           <div class="wiki-card" style="border-color: #1e272e;">
-            <h3 class="wiki-card-title" style="color: #57606f;">🪨 Deep Caverns</h3>
+            <h3 class="wiki-card-title" style="color: #57606f;"><canvas class="wiki-icon" data-icon="cave" width="16" height="16" aria-hidden="true"></canvas> Deep Caverns</h3>
             <p class="wiki-card-subtitle">Underground Sector</p>
             <p style="margin-bottom: 8px;">Dark rocky environment. Plays deep cave synth ambient loops.</p>
             <ul>
@@ -711,7 +725,7 @@
           </div>
           
           <div class="wiki-card" style="border-color: var(--color-frost);">
-            <h3 class="wiki-card-title text-frost">🌊 Triton Pools</h3>
+            <h3 class="wiki-card-title text-frost"><canvas class="wiki-icon" data-icon="pool" width="16" height="16" aria-hidden="true"></canvas> Triton Pools</h3>
             <p class="wiki-card-subtitle">Water Pools Sector</p>
             <p style="margin-bottom: 8px;">Flooded water channels. Plays freezing land chiptune tracks.</p>
             <ul>
@@ -722,7 +736,7 @@
           </div>
 
           <div class="wiki-card" style="border-color: #ff9f43; grid-column: span 2;">
-            <h3 class="wiki-card-title" style="color: #ff9f43;">⚠️ Limitless Backrooms</h3>
+            <h3 class="wiki-card-title" style="color: #ff9f43;"><canvas class="wiki-icon" data-icon="warning" width="16" height="16" aria-hidden="true"></canvas> Limitless Backrooms</h3>
             <p class="wiki-card-subtitle">Glitched Sector (0.5% Transition Chance)</p>
             <p>A yellow-wallpapered glitched maze populated by erratic monsters like "The Smiler" and "The Entity". Plays desert ambient tracks. Bypasses regular dungeon generation.</p>
           </div>
@@ -736,25 +750,25 @@
         
         <div class="wiki-grid-2">
           <div class="wiki-card" style="border-color: #ff7675;">
-            <h3 class="wiki-card-title" style="color: #ff7675;">💨 Superheated Steam</h3>
+            <h3 class="wiki-card-title" style="color: #ff7675;"><canvas class="wiki-icon" data-icon="steam" width="16" height="16" aria-hidden="true"></canvas> Superheated Steam</h3>
             <p class="wiki-card-subtitle">Fire + Frost</p>
             <p>Creating steam on a wet or burning target spawns a scalding steam cloud. The cloud deals high fire damage-over-time (DoT) inside its boundary block and expands slightly.</p>
           </div>
           
           <div class="wiki-card" style="border-color: #00dec9;">
-            <h3 class="wiki-card-title" style="color: #00dec9;">⚡ Superconductive Freeze</h3>
+            <h3 class="wiki-card-title" style="color: #00dec9;"><canvas class="wiki-icon" data-icon="lightning" width="16" height="16" aria-hidden="true"></canvas> Superconductive Freeze</h3>
             <p class="wiki-card-subtitle">Lightning + Frost</p>
             <p>Hitting a frozen or slowed enemy with lightning triggers superconductor discharge. Deals massive instant shock damage and freezes all adjacent enemies in a chain reaction.</p>
           </div>
           
           <div class="wiki-card" style="border-color: #d63031;">
-            <h3 class="wiki-card-title" style="color: #d63031;">💥 Supernova Singularity</h3>
+            <h3 class="wiki-card-title" style="color: #d63031;"><canvas class="wiki-icon" data-icon="explosion" width="16" height="16" aria-hidden="true"></canvas> Supernova Singularity</h3>
             <p class="wiki-card-subtitle">Void + Fire</p>
             <p>Firing a pyromancy spell into a Void black hole singularity triggers a supernova explosion. The black hole collapses instantly and explodes in a massive radius, dealing screen-clearing fire/void damage.</p>
           </div>
           
           <div class="wiki-card" style="border-color: #ff9f43;">
-            <h3 class="wiki-card-title" style="color: #ff9f43;">⏳ Temporal Overload</h3>
+            <h3 class="wiki-card-title" style="color: #ff9f43;"><canvas class="wiki-icon" data-icon="clock" width="16" height="16" aria-hidden="true"></canvas> Temporal Overload</h3>
             <p class="wiki-card-subtitle">Time + Lightning</p>
             <p>Combining Time warp effects with shock charges sparks temporal overload. Instantly grants the player a 30% cooldown reduction and a 50% movement speed boost accompanied by sparkling sparks.</p>
           </div>
@@ -767,7 +781,7 @@
         <p class="sec-intro">Open your Satchel using <span class="keycap">I</span> to manage your equipment (robes, weapons, active spells, runes, and achievements).</p>
         
         <div class="wiki-card">
-          <h3 class="wiki-card-title">🛡️ Equipment Categories</h3>
+          <h3 class="wiki-card-title"><canvas class="wiki-icon" data-icon="shield" width="16" height="16" aria-hidden="true"></canvas> Equipment Categories</h3>
           <p style="margin-bottom: 8px;">Equip rare chests and weapons obtained from shrines or dropped from bosses to upgrade your attributes:</p>
           <ul>
             <li><strong>Weapons</strong>: Increases spell damage, speeds up projectiles, or adds pierce counters.</li>
@@ -777,7 +791,7 @@
         </div>
         
         <div class="wiki-card" style="margin-top: 20px;">
-          <h3 class="wiki-card-title">🏆 Achievement Badges</h3>
+          <h3 class="wiki-card-title"><canvas class="wiki-icon" data-icon="trophy" width="16" height="16" aria-hidden="true"></canvas> Achievement Badges</h3>
           <p style="margin-bottom: 8px;">Earn permanent achievements that serialize alongside your save file. Examples include:</p>
           <ul>
             <li><strong>Flora Explorer</strong>: Explore the Harmonious Gardens sector.</li>
@@ -793,6 +807,244 @@
 
   <!-- Interactive JavaScript -->
   <script>
+    const wikiIconPalette = {
+      '.': null,
+      'k': '#10121a',
+      'w': '#f1f2f6',
+      's': '#7f8c8d',
+      'a': '#57606f',
+      'r': '#ff4757',
+      'o': '#ffa502',
+      'f': '#2ed573',
+      'c': '#10ac84',
+      'i': '#70a1ff',
+      'y': '#f1c40f',
+      'v': '#a55eea',
+      't': '#ff9f43',
+      'g': '#eccc68',
+      'n': '#8b5a2b',
+      'u': '#c59b6d'
+    };
+
+    const wikiIcons = {
+      search: [
+        "..kkkk..",
+        ".kwwwwk.",
+        "kww..wwk",
+        "kww..wwk",
+        "kwwwwwwk",
+        ".kwwwwk.",
+        "..k..k..",
+        "...kk..."
+      ],
+      book: [
+        "kkkkkkkk",
+        "kwwwwwwk",
+        "kwwsswwk",
+        "kwwsswwk",
+        "kwwsswwk",
+        "kwwwwwwk",
+        "kssssssk",
+        "kkkkkkkk"
+      ],
+      spark: [
+        "...yy...",
+        "..ykky..",
+        ".ykkkky.",
+        "yyk..kyy",
+        ".ykkkky.",
+        "..ykky..",
+        "...yy...",
+        "........"
+      ],
+      tree: [
+        "...ff...",
+        "..ffif..",
+        ".ffifff.",
+        "...fff..",
+        "...aka..",
+        "..kaaa..",
+        ".kaaaak.",
+        "....k..."
+      ],
+      globe: [
+        "..kkkk..",
+        ".kwwwwk.",
+        "kww..wwk",
+        "kw.kk.wk",
+        "kw.kk.wk",
+        "kww..wwk",
+        ".kwwwwk.",
+        "..kkkk.."
+      ],
+      satchel: [
+        "...kk...",
+        "..knnk..",
+        ".knuunk.",
+        ".knuunk.",
+        ".knwwnk.",
+        ".knaank.",
+        "..kkkk..",
+        "........"
+      ],
+      dragon: [
+        "...rr...",
+        "..rrokr.",
+        ".rrrookr",
+        ".rrokkkr",
+        ".rroooor",
+        "..rooo..",
+        "...kk...",
+        "........"
+      ],
+      griffin: [
+        "...gg...",
+        "..ggtg..",
+        ".ggtttg.",
+        ".gttkkg.",
+        ".gttttg.",
+        "..gttg..",
+        "...kk...",
+        "........"
+      ],
+      dungeon: [
+        "kkkkkkkk",
+        "ksskkssk",
+        "kwwkkwwk",
+        "kwwaa ww".replace(/ /g, 'k'),
+        "kwwaa ww".replace(/ /g, 'k'),
+        "kwwkkwwk",
+        "kssssssk",
+        "kkkkkkkk"
+      ],
+      garden: [
+        "...ff...",
+        "..ffff..",
+        ".fffiff.",
+        "..ffiff.",
+        "...aaa..",
+        "..kaaaak",
+        ".kaaaaak",
+        "...k.k.."
+      ],
+      cave: [
+        "...aa...",
+        "..aaaa..",
+        ".aakkaa.",
+        ".akkkka.",
+        ".akkkka.",
+        ".aakkaa.",
+        "..aaaa..",
+        "...aa..."
+      ],
+      pool: [
+        "..iiii..",
+        ".iwwwwi.",
+        "iwwiwwwi",
+        "iwwiiwwi",
+        "iwwiwwwi",
+        ".iwwwwi.",
+        "..iiii..",
+        "........"
+      ],
+      warning: [
+        "...yy...",
+        "..ywwy..",
+        ".ywwwwy.",
+        ".ywwwwy.",
+        ".ywwwwy.",
+        "..ywwy..",
+        "...yy...",
+        "........"
+      ],
+      steam: [
+        "..wwww..",
+        ".wffffw.",
+        "wffffffw",
+        "wffssffw",
+        ".wffffw.",
+        "..wwww..",
+        "........",
+        "........"
+      ],
+      lightning: [
+        "...yy...",
+        "..yyy...",
+        ".yyk....",
+        "..yk....",
+        ".yyk....",
+        "..yyy...",
+        "...yy...",
+        "........"
+      ],
+      clock: [
+        "...kk...",
+        "..kwwk..",
+        ".kwwwwk.",
+        ".kw..wk.",
+        ".kw.ywk.",
+        ".kwwwwk.",
+        "..k..k..",
+        "...kk..."
+      ],
+      explosion: [
+        "..rr..rr",
+        ".rryyrr.",
+        "rryyyyrr",
+        ".ryyyyy.",
+        "rryyyyrr",
+        ".rryyrr.",
+        "..rr..rr",
+        "........"
+      ],
+      shield: [
+        "..kkkk..",
+        ".kggggk.",
+        "kggyyggk",
+        "kgywwygk",
+        "kgywwygk",
+        "kggyyggk",
+        ".kggggk.",
+        "..kkkk.."
+      ],
+      trophy: [
+        "..kkkk..",
+        ".kggggk.",
+        "kgyyyygk",
+        "kgywwygk",
+        "kgywwygk",
+        ".kggggk.",
+        "..k..k..",
+        "..k..k.."
+      ]
+    };
+
+    function drawWikiIcon(canvas, iconName) {
+      const grid = wikiIcons[iconName];
+      if (!canvas || !grid) return;
+      const ctx = canvas.getContext('2d');
+      const scale = Math.max(1, Math.floor(Math.min(canvas.width, canvas.height) / grid.length));
+      const iconW = grid[0].length * scale;
+      const iconH = grid.length * scale;
+      const offsetX = Math.floor((canvas.width - iconW) / 2);
+      const offsetY = Math.floor((canvas.height - iconH) / 2);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = false;
+
+      grid.forEach((row, y) => {
+        for (let x = 0; x < row.length; x++) {
+          const color = wikiIconPalette[row[x]];
+          if (!color) continue;
+          ctx.fillStyle = color;
+          ctx.fillRect(offsetX + x * scale, offsetY + y * scale, scale, scale);
+        }
+      });
+    }
+
+    document.querySelectorAll('.wiki-icon').forEach((canvas) => {
+      drawWikiIcon(canvas, canvas.dataset.icon);
+    });
+
     // 1. Navigation Tab Switches
     const navButtons = document.querySelectorAll('.nav-item-btn');
     const sections = document.querySelectorAll('.wiki-section');

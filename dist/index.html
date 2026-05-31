@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/main-CEof9-2G.js"></script>
+  <script type="module" crossorigin src="/assets/main-BZ5YURlA.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/main-CFEaPZlh.css">
 </head>
 <body>
@@ -64,7 +64,8 @@
           <span id="hud-shards-value" class="resource-text">0</span>
         </div>
         <div class="resource-item" id="hud-keys-notification" style="margin-left: 10px;" title="Rune Keys (Complete Waves, Unlock Doors)">
-          🔑 <span id="hud-keys-value" class="resource-text">0</span>
+          <canvas class="inline-icon" id="icon-key-hud" width="12" height="12" draggable="false"></canvas>
+          <span id="hud-keys-value" class="resource-text">0</span>
         </div>
         <div class="resource-item" id="hud-ap-notification">
           <button id="btn-open-tree-hud" class="btn-pulse-glow">
@@ -76,7 +77,8 @@
       <!-- Relics Inventory HUD (compact strip — click to open full panel) -->
       <div id="hud-inventory" class="hud-panel" style="cursor: pointer;" title="Open Satchel & Gear (I)">
         <div class="inventory-title">
-          🎒 SATCHEL (I)
+          <canvas class="inline-icon" id="icon-satchel-hud" width="12" height="12" draggable="false"></canvas>
+          SATCHEL (I)
         </div>
         <div class="inventory-slots" id="inventory-container">
           <!-- slots rendered dynamically by updateHUD -->
@@ -163,8 +165,7 @@
           <div class="menu-buttons vertical-buttons">
             <button id="btn-play-menu" class="btn-menu">PLAY</button>
             <button id="btn-customize-menu" class="btn-menu">CHARACTER CUSTOMIZATION</button>
-            <button id="btn-how-to" class="btn-menu">HOW TO PLAY</button>
-            <button class="btn-menu" onclick="window.open('./wiki/', '_blank')">WIKI & ARCHIVES</button>
+            <button id="btn-wiki" class="btn-menu">WIKI</button>
             <button id="btn-leaderboard-menu" class="btn-menu">LEADERBOARD</button>
             <button id="btn-credits-menu" class="btn-menu">CREDITS</button>
             <button id="btn-contact-menu" class="btn-menu">CONTACT</button>
@@ -182,7 +183,7 @@
           <div class="tree-stats">
             <span>Aether Shards: <strong id="tree-shards">0</strong></span>
             <span>Aether Points (AP): <strong id="tree-ap" class="text-glow">0</strong></span>
-            <span id="tree-rebirth-badge" class="hidden" style="color:#c39aff; font-size:0.8rem;">✦ Rebirth <strong id="tree-rebirth-count">0</strong></span>
+            <span id="tree-rebirth-badge" class="hidden" style="color:#c39aff; font-size:0.8rem;">REBIRTH <strong id="tree-rebirth-count">0</strong></span>
           </div>
           <button id="btn-close-tree" class="btn-close">&times;</button>
         </div>
@@ -238,7 +239,7 @@
         <div id="rebirth-panel" class="hidden" style="margin: 14px 0;">
           <div id="rebirth-preview" style="font-size:0.78rem; color:#b39dff; margin-bottom:8px;"></div>
           <button id="btn-rebirth" class="btn-menu" style="background: linear-gradient(135deg,#6c3baa,#a55eea); border-color:#c39aff;">
-            ✦ REBIRTH (Reset for Permanent Bonuses)
+            REBIRTH (Reset for Permanent Bonuses)
           </button>
         </div>
 
@@ -275,50 +276,7 @@
       </div>
     </div>
 
-    <!-- 5. HOW TO PLAY / HELP -->
-    <div id="panel-how-to" class="panel-overlay hidden">
-      <div class="menu-content wide text-left scrolling-content">
-        <h2>ODYSSEY GUIDE</h2>
-        
-        <h3>Basic Controls</h3>
-        <p><strong>WASD / Arrow Keys</strong>: Move your Runeweaver around the battlefield.</p>
-        <p><strong>Mouse Cursor</strong>: Aim spells.</p>
-        <p><strong>Left Click (LMB)</strong>: Cast Primary Spell.</p>
-        <p><strong>Right Click (RMB)</strong>: Cast Secondary Spell.</p>
-        <p><strong>Spacebar</strong>: Cast Utility / Dash Spell.</p>
-        <p><strong>Q / E Key</strong>: Cast Ultimate Spell (unlocked in ability tree).</p>
-        <p><strong>Esc / P Key</strong>: Pause game.</p>
-        
-        <h3>Elemental Synergies & Combos</h3>
-        <p>Weaving multiple spell types on the same target triggers devastating reaction effects:</p>
-              <div>
-            <h3>Elemental Combinations</h3>
-            <ul>
-              <li><canvas class="inline-icon" id="combo-fire-1" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-fire">Fire</span> + <canvas class="inline-icon" id="combo-frost-1" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-frost">Frost</span> = <strong class="text-steam">Superheated Steam</strong>: Creates an scalding steam cloud dealing high fire DoT.</li>
-              <li><canvas class="inline-icon" id="combo-lightning-1" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-lightning">Lightning</span> + <canvas class="inline-icon" id="combo-frost-2" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-frost">Frost</span> = <strong class="text-superconduct">Superconductive Freeze</strong>: Deals instant lightning damage and freezes all nearby enemies.</li>
-              <li><canvas class="inline-icon" id="combo-void-1" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-void">Void</span> + <canvas class="inline-icon" id="combo-fire-2" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-fire">Fire</span> = <strong class="text-supernova">Supernova Singularity</strong>: Causes a pulled-in black hole to ignite and detonate in a massive screen-clearing explosion.</li>
-              <li><canvas class="inline-icon" id="combo-time-1" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-time">Time</span> + <canvas class="inline-icon" id="combo-lightning-2" width="12" height="12" draggable="false"></canvas> <span class="combo-title text-lightning">Lightning</span> = <strong class="text-overload">Temporal Overload</strong>: Speeds up your cooldowns and grants lightning velocity.</li>
-            </ul>
-          </div>
-        
-        <div style="text-align: left; margin-top: 15px;">
-          <h3>Core Mechanics</h3>
-          <ul>
-            <li><strong>Ability Tree</strong>: Research Cryomancy or Electromancy branches to unlock nodes giving Max Mana and permanent regeneration.</li>
-            <li><strong>Runic Shop</strong>: Purchase <strong>Mana Potions</strong> or the permanent <strong>Mana Well</strong> stats between waves using shards!</li>
-          </ul>
-        </div>
-
-        <h3>The Aether Web (Ability Tree)</h3>
-        <p>Defeat monsters to collect <strong>Aether Shards</strong> and gain XP. Leveling up grants <strong>Aether Points (AP)</strong>. Press the <strong>⚡ Tree</strong> button at the top-right to open the Ability Tree and customize your build with over 100 upgrades!</p>
-        
-        <div class="menu-buttons text-center" style="margin-top: 2rem;">
-          <button id="btn-close-howto" class="btn-menu">READY TO WEAVE</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 6. PAUSE PANEL -->
+    <!-- 5. PAUSE PANEL -->
     <div id="panel-pause" class="panel-overlay hidden">
       <div class="menu-content text-center">
         <h1>GAME PAUSED</h1>
@@ -670,7 +628,7 @@
           <!-- Story Mode (Coming Soon) -->
           <div class="mode-card disabled-mode" id="mode-card-story">
             <div class="mode-preview-box">
-              <div style="font-size:24px; color:#57606f;">📜</div>
+              <canvas id="icon-mainmenu-story" width="64" height="64"></canvas>
             </div>
             <h3>STORY MODE</h3>
             <p>Unravel the mysteries of the Aether Web in a narrative campaign. (Coming Soon!)</p>
@@ -680,7 +638,7 @@
           <!-- Multiplayer Mode (Coming Soon) -->
           <div class="mode-card disabled-mode" id="mode-card-multiplayer">
             <div class="mode-preview-box">
-              <div style="font-size:24px; color:#57606f;">⚔️</div>
+              <canvas id="icon-mainmenu-multiplayer" width="64" height="64"></canvas>
             </div>
             <h3>MULTIPLAYER</h3>
             <p>Co-op with fellow Runeweavers or duel in active PvP arenas. (Coming Soon!)</p>
