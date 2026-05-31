@@ -71,6 +71,9 @@
             <canvas class="inline-icon" id="icon-ap-hud" width="12" height="12" draggable="false"></canvas> Tree (<span id="hud-ap-value">0</span> AP)
           </button>
         </div>
+        <div class="resource-item" id="hud-devtools-notification">
+          <button id="btn-devtools-toggle" class="btn-pulse-glow hidden" style="padding: 4px 8px; font-size: 9px; line-height: 1;" title="Toggle Devtools (F3)">DEV</button>
+        </div>
       </div>
 
       <!-- Relics Inventory HUD (compact strip — click to open full panel) -->
@@ -378,6 +381,23 @@
           </div>
           
           <button id="btn-close-settings" class="btn-menu secondary" style="margin-top: 20px;">BACK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOCAL DEVTOOLS -->
+    <div id="panel-devtools" class="panel-overlay hidden">
+      <div class="menu-content text-center" style="max-width: 520px;">
+        <h1>DEVTOOLS</h1>
+        <p class="menu-decor"></p>
+        <pre id="devtools-info" style="text-align: left; white-space: pre-wrap; margin: 0 auto 18px; padding: 16px; max-width: 440px; background: rgba(5,8,18,0.8); border: 1px solid rgba(181, 126, 255, 0.45); color: #dfe7ff; font-size: 11px; line-height: 1.5;"></pre>
+        <div class="menu-buttons">
+          <button id="btn-devtools-respawn" class="btn-menu">RESPAWN</button>
+          <button id="btn-devtools-reveal" class="btn-menu">REVEAL 3x3</button>
+          <button id="btn-devtools-refresh" class="btn-menu">REFRESH AREA</button>
+          <button id="btn-devtools-rebuild" class="btn-menu">REBUILD WORLD</button>
+          <button id="btn-devtools-trails" class="btn-menu secondary">TRAILS: ON</button>
+          <button id="btn-close-devtools" class="btn-menu secondary">CLOSE</button>
         </div>
       </div>
     </div>

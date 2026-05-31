@@ -735,9 +735,9 @@ export class AbilityTree {
       ctx.shadowColor = '#7d5fff';
     }
 
-    // Node body (draw retro blocky octagons or squares instead of circles)
+    // Node body (round icons restored)
     ctx.beginPath();
-    ctx.rect(nx - r, ny - r, r * 2, r * 2);
+    ctx.arc(nx, ny, r, 0, Math.PI * 2);
 
     if (isUnlocked) {
       ctx.fillStyle   = col;
@@ -760,7 +760,7 @@ export class AbilityTree {
     // Inner icon / glyph
     ctx.save();
     ctx.beginPath();
-    ctx.rect(nx - r, ny - r, r * 2, r * 2);
+    ctx.arc(nx, ny, r, 0, Math.PI * 2);
     ctx.clip();
 
     if (node.type === 'root') {
@@ -791,7 +791,9 @@ export class AbilityTree {
     } else if (node.type === 'major') {
       ctx.fillStyle = isUnlocked ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.1)';
       const d = r * 0.4;
-      ctx.fillRect(nx - d, ny - d, d * 2, d * 2);
+      ctx.beginPath();
+      ctx.arc(nx, ny, d, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.restore();
 
@@ -801,7 +803,7 @@ export class AbilityTree {
       const by = ny - r * 0.7;
       const br = 6;
       ctx.beginPath();
-      ctx.rect(bx - br, by - br, br * 2, br * 2);
+      ctx.arc(bx, by, br, 0, Math.PI * 2);
       ctx.fillStyle = isUnlockable ? '#7d5fff' : '#23253a';
       ctx.fill();
       ctx.strokeStyle = isUnlockable ? '#b39dff' : '#44475a';

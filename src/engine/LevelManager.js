@@ -36,6 +36,7 @@ export class LevelManager {
     
     this.startSectorX = 0;
     this.startSectorY = 0;
+    this._generationValidated = false;
 
     console.log("[LevelManager] Constructor: initializing obstacles...");
     this.generateObstacles();
@@ -55,6 +56,7 @@ export class LevelManager {
   }
 
   preGenerateFullMaze() {
+    this._generationValidated = false;
     const cols = 120;
     const rows = 120;
     const cellSize = 200;
@@ -232,28 +234,33 @@ export class LevelManager {
       }
     }
     
-    // Clear player spawn (proper open spawn room of 10x10 tiles)
-    const spawnCenterX = this.startSectorX * 50 + 25;
-    const spawnCenterY = this.startSectorY * 50 + 25;
-    const spawnRadius = 5; 
-    for (let x = spawnCenterX - spawnRadius; x <= spawnCenterX + spawnRadius; x++) {
-      for (let y = spawnCenterY - spawnRadius; y <= spawnCenterY + spawnRadius; y++) {
-        if (x > 0 && x < this.fullTileWidth - 1 && y > 0 && y < this.fullTileHeight - 1) {
-          this.fullTileGrid[x][y] = 0;
+    // Carve a small spawn room inside the starting sector.
+    // Keep the rest of the sector maze-shaped so walls still generate normally.
+    const startTx0 = this.startSectorX * 50;
+    const startTy0 = this.startSectorY * 50;
+    const spawnCenterX = startTx0 + 25;
+    const spawnCenterY = startTy0 + 25;
+    const spawnRadius = 5;
+    for (let tx = spawnCenterX - spawnRadius; tx <= spawnCenterX + spawnRadius; tx++) {
+      for (let ty = spawnCenterY - spawnRadius; ty <= spawnCenterY + spawnRadius; ty++) {
+        if (tx > 0 && tx < this.fullTileWidth - 1 && ty > 0 && ty < this.fullTileHeight - 1) {
+          this.fullTileGrid[tx][ty] = 0;
         }
       }
     }
-
-    // Surround spawn area with a wall (except for a few exits)
-    for (let x = spawnCenterX - spawnRadius - 1; x <= spawnCenterX + spawnRadius + 1; x++) {
-      this.fullTileGrid[x][spawnCenterY - spawnRadius - 1] = 1;
-      this.fullTileGrid[x][spawnCenterY + spawnRadius + 1] = 1;
+    for (let tx = spawnCenterX - spawnRadius - 1; tx <= spawnCenterX + spawnRadius + 1; tx++) {
+      if (tx > 0 && tx < this.fullTileWidth - 1) {
+        this.fullTileGrid[tx][spawnCenterY - spawnRadius - 1] = 1;
+        this.fullTileGrid[tx][spawnCenterY + spawnRadius + 1] = 1;
+      }
     }
-    for (let y = spawnCenterY - spawnRadius - 1; y <= spawnCenterY + spawnRadius + 1; y++) {
-      this.fullTileGrid[spawnCenterX - spawnRadius - 1][y] = 1;
-      this.fullTileGrid[spawnCenterX + spawnRadius + 1][y] = 1;
+    for (let ty = spawnCenterY - spawnRadius - 1; ty <= spawnCenterY + spawnRadius + 1; ty++) {
+      if (ty > 0 && ty < this.fullTileHeight - 1) {
+        this.fullTileGrid[spawnCenterX - spawnRadius - 1][ty] = 1;
+        this.fullTileGrid[spawnCenterX + spawnRadius + 1][ty] = 1;
+      }
     }
-    // Create exits in the spawn room walls
+    // Open four exits so the spawn room doesn't feel sealed off.
     this.fullTileGrid[spawnCenterX][spawnCenterY - spawnRadius - 1] = 0;
     this.fullTileGrid[spawnCenterX][spawnCenterY + spawnRadius + 1] = 0;
     this.fullTileGrid[spawnCenterX - spawnRadius - 1][spawnCenterY] = 0;
@@ -281,8 +288,8 @@ export class LevelManager {
     }
 
     // Make the spawn area immediately discovered
-    for (let tx = spawnCenterX - 10; tx < spawnCenterX + 10; tx++) {
-      for (let ty = spawnCenterY - 10; ty < spawnCenterY + 10; ty++) {
+    for (let tx = spawnCenterX - spawnRadius - 2; tx <= spawnCenterX + spawnRadius + 2; tx++) {
+      for (let ty = spawnCenterY - spawnRadius - 2; ty <= spawnCenterY + spawnRadius + 2; ty++) {
         if (tx >= 0 && tx < this.fullTileWidth && ty >= 0 && ty < this.fullTileHeight) {
           this.exploredGrid[tx][ty] = true;
         }
@@ -334,7 +341,7 @@ export class LevelManager {
     }
   }
 
-  generateObstacles() {
+  generateObstacles(retryCount = 0) {
     if (!this.fullTileGrid) {
       this.preGenerateFullMaze();
     }
@@ -793,6 +800,22 @@ export class LevelManager {
         }
       }
     }
+
+    // If the BFS had to remove a huge chunk of the unlocked zone, rebuild once.
+    const activeFloorTiles = this.tileGrid.reduce((sum, column) => {
+      let local = 0;
+      for (let i = 0; i < column.length; i++) {
+        if (column[i] === 0 || column[i] === 2 || column[i] === 3) local++;
+      }
+      return sum + local;
+    }, 0);
+    const tooMuchIsolation = !this._generationValidated && retryCount < 2 && convertedCount > Math.max(700, Math.floor(activeFloorTiles * 0.35));
+    if (tooMuchIsolation) {
+      console.log(`[LevelManager] Regenerating maze due to excessive unreachable area (${convertedCount} converted / ${activeFloorTiles} active).`);
+      this.preGenerateFullMaze();
+      return this.generateObstacles(retryCount + 1);
+    }
+    this._generationValidated = true;
 
     // Initialize active obstacles with dynamic render distance filter
     if (this.game.player && this.allObstacles) {
@@ -1717,28 +1740,9 @@ export class LevelManager {
     if (!this.tileGrid) return;
     
     const tileSize = 40;
-    const zoom = this.game.gameZoom || 1.0;
-    
-    // Determine range of visible tiles taking camera zoom into account
-    const halfW = (canvasWidth / 2) / zoom;
-    const halfH = (canvasHeight / 2) / zoom;
-    const centerX = camera.x + canvasWidth / 2;
-    const centerY = camera.y + canvasHeight / 2;
-    
-    // Cull based on active render distance around the player
-    const renderDistance = this.game.renderDistance || 1200;
-    const px = this.game.player ? this.game.player.x : centerX;
-    const py = this.game.player ? this.game.player.y : centerY;
-    
-    const renderStartTx = Math.max(0, Math.floor((px - renderDistance) / tileSize));
-    const renderEndTx = Math.min(this.tileWidth - 1, Math.ceil((px + renderDistance) / tileSize));
-    const renderStartTy = Math.max(0, Math.floor((py - renderDistance) / tileSize));
-    const renderEndTy = Math.min(this.tileHeight - 1, Math.ceil((py + renderDistance) / tileSize));
-
-    const startTx = Math.max(0, Math.floor((centerX - halfW) / tileSize), renderStartTx);
-    const endTx = Math.min(this.tileWidth - 1, Math.ceil((centerX + halfW) / tileSize), renderEndTx);
-    const startTy = Math.max(0, Math.floor((centerY - halfH) / tileSize), renderStartTy);
-    const endTy = Math.min(this.tileHeight - 1, Math.ceil((centerY + halfH) / tileSize), renderEndTy);
+    const bounds = this.getNearbyTileBounds();
+    if (!bounds) return;
+    const { startTx, endTx, startTy, endTy } = bounds;
 
     for (let tx = startTx; tx <= endTx; tx++) {
       const sx = Math.floor(tx / 50);
@@ -1947,30 +1951,9 @@ export class LevelManager {
     });
 
     // Draw wall tiles (connected textures) and explosive barrels
-    const zoom = this.game.gameZoom || 1.0;
-    const canvasWidth = this.game.canvas.width;
-    const canvasHeight = this.game.canvas.height;
-    
-    // Determine range of visible tiles taking camera zoom into account
-    const halfW = (canvasWidth / 2) / zoom;
-    const halfH = (canvasHeight / 2) / zoom;
-    const centerX = camera.x + canvasWidth / 2;
-    const centerY = camera.y + canvasHeight / 2;
-    
-    // Cull based on active render distance around the player
-    const renderDistance = this.game.renderDistance || 1200;
-    const px = this.game.player ? this.game.player.x : centerX;
-    const py = this.game.player ? this.game.player.y : centerY;
-    
-    const renderStartTx = Math.max(0, Math.floor((px - renderDistance) / tileSize));
-    const renderEndTx = Math.min(this.tileWidth - 1, Math.ceil((px + renderDistance) / tileSize));
-    const renderStartTy = Math.max(0, Math.floor((py - renderDistance) / tileSize));
-    const renderEndTy = Math.min(this.tileHeight - 1, Math.ceil((py + renderDistance) / tileSize));
-
-    const startTx = Math.max(0, Math.floor((centerX - halfW) / tileSize), renderStartTx);
-    const endTx = Math.min(this.tileWidth - 1, Math.ceil((centerX + halfW) / tileSize), renderEndTx);
-    const startTy = Math.max(0, Math.floor((centerY - halfH) / tileSize), renderStartTy);
-    const endTy = Math.min(this.tileHeight - 1, Math.ceil((centerY + halfH) / tileSize), renderEndTy);
+    const bounds = this.getNearbyTileBounds();
+    if (!bounds) return;
+    const { startTx, endTx, startTy, endTy } = bounds;
     
     // First pass: Draw drop shadows on the ground for any wall that has floor below it
     ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
@@ -2125,6 +2108,34 @@ export class LevelManager {
       ctx.fillText("!", rx, ry + 5);
       ctx.restore();
     });
+  }
+
+  getNearbyTileBounds() {
+    if (!this.tileGrid) return null;
+    const player = this.game?.player;
+    if (!player) {
+      return {
+        startTx: 0,
+        endTx: Math.min(this.tileWidth - 1, 149),
+        startTy: 0,
+        endTy: Math.min(this.tileHeight - 1, 149)
+      };
+    }
+
+    const sectorSize = 50;
+    const currentSx = Math.max(0, Math.min(this.maxSectorCols - 1, Math.floor(player.x / (sectorSize * 40))));
+    const currentSy = Math.max(0, Math.min(this.maxSectorRows - 1, Math.floor(player.y / (sectorSize * 40))));
+    const startSx = Math.max(0, currentSx - 1);
+    const endSx = Math.min(this.maxSectorCols - 1, currentSx + 1);
+    const startSy = Math.max(0, currentSy - 1);
+    const endSy = Math.min(this.maxSectorRows - 1, currentSy + 1);
+
+    return {
+      startTx: Math.max(0, startSx * sectorSize),
+      endTx: Math.min(this.tileWidth - 1, ((endSx + 1) * sectorSize) - 1),
+      startTy: Math.max(0, startSy * sectorSize),
+      endTy: Math.min(this.tileHeight - 1, ((endSy + 1) * sectorSize) - 1)
+    };
   }
 
   transitionToNewArea(door) {

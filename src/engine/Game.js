@@ -33,6 +33,9 @@ export class Game {
     this.showFloorGrid = true;
     this.lowParticleMode = false;
     this.showSpellTrails = true;
+    this.isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    this.devtoolsVisible = false;
+    this.customPresetIdx = 0;
     
     // Load persisted settings
     this.loadSettings();
@@ -88,6 +91,7 @@ export class Game {
     this.initInputListeners();
     this.initUIListeners();
     this.updateHUD();
+    this.initDevtoolsUI();
     
     this.treeCanvas = document.getElementById('tree-canvas');
     this.treeCtx = this.treeCanvas.getContext('2d');
@@ -219,6 +223,11 @@ export class Game {
             life: 2.5
           });
         }
+      }
+
+      if (this.isLocalDev && key === 'f3') {
+        e.preventDefault();
+        this.toggleDevtools();
       }
 
       if (key === 'i') {
@@ -510,6 +519,7 @@ export class Game {
         ];
         const matchIdx = presets.findIndex(p => p.hue === currentHue);
         this.customPresetIdx = matchIdx !== -1 ? matchIdx : 0;
+        this.player.hueShift = presets[this.customPresetIdx].hue;
         document.getElementById('customize-preset-name').innerText = presets[this.customPresetIdx].name;
       });
     }
@@ -567,6 +577,7 @@ export class Game {
     if (btnPrevPreset) {
       btnPrevPreset.addEventListener('click', () => {
         this.customPresetIdx = (this.customPresetIdx - 1 + presets.length) % presets.length;
+        this.player.hueShift = presets[this.customPresetIdx].hue;
         document.getElementById('customize-preset-name').innerText = presets[this.customPresetIdx].name;
         if (this.audio) this.audio.playClick();
       });
@@ -575,6 +586,7 @@ export class Game {
     if (btnNextPreset) {
       btnNextPreset.addEventListener('click', () => {
         this.customPresetIdx = (this.customPresetIdx + 1) % presets.length;
+        this.player.hueShift = presets[this.customPresetIdx].hue;
         document.getElementById('customize-preset-name').innerText = presets[this.customPresetIdx].name;
         if (this.audio) this.audio.playClick();
       });
@@ -876,6 +888,146 @@ export class Game {
       
       this.particles.spawnText(this.player.x, this.player.y - 20, "MAP UNLOCKED!", { color: '#eccc68', fontSize: 10, fontPixel: true });
     });
+  }
+
+  initDevtoolsUI() {
+    const toggleBtn = document.getElementById('btn-devtools-toggle');
+    const panel = document.getElementById('panel-devtools');
+
+    if (toggleBtn) {
+      toggleBtn.classList.toggle('hidden', !this.isLocalDev);
+    }
+
+    if (!this.isLocalDev || !panel) return;
+
+    const closeBtn = document.getElementById('btn-close-devtools');
+    const rebuildBtn = document.getElementById('btn-devtools-rebuild');
+    const respawnBtn = document.getElementById('btn-devtools-respawn');
+    const revealBtn = document.getElementById('btn-devtools-reveal');
+    const refreshBtn = document.getElementById('btn-devtools-refresh');
+    const trailsBtn = document.getElementById('btn-devtools-trails');
+
+    if (toggleBtn) toggleBtn.addEventListener('click', () => this.toggleDevtools());
+    if (closeBtn) closeBtn.addEventListener('click', () => this.toggleDevtools(false));
+    if (rebuildBtn) rebuildBtn.addEventListener('click', () => this.rebuildWorldForDebug());
+    if (respawnBtn) respawnBtn.addEventListener('click', () => this.respawnForDebug());
+    if (revealBtn) revealBtn.addEventListener('click', () => this.revealNearbyForDebug());
+    if (refreshBtn) refreshBtn.addEventListener('click', () => {
+      if (this.levelManager) this.levelManager.generateObstacles();
+      this.updateDevtoolsPanel();
+    });
+    if (trailsBtn) trailsBtn.addEventListener('click', () => {
+      this.showSpellTrails = !this.showSpellTrails;
+      this.saveSettings();
+      this.updateDevtoolsPanel();
+    });
+
+    this.updateDevtoolsPanel();
+  }
+
+  toggleDevtools(force) {
+    if (!this.isLocalDev) return;
+    this.devtoolsVisible = typeof force === 'boolean' ? force : !this.devtoolsVisible;
+
+    const panel = document.getElementById('panel-devtools');
+    if (panel) panel.classList.toggle('hidden', !this.devtoolsVisible);
+
+    const toggleBtn = document.getElementById('btn-devtools-toggle');
+    if (toggleBtn) toggleBtn.classList.toggle('active', this.devtoolsVisible);
+
+    if (this.devtoolsVisible) {
+      this.updateDevtoolsPanel();
+    }
+  }
+
+  updateDevtoolsPanel() {
+    if (!this.isLocalDev) return;
+    const info = document.getElementById('devtools-info');
+    if (!info) return;
+
+    const lvl = this.levelManager;
+    const spawn = lvl?.getSpawnPoint ? lvl.getSpawnPoint() : { x: 0, y: 0 };
+    const px = this.player?.x ?? 0;
+    const py = this.player?.y ?? 0;
+    const sx = lvl ? Math.max(0, Math.min((lvl.maxSectorCols || 1) - 1, Math.floor(px / 2000))) : 0;
+    const sy = lvl ? Math.max(0, Math.min((lvl.maxSectorRows || 1) - 1, Math.floor(py / 2000))) : 0;
+    const bounds = lvl?.getNearbyTileBounds ? lvl.getNearbyTileBounds() : null;
+    const visibleSectors = bounds ? '3x3' : 'n/a';
+    const obstacleCount = lvl?.obstacles?.length || 0;
+    const allObstacleCount = lvl?.allObstacles?.length || 0;
+    const explored = lvl?.exploredGrid ? lvl.exploredGrid.reduce((sum, col) => sum + col.filter(Boolean).length, 0) : 0;
+
+    info.textContent =
+      `State: ${this.state}\n` +
+      `Player: ${px.toFixed(1)}, ${py.toFixed(1)}\n` +
+      `Spawn: ${spawn.x.toFixed(1)}, ${spawn.y.toFixed(1)}\n` +
+      `Sector: ${sx}, ${sy}\n` +
+      `Theme: ${lvl?.theme || 'n/a'}\n` +
+      `Map revealed: ${!!lvl?.mapRevealed}\n` +
+      `Nearby render: ${visibleSectors}\n` +
+      `Obstacles: ${obstacleCount} / ${allObstacleCount}\n` +
+      `Explored tiles: ${explored}\n` +
+      `Trails: ${this.showSpellTrails ? 'on' : 'off'}`;
+
+    const trailsBtn = document.getElementById('btn-devtools-trails');
+    if (trailsBtn) trailsBtn.innerText = this.showSpellTrails ? 'TRAILS: ON' : 'TRAILS: OFF';
+  }
+
+  rebuildWorldForDebug() {
+    if (!this.levelManager || !this.player) return;
+    this.levelManager.preGenerateFullMaze();
+    this.levelManager.generateObstacles();
+    const spawn = this.levelManager.getSpawnPoint();
+    this.player.x = spawn.x;
+    this.player.y = spawn.y;
+    this.player.vx = 0;
+    this.player.vy = 0;
+    this.camera = { x: this.player.x - this.canvas.width / 2, y: this.player.y - this.canvas.height / 2 };
+    this.updateHUD();
+    this.updateDevtoolsPanel();
+    if (this.audio) this.audio.playClick();
+  }
+
+  respawnForDebug() {
+    if (!this.levelManager || !this.player) return;
+    const spawn = this.levelManager.getSpawnPoint();
+    this.player.x = spawn.x;
+    this.player.y = spawn.y;
+    this.player.vx = 0;
+    this.player.vy = 0;
+    this.camera = { x: this.player.x - this.canvas.width / 2, y: this.player.y - this.canvas.height / 2 };
+    this.updateHUD();
+    this.updateDevtoolsPanel();
+  }
+
+  revealNearbyForDebug() {
+    const lvl = this.levelManager;
+    if (!lvl || !lvl.exploredGrid || !this.player) return;
+
+    const sectorSize = 50;
+    const currentSx = Math.max(0, Math.min(lvl.maxSectorCols - 1, Math.floor(this.player.x / 2000)));
+    const currentSy = Math.max(0, Math.min(lvl.maxSectorRows - 1, Math.floor(this.player.y / 2000)));
+
+    for (let sx = currentSx - 1; sx <= currentSx + 1; sx++) {
+      for (let sy = currentSy - 1; sy <= currentSy + 1; sy++) {
+        if (sx < 0 || sy < 0 || sx >= lvl.maxSectorCols || sy >= lvl.maxSectorRows) continue;
+        const startTx = sx * sectorSize;
+        const startTy = sy * sectorSize;
+        for (let tx = startTx; tx < startTx + sectorSize; tx++) {
+          for (let ty = startTy; ty < startTy + sectorSize; ty++) {
+            if (lvl.exploredGrid[tx] && lvl.exploredGrid[tx][ty] !== undefined) {
+              lvl.exploredGrid[tx][ty] = true;
+            }
+          }
+        }
+      }
+    }
+
+    lvl.mapRevealed = true;
+    this.updateHUD();
+    this.drawWorldmap();
+    this.updateDevtoolsPanel();
+    if (this.audio) this.audio.playClick();
   }
 
   _invSlotCost() {
@@ -2378,6 +2530,10 @@ export class Game {
         this.updateTutorial(dt);
       }
     }
+
+    if (this.isLocalDev && this.devtoolsVisible) {
+      this.updateDevtoolsPanel();
+    }
     
     requestAnimationFrame((t) => this.loop(t));
   }
@@ -3108,7 +3264,7 @@ export class Game {
       } else if (ae.type === 'frost_slow') {
         this.drawCircle(this.ctx, rx, ry, ae.radius, 'rgba(0, 210, 213, 0.08)', 'rgba(0, 210, 213, 0.2)', 2);
       } else if (ae.type === 'ice_trail') {
-        this.drawSmoothTrailStamp(this.ctx, rx, ry, 'rgba(178, 254, 251, 0.45)', 'rgba(72, 219, 251, 0.6)');
+        this.drawPixelTrailStamp(this.ctx, rx, ry, 'rgba(178, 254, 251, 0.45)', 'rgba(72, 219, 251, 0.6)');
       }
       this.ctx.restore();
     });
@@ -3143,8 +3299,6 @@ export class Game {
       // Draw ribbon trail
       if (this.showSpellTrails && proj.trail && proj.trail.length > 1) {
         this.ctx.save();
-        this.ctx.lineCap = 'round';
-        this.ctx.lineJoin = 'round';
         
         let color = '#fff';
         if (proj.element === SPELL_TYPES.FIRE) color = '#ff4757';
@@ -3152,22 +3306,20 @@ export class Game {
         else if (proj.element === SPELL_TYPES.LIGHTNING) color = '#f1c40f';
         else if (proj.element === SPELL_TYPES.VOID) color = '#a55eea';
 
-        this.ctx.strokeStyle = color;
-        this.ctx.shadowBlur = 8;
-        this.ctx.shadowColor = color;
+        this.ctx.fillStyle = color;
 
         for (let i = 0; i < proj.trail.length - 1; i++) {
           const p1 = proj.trail[i];
-          const p2 = proj.trail[i+1];
           const alpha = 1.0 - (i / proj.trail.length);
-          const width = (proj.radius * 1.5) * alpha;
+          const size = Math.max(2, (proj.radius * 0.8) * alpha);
           
-          this.ctx.globalAlpha = alpha * 0.6;
-          this.ctx.lineWidth = width;
-          this.ctx.beginPath();
-          this.ctx.moveTo(p1.x - this.camera.x, p1.y - this.camera.y);
-          this.ctx.lineTo(p2.x - this.camera.x, p2.y - this.camera.y);
-          this.ctx.stroke();
+          // Draw a blocky "link" in the ribbon
+          this.ctx.globalAlpha = alpha > 0.5 ? 0.7 : 0.3; // Discrete alpha steps
+          this.ctx.fillRect(
+            Math.round((p1.x - this.camera.x) / 2) * 2 - size/2, 
+            Math.round((p1.y - this.camera.y) / 2) * 2 - size/2, 
+            size, size
+          );
         }
         this.ctx.restore();
       }
@@ -3466,7 +3618,7 @@ export class Game {
 
     ctx.save();
     if (hueShift !== undefined) {
-      if (hueShift) ctx.filter = `hue-rotate(${hueShift}deg)`;
+      if (hueShift !== null) ctx.filter = `hue-rotate(${hueShift}deg)`;
     } else if (this.player && this.player.hueShift) {
       ctx.filter = `hue-rotate(${this.player.hueShift}deg)`;
     }
@@ -3867,35 +4019,54 @@ export class Game {
     }
   }
 
-  drawCircle(ctx, cx, cy, radius, fillStyle, strokeStyle, strokeWidth = 2) {
+  drawCircle(ctx, cx, cy, radius, fillStyle, strokeStyle, strokeWidth = 2, blockSize = 2) {
+    const startX = Math.floor((cx - radius) / blockSize) * blockSize;
+    const endX = Math.ceil((cx + radius) / blockSize) * blockSize;
+    const startY = Math.floor((cy - radius) / blockSize) * blockSize;
+    const endY = Math.ceil((cy + radius) / blockSize) * blockSize;
+
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    
     if (fillStyle) {
       ctx.fillStyle = fillStyle;
-      ctx.fill();
+      for (let x = startX; x <= endX; x += blockSize) {
+        for (let y = startY; y <= endY; y += blockSize) {
+          const dx = x + blockSize / 2 - cx;
+          const dy = y + blockSize / 2 - cy;
+          if (dx * dx + dy * dy <= radius * radius) {
+            ctx.fillRect(x, y, blockSize, blockSize);
+          }
+        }
+      }
     }
-    
+
     if (strokeStyle) {
-      ctx.strokeStyle = strokeStyle;
-      ctx.lineWidth = strokeWidth;
-      ctx.stroke();
+      ctx.fillStyle = strokeStyle;
+      for (let x = startX; x <= endX; x += blockSize) {
+        for (let y = startY; y <= endY; y += blockSize) {
+          const dx = x + blockSize / 2 - cx;
+          const dy = y + blockSize / 2 - cy;
+          const distSq = dx * dx + dy * dy;
+          const outerR = radius;
+          const innerR = radius - strokeWidth;
+          if (distSq <= outerR * outerR && distSq > innerR * innerR) {
+            ctx.fillRect(x, y, blockSize, blockSize);
+          }
+        }
+      }
     }
     ctx.restore();
   }
 
-  drawSmoothTrailStamp(ctx, cx, cy, fillStyle, strokeStyle = null) {
+  drawPixelTrailStamp(ctx, cx, cy, fillStyle, strokeStyle = null) {
     ctx.save();
-    ctx.beginPath();
     ctx.fillStyle = fillStyle;
-    ctx.arc(cx, cy, 4, 0, Math.PI * 2);
-    ctx.fill();
+    // compact 2-pixel grain stamp
+    ctx.fillRect(Math.round(cx - 3), Math.round(cy - 1), 6, 2);
+    ctx.fillRect(Math.round(cx - 1), Math.round(cy - 3), 2, 6);
 
     if (strokeStyle) {
-      ctx.strokeStyle = strokeStyle;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
+      ctx.fillStyle = strokeStyle;
+      ctx.fillRect(Math.round(cx - 1), Math.round(cy - 1), 2, 2);
     }
     ctx.restore();
   }

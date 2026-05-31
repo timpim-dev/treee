@@ -1110,8 +1110,8 @@ export class Player {
       const cx = this.x - this.game.camera.x;
       const cy = this.y - this.game.camera.y;
 
-      // Orbit ring hint (smooth circle)
-      this.game.drawCircle(ctx, cx, cy, ORBIT_R, null, 'rgba(255, 226, 0, 0.12)', 1);
+      // Orbit ring hint (subtly blocky circle)
+      this.game.drawCircle(ctx, cx, cy, ORBIT_R, null, 'rgba(255, 226, 0, 0.08)', 1, 4);
 
       for (let i = 0; i < ORB_COUNT; i++) {
         const orbAngle = this.voltShieldTimer * SPIN_SPEED * -1 + (i / ORB_COUNT) * Math.PI * 2;
@@ -1122,30 +1122,25 @@ export class Player {
         const orbObj = this.voltShieldOrbs[i];
         if (orbObj && orbObj.trail && orbObj.trail.length > 1) {
           ctx.save();
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          ctx.strokeStyle = '#fff200';
-          ctx.shadowBlur = 8;
-          ctx.shadowColor = '#fff200';
+          ctx.fillStyle = '#fff200';
 
           for (let j = 0; j < orbObj.trail.length - 1; j++) {
             const p1 = orbObj.trail[j];
-            const p2 = orbObj.trail[j+1];
             const alpha = 1.0 - (j / orbObj.trail.length);
-            const width = 8 * alpha;
+            const size = Math.max(2, 6 * alpha);
             
-            ctx.globalAlpha = alpha * 0.5;
-            ctx.lineWidth = width;
-            ctx.beginPath();
-            ctx.moveTo(p1.x - this.game.camera.x, p1.y - this.game.camera.y);
-            ctx.lineTo(p2.x - this.game.camera.x, p2.y - this.game.camera.y);
-            ctx.stroke();
+            ctx.globalAlpha = alpha > 0.5 ? 0.6 : 0.2;
+            ctx.fillRect(
+              Math.round((p1.x - this.game.camera.x) / 2) * 2 - size/2, 
+              Math.round((p1.y - this.game.camera.y) / 2) * 2 - size/2, 
+              size, size
+            );
           }
           ctx.restore();
         }
 
-        // Draw orb core
-        this.game.drawCircle(ctx, ox, oy, 6, '#fff200', '#ffffff', 2);
+        // Draw orb core (pixelated circle)
+        this.game.drawCircle(ctx, ox, oy, 6, '#fff200', '#ffffff', 2, 2);
       }
     }
 
