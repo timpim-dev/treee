@@ -5,47 +5,116 @@ import { SpellBook, SPELL_TYPES } from '../engine/Spells.js';
 
 export const RELICS_CATALOG = [
   // Elemental damage
-  { id: 'relic_fire',      name: 'Phoenix Feather',  desc: '+25% Fire Damage',           sprite: 'relic_feather', stats: { fireDamage: 0.25 } },
-  { id: 'relic_frost',     name: 'Glacial Core',     desc: '+25% Frost Damage',          sprite: 'relic_core',    stats: { frostDamage: 0.25 } },
-  { id: 'relic_lightning', name: 'Storm Ring',       desc: '+25% Lightning Damage',      sprite: 'relic_ring',    stats: { lightningDamage: 0.25 } },
-  { id: 'relic_void',      name: 'Void Shard',       desc: '+25% Void Damage',           sprite: 'relic_core',    stats: { voidDamage: 0.25 } },
-  { id: 'relic_time',      name: 'Hourglass Charm',  desc: '+20% Cooldown Reduction',    sprite: 'relic_ring',    stats: { cooldownReduction: 0.20 } },
+  { id: 'relic_fire',      name: 'Phoenix Feather',  desc: '+25% Fire Damage',           sprite: 'relic_fire',      stats: { fireDamage: 0.25 } },
+  { id: 'relic_frost',     name: 'Glacial Core',     desc: '+25% Frost Damage',          sprite: 'relic_frost',     stats: { frostDamage: 0.25 } },
+  { id: 'relic_lightning', name: 'Storm Ring',       desc: '+25% Lightning Damage',      sprite: 'relic_lightning', stats: { lightningDamage: 0.25 } },
+  { id: 'relic_void',      name: 'Void Shard',       desc: '+25% Void Damage',           sprite: 'relic_void',      stats: { voidDamage: 0.25 } },
+  { id: 'relic_time',      name: 'Hourglass Charm',  desc: '+20% Cooldown Reduction',    sprite: 'relic_time',      stats: { cooldownReduction: 0.20 } },
   // Movement & defense
-  { id: 'relic_boots',     name: 'Aether Boots',     desc: '+20% Move Speed',            sprite: 'relic_boots',   stats: { speed: 0.20 } },
-  { id: 'relic_shield',    name: 'Runic Shield',     desc: '+15% Dmg Reduction',         sprite: 'relic_shield',  stats: { damageReduction: 0.15 } },
-  { id: 'relic_heart',     name: 'Stone Heart',      desc: '+40 Max HP',                 sprite: 'relic_feather', stats: { maxHp: 40 } },
+  { id: 'relic_boots',     name: 'Aether Boots',     desc: '+20% Move Speed',            sprite: 'relic_boots',     stats: { speed: 0.20 } },
+  { id: 'relic_shield',    name: 'Runic Shield',     desc: '+15% Dmg Reduction',         sprite: 'relic_shield',    stats: { damageReduction: 0.15 } },
+  { id: 'relic_heart',     name: 'Stone Heart',      desc: '+40 Max HP',                 sprite: 'relic_heart',     stats: { maxHp: 40 } },
   // Mana & offense
-  { id: 'relic_mana',      name: 'Sapphire Amulet',  desc: '+30 Max Mana',               sprite: 'relic_amulet',  stats: { maxMp: 30 } },
-  { id: 'relic_regen',     name: 'Verdant Talisman', desc: '+0.8 HP Regen/s',            sprite: 'relic_amulet',  stats: { healthRegen: 0.8 } },
-  { id: 'relic_crit',      name: 'Assassin\'s Eye',  desc: '+10% Crit Chance',           sprite: 'relic_ring',    stats: { critChance: 0.10 } },
-  { id: 'relic_cast',      name: 'Quicksilver Orb',  desc: '+20% Cast Speed',            sprite: 'relic_core',    stats: { castSpeed: 0.20 } },
-  { id: 'relic_alldmg',    name: 'Warlord\'s Crest', desc: '+15% All Spell Damage',      sprite: 'relic_shield',  stats: { allDamage: 0.15 } },
-  { id: 'relic_mpregen',   name: 'Mana Conduit',     desc: '+0.6 Mana Regen/s',          sprite: 'relic_amulet',  stats: { manaRegen: 0.6 } },
-  { id: 'relic_xp',        name: 'Scholar\'s Lens',  desc: '+20% XP Gain',               sprite: 'relic_boots',   stats: { xpGain: 0.20 } },
+  { id: 'relic_mana',      name: 'Sapphire Amulet',  desc: '+30 Max Mana',               sprite: 'relic_mana',      stats: { maxMp: 30 } },
+  { id: 'relic_regen',     name: 'Verdant Talisman', desc: '+0.8 HP Regen/s',            sprite: 'relic_regen',     stats: { healthRegen: 0.8 } },
+  { id: 'relic_crit',      name: 'Assassin\'s Eye',  desc: '+10% Crit Chance',           sprite: 'relic_crit',      stats: { critChance: 0.10 } },
+  { id: 'relic_cast',      name: 'Quicksilver Orb',  desc: '+20% Cast Speed',            sprite: 'relic_cast',      stats: { castSpeed: 0.20 } },
+  { id: 'relic_alldmg',    name: 'Warlord\'s Crest', desc: '+15% All Spell Damage',      sprite: 'relic_alldmg',    stats: { allDamage: 0.15 } },
+  { id: 'relic_mpregen',   name: 'Mana Conduit',     desc: '+0.6 Mana Regen/s',          sprite: 'relic_mpregen',   stats: { manaRegen: 0.6 } },
+  { id: 'relic_xp',        name: 'Scholar\'s Lens',  desc: '+20% XP Gain',               sprite: 'relic_xp',        stats: { xpGain: 0.20 } },
 ];
 
 export const EQUIPMENT_CATALOG = [
   // Weapons
-  { id: 'equip_wand_novice', name: 'Novice Wand', type: 'weapon', desc: '+10% Cast Speed', sprite: 'equip_wand', stats: { castSpeed: 0.10 } },
-  { id: 'equip_staff_fire', name: 'Pyromancer Staff', type: 'weapon', desc: '+30% Fire Damage', sprite: 'equip_staff', stats: { fireDamage: 0.30 } },
-  { id: 'equip_wand_mana', name: 'Mana Scepter', type: 'weapon', desc: '+40 Max MP, +0.3 Mana Regen', sprite: 'equip_wand', stats: { maxMp: 40, manaRegen: 0.3 } },
+  { id: 'equip_wand_novice', name: 'Novice Wand', type: 'weapon', desc: '+10% Cast Speed', sprite: 'equip_wand_novice', stats: { castSpeed: 0.10 } },
+  { id: 'equip_staff_fire', name: 'Pyromancer Staff', type: 'weapon', desc: '+30% Fire Damage', sprite: 'equip_staff_fire', stats: { fireDamage: 0.30 } },
+  { id: 'equip_wand_mana', name: 'Mana Scepter', type: 'weapon', desc: '+40 Max MP, +0.3 Mana Regen', sprite: 'equip_wand_mana', stats: { maxMp: 40, manaRegen: 0.3 } },
   
   // Helmets
-  { id: 'equip_hood_apprentice', name: 'Apprentice Hood', type: 'helmet', desc: '+15 Max MP, +10% Cast Speed', sprite: 'equip_hat', stats: { maxMp: 15, castSpeed: 0.10 } },
-  { id: 'equip_crown_mage', name: 'Archmage Crown', type: 'helmet', desc: '+15% Cooldown Reduction', sprite: 'equip_hat', stats: { cooldownReduction: 0.15 } },
+  { id: 'equip_hood_apprentice', name: 'Apprentice Hood', type: 'helmet', desc: '+15 Max MP, +10% Cast Speed', sprite: 'equip_hood_apprentice', stats: { maxMp: 15, castSpeed: 0.10 } },
+  { id: 'equip_crown_mage', name: 'Archmage Crown', type: 'helmet', desc: '+15% Cooldown Reduction', sprite: 'equip_crown_mage', stats: { cooldownReduction: 0.15 } },
 
   // Armors
-  { id: 'equip_robe_student', name: 'Student Robe', type: 'chestplate', desc: '+20 Max HP', sprite: 'equip_robe', stats: { maxHp: 20 } },
-  { id: 'equip_robe_runic', name: 'Runic Mail', type: 'chestplate', desc: '+15% Damage Reduction, +25 Max HP', sprite: 'equip_robe', stats: { damageReduction: 0.15, maxHp: 25 } },
+  { id: 'equip_robe_student', name: 'Student Robe', type: 'chestplate', desc: '+20 Max HP', sprite: 'equip_robe_student', stats: { maxHp: 20 } },
+  { id: 'equip_robe_runic', name: 'Runic Mail', type: 'chestplate', desc: '+15% Damage Reduction, +25 Max HP', sprite: 'equip_robe_runic', stats: { damageReduction: 0.15, maxHp: 25 } },
 
   // Boots
-  { id: 'equip_boots_leather', name: 'Traveler Boots', type: 'boots', desc: '+15% Move Speed', sprite: 'equip_boots', stats: { speed: 0.15 } },
-  { id: 'equip_boots_wizard', name: 'Levitation Boots', type: 'boots', desc: '+25% Move Speed', sprite: 'equip_boots', stats: { speed: 0.25 } },
+  { id: 'equip_boots_leather', name: 'Traveler Boots', type: 'boots', desc: '+15% Move Speed', sprite: 'equip_boots_leather', stats: { speed: 0.15 } },
+  { id: 'equip_boots_wizard', name: 'Levitation Boots', type: 'boots', desc: '+25% Move Speed', sprite: 'equip_boots_wizard', stats: { speed: 0.25 } },
 
   // Rings / Accessories
-  { id: 'equip_ring_gold', name: 'Golden Band', type: 'ring', desc: '+10% XP Gain', sprite: 'relic_ring', stats: { xpGain: 0.10 } },
-  { id: 'equip_ring_crit', name: 'Slayer Ring', type: 'ring', desc: '+10% Crit Chance', sprite: 'relic_ring', stats: { critChance: 0.10 } }
+  { id: 'equip_ring_gold', name: 'Golden Band', type: 'ring', desc: '+10% XP Gain', sprite: 'equip_ring_gold', stats: { xpGain: 0.10 } },
+  { id: 'equip_ring_crit', name: 'Slayer Ring', type: 'ring', desc: '+10% Crit Chance', sprite: 'equip_ring_crit', stats: { critChance: 0.10 } }
 ];
+
+export function createScaledLootItem(catalogItem, wave) {
+  // Deep clone catalog item to avoid reference sharing
+  const item = {
+    ...catalogItem,
+    stats: { ...catalogItem.stats }
+  };
+  
+  // Wave stats scaling tiers: Common, Rare, Epic, Legendary
+  let rarity = 'Common';
+  let color = '#ffffff'; // White
+  let mult = 1.0;
+  
+  if (wave >= 15) {
+    rarity = 'Legendary';
+    color = '#ff9f43'; // Orange
+    mult = 1.0 + wave * 0.08;
+  } else if (wave >= 10) {
+    rarity = 'Epic';
+    color = '#a55eea'; // Purple
+    mult = 1.0 + wave * 0.06;
+  } else if (wave >= 5) {
+    rarity = 'Rare';
+    color = '#70a1ff'; // Blue
+    mult = 1.0 + wave * 0.04;
+  } else {
+    mult = 1.0 + wave * 0.02;
+  }
+  
+  item.rarity = rarity;
+  item.rarityColor = color;
+  
+  // Apply scaling multiplier to numerical stats
+  const descParts = [];
+  for (const statKey in item.stats) {
+    const baseVal = catalogItem.stats[statKey];
+    const scaledVal = baseVal * mult;
+    item.stats[statKey] = scaledVal;
+    
+    const statName = statKey === 'fireDamage' ? 'Fire Damage' :
+                     statKey === 'frostDamage' ? 'Frost Damage' :
+                     statKey === 'lightningDamage' ? 'Lightning Damage' :
+                     statKey === 'voidDamage' ? 'Void Damage' :
+                     statKey === 'cooldownReduction' ? 'Cooldown Reduction' :
+                     statKey === 'speed' ? 'Move Speed' :
+                     statKey === 'damageReduction' ? 'Dmg Reduction' :
+                     statKey === 'maxHp' ? 'Max HP' :
+                     statKey === 'maxMp' ? 'Max Mana' :
+                     statKey === 'healthRegen' ? 'HP Regen/s' :
+                     statKey === 'critChance' ? 'Crit Chance' :
+                     statKey === 'castSpeed' ? 'Cast Speed' :
+                     statKey === 'allDamage' ? 'All Spell Damage' :
+                     statKey === 'manaRegen' ? 'Mana Regen/s' :
+                     statKey === 'xpGain' ? 'XP Gain' : statKey;
+                     
+    const isPercentage = !['maxHp', 'maxMp', 'healthRegen', 'manaRegen'].includes(statKey);
+    let valStr = '';
+    if (isPercentage) {
+      valStr = `+${Math.round(scaledVal * 100)}%`;
+    } else {
+      valStr = `+${scaledVal.toFixed(1).replace(/\.0$/, '')}`;
+    }
+    descParts.push(`${valStr} ${statName}`);
+  }
+  
+  item.desc = descParts.join(', ');
+  item.name = `${catalogItem.name} (${rarity})`;
+  return item;
+}
 
 export class Player {
   constructor(game, x, y) {
@@ -565,6 +634,7 @@ export class Player {
     try {
       // Cast spell
       spell.cast(this, angle, this.game);
+      console.log(`[SPELL] Cast '${spellId}' (slot: ${slotName}) | Mana: ${spell.manaCost} cost, ${this.mp.toFixed(1)} remaining | CD: ${this.getSpellCooldown(spellId).toFixed(2)}s`);
 
       // Apply speed boost timer on Chrono Dash
       if (spellId === 'aether_dash' && this.modifiers.dashSpeedBoost) {
@@ -600,6 +670,37 @@ export class Player {
     }
 
     this.onIceTrail = false;
+    
+    // Volcanic heat damage mechanic (2.5 DPS, ticks as 2 damage every 0.8 seconds)
+    const lvl = this.game.levelManager;
+    if (lvl && lvl.theme === 'volcanic' && !this.game.isTutorial) {
+      if (!this.onIceTrail) {
+        this.volcanicHeatTimer = (this.volcanicHeatTimer || 0) + dt;
+        if (this.volcanicHeatTimer >= 0.8) {
+          this.volcanicHeatTimer = 0;
+          const heatDmg = 2;
+          this.hp -= heatDmg;
+          if (this.game.showDamageNumbers) {
+            this.game.particles.spawnText(this.x, this.y - 20, `-${heatDmg}`, {
+              color: '#e67e22',
+              fontSize: 10,
+              fontPixel: true
+            });
+          }
+          if (this.hp <= 0) {
+            this.hp = 0;
+            if (this.game.audio) this.game.audio.playDeath();
+            this.game.gameOver();
+          }
+          this.game.updateHUD();
+        }
+      } else {
+        this.volcanicHeatTimer = 0;
+      }
+    } else {
+      this.volcanicHeatTimer = 0;
+    }
+
     // Regenerate HP and Mana
     const hpReg = (this.modifiers.healthRegen || 0.2) * dt;
     this.hp = Math.min(this.getMaxHp(), this.hp + hpReg);
@@ -730,7 +831,6 @@ export class Player {
     this.y += this.vy * this.getSpeed() * dt;
 
     // Boundary check inside Arena level
-    const lvl = this.game.levelManager;
     this.x = Math.max(this.radius + 40, Math.min(lvl.width - this.radius - 40, this.x));
     this.y = Math.max(this.radius + 40, Math.min(lvl.height - this.radius - 40, this.y));
 

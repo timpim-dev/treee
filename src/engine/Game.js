@@ -36,6 +36,23 @@ export class Game {
     this.isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     this.devtoolsVisible = false;
     this.customPresetIdx = 0;
+    this.nextThemeOverride = null;
+    
+    // Dev overlay flags
+    this.devShowHitboxes = false;
+    this.devShowPaths = false;
+    this.devShowFps = false;
+    this.devShowGrid = false;
+    this._fpsHistory = [];
+    this._lastFpsTime = 0;
+    
+    // Worldmap zoom/drag state
+    this.mapZoom = 1.0;
+    this.mapPanX = 0;
+    this.mapPanY = 0;
+    this._mapDragging = false;
+    this._mapDragStartX = 0;
+    this._mapDragStartY = 0;
     
     // Load persisted settings
     this.loadSettings();
@@ -159,13 +176,19 @@ export class Game {
         }
         if (key === ']') {
           let unlockedCount = 0;
+          // Unlock ALL nodes across ALL views
           for (const k in this.abilityTree.nodes) {
             const node = this.abilityTree.nodes[k];
-            if (node.view === this.abilityTree.currentView && !node.unlocked) {
+            if (!node.unlocked) {
               node.unlocked = true;
               unlockedCount++;
             }
           }
+          // Force-unlock companion progression flags
+          this.player.unlockedCompanion1 = true;
+          this.player.unlockedCompanion2 = true;
+          this.player.completedCompanion1Tree = true;
+          
           if (unlockedCount > 0) {
             this.player.recalculateModifiers(this.abilityTree);
             this.checkProgressionOnUnlock();
@@ -179,6 +202,7 @@ export class Game {
               fontPixel: true
             });
             this.updateHUD();
+            console.log(`[CHEAT] Unlocked ${unlockedCount} nodes across all views. Companion flags set.`);
             
             const canvas = this.treeCanvas;
             if (canvas) {
@@ -888,6 +912,55 @@ export class Game {
       
       this.particles.spawnText(this.player.x, this.player.y - 20, "MAP UNLOCKED!", { color: '#eccc68', fontSize: 10, fontPixel: true });
     });
+
+    // ── Worldmap Zoom & Drag ──────────────────────────────────────────────
+    const mapCanvas = document.getElementById('worldmap-canvas');
+    const mapContainer = document.querySelector('.worldmap-canvas-container');
+    if (mapContainer && mapCanvas) {
+      mapContainer.style.cursor = 'grab';
+      mapContainer.style.overflow = 'hidden';
+
+      mapContainer.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        this._mapDragging = true;
+        this._mapDragStartX = e.clientX - this.mapPanX;
+        this._mapDragStartY = e.clientY - this.mapPanY;
+        mapContainer.style.cursor = 'grabbing';
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!this._mapDragging || this.state !== 'WORLD_MAP') return;
+        this.mapPanX = e.clientX - this._mapDragStartX;
+        this.mapPanY = e.clientY - this._mapDragStartY;
+        this.drawWorldmap();
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (this._mapDragging) {
+          this._mapDragging = false;
+          mapContainer.style.cursor = 'grab';
+        }
+      });
+
+      mapContainer.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const zoomFactor = 1.15;
+        const oldZoom = this.mapZoom;
+        if (e.deltaY < 0) {
+          this.mapZoom = Math.min(8.0, this.mapZoom * zoomFactor);
+        } else {
+          this.mapZoom = Math.max(0.5, this.mapZoom / zoomFactor);
+        }
+        // Zoom toward mouse position
+        const rect = mapCanvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const zoomRatio = this.mapZoom / oldZoom;
+        this.mapPanX = mx - zoomRatio * (mx - this.mapPanX);
+        this.mapPanY = my - zoomRatio * (my - this.mapPanY);
+        this.drawWorldmap();
+      });
+    }
   }
 
   initDevtoolsUI() {
@@ -950,6 +1023,41 @@ export class Game {
       });
     });
 
+    const applyThemeBtn = document.getElementById('btn-devtools-apply-theme');
+    const nextThemeSelect = document.getElementById('dev-next-theme');
+    if (applyThemeBtn && nextThemeSelect) {
+      applyThemeBtn.addEventListener('click', () => {
+        const val = nextThemeSelect.value || null;
+        this.nextThemeOverride = val;
+        this.updateDevtoolsPanel();
+        if (this.player) {
+          this.particles.spawnText(this.player.x, this.player.y - 40, `Set Next: ${val || 'Random'}`, {
+            color: '#7d5fff',
+            fontSize: 12,
+            fontPixel: true
+          });
+        }
+      });
+    }
+
+    // ── Dev overlay toggle checkboxes ──
+    const devCheckboxes = [
+      { id: 'dev-show-hitboxes', prop: 'devShowHitboxes' },
+      { id: 'dev-show-paths',    prop: 'devShowPaths' },
+      { id: 'dev-show-fps',      prop: 'devShowFps' },
+      { id: 'dev-show-grid',     prop: 'devShowGrid' },
+    ];
+    devCheckboxes.forEach(({ id, prop }) => {
+      const cb = document.getElementById(id);
+      if (cb) {
+        cb.checked = this[prop];
+        cb.addEventListener('change', () => {
+          this[prop] = cb.checked;
+          console.log(`[DEV] ${prop} = ${cb.checked}`);
+        });
+      }
+    });
+
     this.updateDevtoolsPanel();
   }
 
@@ -995,7 +1103,8 @@ export class Game {
       `Nearby render: ${visibleSectors}\n` +
       `Obstacles: ${obstacleCount} / ${allObstacleCount}\n` +
       `Explored tiles: ${explored}\n` +
-      `Trails: ${this.showSpellTrails ? 'on' : 'off'}`;
+      `Trails: ${this.showSpellTrails ? 'on' : 'off'}\n` +
+      `Next Region: ${this.nextThemeOverride || 'Random'}`;
 
     const trailsBtn = document.getElementById('btn-devtools-trails');
     if (trailsBtn) trailsBtn.innerText = this.showSpellTrails ? 'TRAILS: ON' : 'TRAILS: OFF';
@@ -1428,8 +1537,12 @@ export class Game {
       { id: 'flora_explorer', name: 'Flora Explorer', desc: 'Visit the Harmonious Gardens.' },
       { id: 'spelunker', name: 'Spelunker', desc: 'Explore the Deep Caverns.' },
       { id: 'abyssal_diver', name: 'Abyssal Diver', desc: 'Plunge into the Triton Pools.' },
+      { id: 'pyroclastic_survivor', name: 'Pyroclastic Survivor', desc: 'Survive the Volcanic Core.' },
+      { id: 'void_walker', name: 'Void Walker', desc: 'Venture into the Void Rift.' },
       { id: 'the_glitched', name: 'The Glitched', desc: 'Enter the Limitless Backrooms.' },
       { id: 'archon_slayer', name: 'Archon Slayer', desc: 'Defeat the Aether Archon.' },
+      { id: 'titan_slayer', name: 'Titan Slayer', desc: 'Defeat the Volcanic Titan.' },
+      { id: 'behemoth_slayer', name: 'Void Conqueror', desc: 'Defeat the Void Behemoth.' },
       { id: 'ap_master', name: 'AP Master', desc: 'Spend 10 AP in the Ability Web.' }
     ];
 
@@ -1497,10 +1610,14 @@ export class Game {
     const card = document.createElement('div');
     card.className = 'inv-relic-card' + (item.type ? ' gear-item' : '');
     if (onClick) card.style.cursor = 'pointer';
+    if (item.rarityColor) {
+      card.style.borderColor = item.rarityColor + '77';
+      card.style.boxShadow = `0 0 6px ${item.rarityColor}33`;
+    }
     card.innerHTML = `
       <button class="btn-remove-relic" title="${removeTitle}">x</button>
       <img class="inv-relic-sprite" src="${iconSrc}" alt="${item.name}" draggable="false">
-      <div class="inv-relic-name">${item.name}</div>
+      <div class="inv-relic-name" style="color: ${item.rarityColor || '#ffffff'};">${item.name}</div>
       <div class="inv-relic-desc">${item.desc}${clickHint ? `<div class="inv-click-hint">${clickHint}</div>` : ''}</div>
     `;
     card.querySelector('.btn-remove-relic').addEventListener('click', (e) => {
@@ -1682,7 +1799,7 @@ export class Game {
         if (item) {
           newSlotEl.classList.add('filled');
           this.assets.draw(ctx, item.sprite, 16, 16, 32);
-          newTooltip.innerHTML = `<strong style="color:#eccc68">${item.name}</strong><br>${this._statsToString(item.stats)}<br><span style="color:#ff4757;font-size:8px;font-family:var(--font-pixel);display:block;margin-top:4px">(CLICK TO UNEQUIP)</span>`;
+          newTooltip.innerHTML = `<strong style="color:${item.rarityColor || '#eccc68'}">${item.name}</strong><br>${this._statsToString(item.stats)}<br><span style="color:#ff4757;font-size:8px;font-family:var(--font-pixel);display:block;margin-top:4px">(CLICK TO UNEQUIP)</span>`;
           newSlotEl.addEventListener('click', () => this.unequipGear(slot));
         } else {
           newSlotEl.classList.remove('filled');
@@ -1823,6 +1940,9 @@ export class Game {
     container.addEventListener('mousedown', (e) => {
       e.preventDefault();
       this.abilityTree.isDragging = true;
+      this.abilityTree.hasDragged = false;
+      this.abilityTree._clickStartX = e.clientX;
+      this.abilityTree._clickStartY = e.clientY;
       this.abilityTree.dragStart.x = e.clientX - this.abilityTree.panX;
       this.abilityTree.dragStart.y = e.clientY - this.abilityTree.panY;
     });
@@ -1837,15 +1957,25 @@ export class Game {
       if (this.abilityTree.isDragging) {
         this.abilityTree.panX = e.clientX - this.abilityTree.dragStart.x;
         this.abilityTree.panY = e.clientY - this.abilityTree.dragStart.y;
+        // Track if we've actually dragged (moved > 8px from click start)
+        if (Math.hypot(e.clientX - this.abilityTree._clickStartX, e.clientY - this.abilityTree._clickStartY) > 8) {
+          this.abilityTree.hasDragged = true;
+        }
       } else {
         // Track hovered nodes
         // Convert mouse viewport coord to canvas tree space (where center is 0,0)
-        const treeX = (mx - this.treeCanvas.width / 2 - this.abilityTree.panX) / this.abilityTree.zoom;
-        const treeY = (my - this.treeCanvas.height / 2 - this.abilityTree.panY) / this.abilityTree.zoom;
+        // Scale client coords to canvas buffer coords for alignment
+        const scaleRatioX = this.treeCanvas.width / rect.width;
+        const scaleRatioY = this.treeCanvas.height / rect.height;
+        const cmx = mx * scaleRatioX;
+        const cmy = my * scaleRatioY;
+        const treeX = (cmx - this.treeCanvas.width / 2 - this.abilityTree.panX) / this.abilityTree.zoom;
+        const treeY = (cmy - this.treeCanvas.height / 2 - this.abilityTree.panY) / this.abilityTree.zoom;
         
         let foundNode = null;
-        for (const key in this.abilityTree.nodes) {
-          const node = this.abilityTree.nodes[key];
+        const visibleNodes = this.abilityTree.getVisibleNodes();
+        for (const key in visibleNodes) {
+          const node = visibleNodes[key];
           const dist = Math.hypot(node.x - treeX, node.y - treeY);
           const radius = node.type === 'root' ? 14 : node.type === 'keystone' ? 12 : 10;
           
@@ -1878,7 +2008,8 @@ export class Game {
 
     container.addEventListener('click', (e) => {
       // Don't register click if dragging occurred
-      if (Math.hypot(e.clientX - this.abilityTree.dragStart.x - this.abilityTree.panX, e.clientY - this.abilityTree.dragStart.y - this.abilityTree.panY) > 8) {
+      if (this.abilityTree.hasDragged) {
+        this.abilityTree.hasDragged = false;
         return;
       }
       
@@ -2142,6 +2273,10 @@ export class Game {
       this.refreshInventoryPanel();
     }
     if (newState === 'WORLD_MAP') {
+      // Reset zoom/pan to default centered view
+      this.mapZoom = 1.0;
+      this.mapPanX = 0;
+      this.mapPanY = 0;
       const btn = document.getElementById('btn-reveal-map');
       if (btn) {
         if (this.levelManager.mapRevealed) {
@@ -2243,6 +2378,19 @@ export class Game {
       if (spec.element === SPELL_TYPES.VOID) finalDmg *= this.player.modifiers.voidDamage;
       if (spec.element === SPELL_TYPES.TIME) finalDmg *= this.player.modifiers.timeDamage;
       finalDmg *= this.player.modifiers.allDamage;
+      
+      // Regional multipliers
+      if (this.levelManager && this.levelManager.sectorThemes) {
+        const sx = Math.max(0, Math.min(this.levelManager.maxSectorCols - 1, Math.floor(x / 2000)));
+        const sy = Math.max(0, Math.min(this.levelManager.maxSectorRows - 1, Math.floor(y / 2000)));
+        const localTheme = this.levelManager.sectorThemes[`${sx},${sy}`] || 'dungeon';
+        if (localTheme === 'volcanic' && spec.element === SPELL_TYPES.FIRE) {
+          finalDmg *= 1.5;
+        }
+        if (localTheme === 'void_rift' && spec.element === SPELL_TYPES.VOID) {
+          finalDmg *= 1.3;
+        }
+      }
     }
     
     this.projectiles.push({
@@ -2482,7 +2630,7 @@ export class Game {
     this.drawHTMLIcon('icon-shard-hud', 'item_shard', 12);
     this.drawHTMLIcon('icon-shard-shop', 'item_shard', 12);
     this.drawHTMLIcon('icon-ap-hud', 'item_crystal', 12);
-    this.drawHTMLIcon('icon-key-hud', 'icon_key', 12);
+    this.drawHTMLIcon('icon-key-hud', 'icon_key', 20);
     this.drawHTMLIcon('icon-satchel-hud', 'icon_satchel', 12);
     
     // Combo lists
@@ -2628,7 +2776,7 @@ export class Game {
           slotEl.classList.remove('empty');
           ctx.imageSmoothingEnabled = false;
           this.assets.draw(ctx, rune.sprite, canvas.width / 2, canvas.height / 2, canvas.width);
-          tooltip.innerHTML = `<strong>${rune.name}</strong><br>${rune.desc}`;
+          tooltip.innerHTML = `<strong style="color:${rune.rarityColor || '#ffffff'}">${rune.name}</strong><br>${rune.desc}`;
         } else {
           slotEl.classList.add('empty');
           tooltip.innerHTML = 'Empty Rune Slot';
@@ -2673,7 +2821,7 @@ export class Game {
     if (this.state === 'PLAYING') {
       // Update music based on region theme and boss status
       if (this.audio && this.audio.initialized) {
-        const isBoss = this.enemies && this.enemies.some(e => e.type === 'archon');
+        const isBoss = this.enemies && this.enemies.some(e => e.type === 'archon' || e.type === 'volcanic_titan' || e.type === 'void_behemoth');
         const theme = this.levelManager ? this.levelManager.theme : 'dungeon';
         this.audio.updateMusicForTheme(theme, isBoss);
       }
@@ -2745,18 +2893,28 @@ export class Game {
     }
 
     // Update Player controller
-    this.player.vx = 0;
-    this.player.vy = 0;
-    if (this.keys['w'] || this.keys['arrowup']) this.player.vy -= 1;
-    if (this.keys['s'] || this.keys['arrowdown']) this.player.vy += 1;
-    if (this.keys['a'] || this.keys['arrowleft']) this.player.vx -= 1;
-    if (this.keys['d'] || this.keys['arrowright']) this.player.vx += 1;
+    let targetVx = 0;
+    let targetVy = 0;
+    if (this.keys['w'] || this.keys['arrowup']) targetVy -= 1;
+    if (this.keys['s'] || this.keys['arrowdown']) targetVy += 1;
+    if (this.keys['a'] || this.keys['arrowleft']) targetVx -= 1;
+    if (this.keys['d'] || this.keys['arrowright']) targetVx += 1;
     
     // Normalize diagonal velocity vectors
-    if (this.player.vx !== 0 && this.player.vy !== 0) {
-      const len = Math.hypot(this.player.vx, this.player.vy);
-      this.player.vx /= len;
-      this.player.vy /= len;
+    if (targetVx !== 0 && targetVy !== 0) {
+      const len = Math.hypot(targetVx, targetVy);
+      targetVx /= len;
+      targetVy /= len;
+    }
+
+    // Slippery physics in Void Rift theme
+    if (this.levelManager && this.levelManager.theme === 'void_rift') {
+      const lerpSpeed = (targetVx === 0 && targetVy === 0) ? 2.5 * dt : 5.0 * dt;
+      this.player.vx += (targetVx - this.player.vx) * Math.min(1, lerpSpeed);
+      this.player.vy += (targetVy - this.player.vy) * Math.min(1, lerpSpeed);
+    } else {
+      this.player.vx = targetVx;
+      this.player.vy = targetVy;
     }
 
     this.player.update(dt);
@@ -2798,6 +2956,7 @@ export class Game {
 
       // Update trail history
       if (this.showSpellTrails) {
+        if (!proj.trail) proj.trail = [];
         proj.trail.unshift({ x: proj.x, y: proj.y });
         if (proj.trail.length > 12) proj.trail.pop();
       }
@@ -3516,7 +3675,7 @@ export class Game {
     this.ctx.restore();
 
     // Draw Boss Health Bar on top-center if Boss active
-    const boss = this.enemies.find((enemy) => enemy.type === 'archon');
+    const boss = this.enemies.find((enemy) => enemy.type === 'archon' || enemy.type === 'volcanic_titan' || enemy.type === 'void_behemoth');
     if (boss) {
       this.drawBossHealthBar(boss);
     }
@@ -3714,70 +3873,108 @@ export class Game {
     
     const scaleX = w / lvl.tileWidth;
     const scaleY = h / lvl.tileHeight;
-    const scale = Math.min(scaleX, scaleY);
+    const baseScale = Math.min(scaleX, scaleY);
+    const scale = baseScale * this.mapZoom;
     
-    const offsetX = (w - lvl.tileWidth * scale) / 2;
-    const offsetY = (h - lvl.tileHeight * scale) / 2;
+    // Center offset before pan
+    const baseOffsetX = (w - lvl.tileWidth * baseScale) / 2;
+    const baseOffsetY = (h - lvl.tileHeight * baseScale) / 2;
     
     ctx.save();
-    ctx.translate(offsetX, offsetY);
+    ctx.translate(this.mapPanX + baseOffsetX * this.mapZoom, this.mapPanY + baseOffsetY * this.mapZoom);
+    ctx.scale(this.mapZoom, this.mapZoom);
     
-    for (let tx = 0; tx < lvl.tileWidth; tx++) {
-      for (let ty = 0; ty < lvl.tileHeight; ty++) {
-        const explored = lvl.exploredGrid[tx][ty];
-        const rx = tx * scale;
-        const ry = ty * scale;
-        
-        if (explored) {
-          const tile = lvl.tileGrid[tx][ty];
-          if (tile === 1) {
-            ctx.fillStyle = '#2f3640'; // Wall
-          } else if (tile === 2) {
-            ctx.fillStyle = '#2c1b4d'; // Special Room
-          } else if (tile === 3) {
-            ctx.fillStyle = '#e67e22'; // Door
-          } else {
-            ctx.fillStyle = '#121320'; // Floor
+    // Draw black background for the whole map bounds first
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, lvl.tileWidth * baseScale, lvl.tileHeight * baseScale);
+    
+    // 1. Find player's current sector
+    const px = this.player.x;
+    const py = this.player.y;
+    const currentSx = Math.max(0, Math.min(lvl.maxSectorCols - 1, Math.floor(px / 2000)));
+    const currentSy = Math.max(0, Math.min(lvl.maxSectorRows - 1, Math.floor(py / 2000)));
+    
+    // 2. Compute Euclidean distance from current sector to all unlocked sectors
+    const unlockedList = Array.from(lvl.unlockedSectors);
+    const sortedSectors = unlockedList.map(sectorKey => {
+      const [sx, sy] = sectorKey.split(',').map(Number);
+      const dist = Math.hypot(sx - currentSx, sy - currentSy);
+      return { key: sectorKey, sx, sy, dist };
+    }).sort((a, b) => a.dist - b.dist);
+    
+    // 3. When zoomed in, show more sectors; at default zoom show 3 nearest
+    const maxRendered = this.mapZoom > 1.5 ? sortedSectors.length : 3;
+    const nearestSectors = sortedSectors.slice(0, maxRendered);
+    const nearestKeysSet = new Set(nearestSectors.map(s => s.key));
+    
+    // 4. Render tiles belonging to visible sectors
+    nearestSectors.forEach(sec => {
+      const startTx = sec.sx * 50;
+      const endTx = startTx + 50;
+      const startTy = sec.sy * 50;
+      const endTy = startTy + 50;
+      
+      for (let tx = startTx; tx < endTx; tx++) {
+        for (let ty = startTy; ty < endTy; ty++) {
+          if (tx >= 0 && tx < lvl.tileWidth && ty >= 0 && ty < lvl.tileHeight) {
+            const explored = lvl.exploredGrid[tx][ty];
+            if (explored) {
+              const tile = lvl.tileGrid[tx][ty];
+              const rx = tx * baseScale;
+              const ry = ty * baseScale;
+              if (tile === 1) {
+                ctx.fillStyle = '#2f3640'; // Wall
+              } else if (tile === 2) {
+                ctx.fillStyle = '#2c1b4d'; // Special Room
+              } else if (tile === 3) {
+                ctx.fillStyle = '#e67e22'; // Door
+              } else {
+                ctx.fillStyle = '#121320'; // Floor
+              }
+              ctx.fillRect(rx, ry, baseScale + 0.5, baseScale + 0.5);
+            }
           }
-          ctx.fillRect(rx, ry, scale + 0.5, scale + 0.5);
-        } else {
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(rx, ry, scale + 0.5, scale + 0.5);
         }
-      }
-    }
-    
-    // Draw shrines (blocky squares)
-    lvl.shrines.forEach(shrine => {
-      const tx = Math.floor(shrine.x / 40);
-      const ty = Math.floor(shrine.y / 40);
-      if (lvl.exploredGrid[tx][ty]) {
-        ctx.fillStyle = '#70a1ff';
-        const sz = Math.max(5, Math.round(scale * 1.5));
-        ctx.fillRect(tx * scale + scale / 2 - sz / 2, ty * scale + scale / 2 - sz / 2, sz, sz);
       }
     });
     
-    // Draw chests (blocky squares)
+    // Draw shrines only if in rendered sectors
+    lvl.shrines.forEach(shrine => {
+      const tx = Math.floor(shrine.x / 40);
+      const ty = Math.floor(shrine.y / 40);
+      const sx = Math.floor(tx / 50);
+      const sy = Math.floor(ty / 50);
+      const sectorKey = `${sx},${sy}`;
+      if (nearestKeysSet.has(sectorKey) && lvl.exploredGrid[tx][ty]) {
+        ctx.fillStyle = '#70a1ff';
+        const sz = Math.max(5, Math.round(baseScale * 1.5));
+        ctx.fillRect(tx * baseScale + baseScale / 2 - sz / 2, ty * baseScale + baseScale / 2 - sz / 2, sz, sz);
+      }
+    });
+    
+    // Draw chests only if in rendered sectors
     lvl.chests.forEach(chest => {
       const tx = Math.floor(chest.x / 40);
       const ty = Math.floor(chest.y / 40);
-      if (lvl.exploredGrid[tx][ty]) {
+      const sx = Math.floor(tx / 50);
+      const sy = Math.floor(ty / 50);
+      const sectorKey = `${sx},${sy}`;
+      if (nearestKeysSet.has(sectorKey) && lvl.exploredGrid[tx][ty]) {
         ctx.fillStyle = '#eccc68';
-        const sz = Math.max(5, Math.round(scale * 1.5));
-        ctx.fillRect(tx * scale + scale / 2 - sz / 2, ty * scale + scale / 2 - sz / 2, sz, sz);
+        const sz = Math.max(5, Math.round(baseScale * 1.5));
+        ctx.fillRect(tx * baseScale + baseScale / 2 - sz / 2, ty * baseScale + baseScale / 2 - sz / 2, sz, sz);
       }
     });
     
     // Draw player (blocky bordered square)
-    const pTx = Math.floor(this.player.x / 40);
-    const pTy = Math.floor(this.player.y / 40);
+    const pTx = Math.floor(px / 40);
+    const pTy = Math.floor(py / 40);
     ctx.fillStyle = '#ffffff';
-    const psz = Math.max(6, Math.round(scale * 1.8));
-    ctx.fillRect(pTx * scale + scale / 2 - psz / 2, pTy * scale + scale / 2 - psz / 2, psz, psz);
+    const psz = Math.max(6, Math.round(baseScale * 1.8));
+    ctx.fillRect(pTx * baseScale + baseScale / 2 - psz / 2, pTy * baseScale + baseScale / 2 - psz / 2, psz, psz);
     ctx.strokeStyle = '#eccc68';
     ctx.lineWidth = 1;
-    ctx.strokeRect(pTx * scale + scale / 2 - psz / 2, pTy * scale + scale / 2 - psz / 2, psz, psz);
+    ctx.strokeRect(pTx * baseScale + baseScale / 2 - psz / 2, pTy * baseScale + baseScale / 2 - psz / 2, psz, psz);
     
     ctx.restore();
   }
@@ -4249,6 +4446,17 @@ export class Game {
     ctx.restore();
   }
 
+  createUnlockedCompanions() {
+    if (!this.companions) this.companions = [];
+
+    if (this.player.unlockedCompanion1 && !this.companions.some(c => c.type === 1)) {
+      this.companions.push(new Companion(this, 1, this.player));
+    }
+    if (this.player.unlockedCompanion2 && !this.companions.some(c => c.type === 2)) {
+      this.companions.push(new Companion(this, 2, this.player));
+    }
+  }
+
   checkProgressionOnUnlock() {
     if (this.abilityTree.isPlayerTree1Completed()) {
       if (!this.player.unlockedCompanion1) {
@@ -4261,9 +4469,7 @@ export class Game {
         const tabsContainer = document.getElementById('tree-tabs');
         if (tabsContainer) tabsContainer.classList.remove('hidden');
         
-        if (!this.companions.some(c => c.type === 1)) {
-          this.companions.push(new Companion(this, 1, this.player));
-        }
+        this.createUnlockedCompanions();
       }
     }
 
@@ -4295,11 +4501,14 @@ export class Game {
         
         const tabBtn = document.getElementById('tab-companion2');
         if (tabBtn) tabBtn.classList.remove('hidden');
+        const tabsContainer = document.getElementById('tree-tabs');
+        if (tabsContainer) tabsContainer.classList.remove('hidden');
         
-        if (!this.companions.some(c => c.type === 2)) {
-          this.companions.push(new Companion(this, 2, this.player));
-        }
+        this.createUnlockedCompanions();
       }
     }
+
+    // Always keep companion instances in sync with progression state.
+    this.createUnlockedCompanions();
   }
 }

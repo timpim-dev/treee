@@ -63,7 +63,7 @@
           <span id="hud-shards-value" class="resource-text">0</span>
         </div>
         <div class="resource-item" id="hud-keys-notification" style="margin-left: 10px;" title="Rune Keys (Complete Waves, Unlock Doors)">
-          <canvas class="inline-icon" id="icon-key-hud" width="12" height="12" draggable="false"></canvas>
+          <canvas class="inline-icon" id="icon-key-hud" width="20" height="20" draggable="false"></canvas>
           <span id="hud-keys-value" class="resource-text">0</span>
         </div>
         <div class="resource-item" id="hud-ap-notification">
@@ -159,7 +159,7 @@
           <div class="player-preview-box">
             <canvas id="main-menu-player-canvas" width="128" height="128"></canvas>
           </div>
-          <div class="menu-version-indicator" id="menu-version">v0.4.1Beta</div>
+          <div class="menu-version-indicator" id="menu-version">v0.4.12</div>
         </div>
         
         <!-- Right Column: Navigation Buttons -->
@@ -412,6 +412,20 @@
             <input id="dev-var-value" type="text" placeholder="value" class="devtools-input devtools-value">
             <button id="btn-devtools-apply-var" class="btn-menu">APPLY</button>
           </div>
+          <div class="devtools-row">
+            <label class="devtools-label" for="dev-next-theme">NEXT REGION</label>
+            <select id="dev-next-theme" class="devtools-select" style="flex: 1; margin-right: 8px;">
+              <option value="">Random</option>
+              <option value="dungeon">Dark Dungeon</option>
+              <option value="gardens">Harmonious Gardens</option>
+              <option value="underground">Deep Caverns</option>
+              <option value="pool">Triton Pools</option>
+              <option value="volcanic">Volcanic Core</option>
+              <option value="void_rift">Void Rift</option>
+              <option value="backrooms">Limitless Backrooms</option>
+            </select>
+            <button id="btn-devtools-apply-theme" class="btn-menu small">SET</button>
+          </div>
           <div class="devtools-row devtools-chip-row">
             <button class="btn-menu small" data-dev-preset="player.shards">GEMS</button>
             <button class="btn-menu small" data-dev-preset="player.ap">AP</button>
@@ -419,6 +433,12 @@
             <button class="btn-menu small" data-dev-preset="player.level">LEVEL</button>
             <button class="btn-menu small" data-dev-preset="player.hp">HP</button>
             <button class="btn-menu small" data-dev-preset="player.mp">MP</button>
+          </div>
+          <div class="devtools-row devtools-checkbox-row">
+            <label class="devtools-checkbox-label"><input type="checkbox" id="dev-show-hitboxes"> HITBOXES</label>
+            <label class="devtools-checkbox-label"><input type="checkbox" id="dev-show-paths"> PATHS</label>
+            <label class="devtools-checkbox-label"><input type="checkbox" id="dev-show-fps"> FPS</label>
+            <label class="devtools-checkbox-label"><input type="checkbox" id="dev-show-grid"> GRID</label>
           </div>
           <div class="devtools-row devtools-actions">
             <button id="btn-devtools-respawn" class="btn-menu">RESPAWN</button>

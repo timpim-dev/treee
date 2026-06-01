@@ -491,6 +491,34 @@ export class AbilityTree {
   }
 
   /**
+   * Check if a node is currently visible in the active tree view.
+   */
+  isNodeVisible(node) {
+    if (!node || node.view !== this.currentView) return false;
+
+    if (node.view === 'player') {
+      if (node.expansion === 1 && !this.game.player.unlockedCompanion1) return false;
+      if (node.expansion === 2 && !this.game.player.unlockedCompanion2) return false;
+    } else if (node.view === 'companion1') {
+      if (node.expansion === 1 && !this.game.player.completedCompanion1Tree) return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Get all nodes currently visible in the active tree view.
+   */
+  getVisibleNodes() {
+    const visible = {};
+    for (const key in this.nodes) {
+      const node = this.nodes[key];
+      if (this.isNodeVisible(node)) visible[key] = node;
+    }
+    return visible;
+  }
+
+  /**
    * Attempts to purchase/unlock a node
    */
   unlockNode(nodeId) {
@@ -579,20 +607,7 @@ export class AbilityTree {
     };
 
     // Filter visible nodes based on progression and active tab
-    const visibleNodes = {};
-    for (const key in this.nodes) {
-      const node = this.nodes[key];
-      if (node.view !== this.currentView) continue;
-      
-      // Check progression lock
-      if (node.view === 'player') {
-        if (node.expansion === 1 && !this.game.player.unlockedCompanion1) continue;
-        if (node.expansion === 2 && !this.game.player.unlockedCompanion2) continue;
-      } else if (node.view === 'companion1') {
-        if (node.expansion === 1 && !this.game.player.completedCompanion1Tree) continue;
-      }
-      visibleNodes[key] = node;
-    }
+    const visibleNodes = this.getVisibleNodes();
 
     // Determine current active player TIERS (max 24)
     let maxActiveTier = 12;
@@ -715,10 +730,12 @@ export class AbilityTree {
     const isUnlockable = this.isUnlockable(node);
 
     // Radii by importance
-    const r = node.type === 'root'     ? 20
-            : node.type === 'keystone' ? 17
-            : node.type === 'major' || node.type === 'unlock' ? 13
-            : 10;
+    const baseRadius = node.type === 'root'     ? 20
+                     : node.type === 'keystone' ? 17
+                     : node.type === 'major' || node.type === 'unlock' ? 13
+                     : 10;
+    const viewScale = (node.view === 'companion1' || node.view === 'companion2') ? 1.3 : 1.0;
+    const r = Math.round(baseRadius * viewScale);
 
     const col   = elementColor[node.element] || '#7d5fff';
     const nx    = node.x;

@@ -2,7 +2,7 @@
  * Enemy - Opponents with AI archetypes and status reaction targets
  */
 import { SPELL_TYPES } from '../engine/Spells.js';
-import { RELICS_CATALOG, EQUIPMENT_CATALOG } from './Player.js';
+import { RELICS_CATALOG, EQUIPMENT_CATALOG, createScaledLootItem } from './Player.js';
 
 export class Enemy {
   constructor(game, x, y, type) {
@@ -119,6 +119,32 @@ export class Enemy {
         this.shootInterval = 1.2;
         this.bossPhase = 1;
         break;
+
+      case 'volcanic_titan': // Wave 10 Boss!
+        this.name = 'THE VOLCANIC TITAN';
+        this.maxHp = 1000 + this.game.levelManager.wave * 150;
+        this.speed = 35;
+        this.radius = 25;
+        this.damage = 30;
+        this.xpValue = 400;
+        this.spriteKey = 'boss_titan';
+        this.aiState = 'boss_titan_phase1';
+        this.shootInterval = 1.4;
+        this.bossPhase = 1;
+        break;
+
+      case 'void_behemoth': // Wave 15 Boss!
+        this.name = 'THE VOID BEHEMOTH';
+        this.maxHp = 1500 + this.game.levelManager.wave * 200;
+        this.speed = 30;
+        this.radius = 25;
+        this.damage = 35;
+        this.xpValue = 500;
+        this.spriteKey = 'boss_behemoth';
+        this.aiState = 'boss_behemoth_phase1';
+        this.shootInterval = 1.6;
+        this.bossPhase = 1;
+        break;
     }
     
     // Scale XP Value by +25% to speed up AP gains
@@ -199,6 +225,7 @@ export class Enemy {
     }
 
     this.hp -= finalDamage;
+    console.log(`[COMBAT] ${this.type} took ${finalDamage} dmg${isCrit ? ' (CRIT)' : ''} | HP: ${this.hp.toFixed(0)}/${this.maxHp}`);
     if (game.audio) game.audio.playHit();
 
     // Create hit particles
@@ -268,10 +295,15 @@ export class Enemy {
     // at the end of the frame, so no mid-loop splice corruption can occur.
     if (this.dead) return; // already died this frame, don't double-process
     this.dead = true;
+    console.log(`[DEATH] ${this.type} killed | Pos: ${this.x.toFixed(0)},${this.y.toFixed(0)}`);
 
-    // Check Archon defeat achievement
+    // Check Boss defeat achievements
     if (this.type === 'archon') {
       game.unlockAchievement('archon_slayer');
+    } else if (this.type === 'volcanic_titan') {
+      game.unlockAchievement('titan_slayer');
+    } else if (this.type === 'void_behemoth') {
+      game.unlockAchievement('behemoth_slayer');
     }
 
     // Slime splitting logic — queued as pending spawns so they appear next frame
@@ -303,11 +335,11 @@ export class Enemy {
       game.spawnItem(this.x, this.y, 'mp', 15);
     }
 
-    if (this.type.includes('elite') || this.type === 'archon') {
+    if (this.type.includes('elite') || this.type === 'archon' || this.type === 'volcanic_titan' || this.type === 'void_behemoth') {
       if (Math.random() < 0.50) {
         const combinedPool = [...RELICS_CATALOG, ...EQUIPMENT_CATALOG];
         const randomRelic = combinedPool[Math.floor(Math.random() * combinedPool.length)];
-        game.spawnItem(this.x, this.y, 'relic', randomRelic);
+        game.spawnItem(this.x, this.y, 'relic', createScaledLootItem(randomRelic, game.levelManager.wave));
       }
     }
 
@@ -315,7 +347,7 @@ export class Enemy {
     const deathColor = this.type.includes('slime') ? '#2ed573' : this.type.includes('horror') ? '#a55eea' : '#f1f2f6';
     game.particles.createExplosion(this.x, this.y, deathColor, 20, 150, 4);
 
-    if (this.type === 'archon') {
+    if (this.type === 'archon' || this.type === 'volcanic_titan' || this.type === 'void_behemoth') {
       if (game.audio) game.audio.playDeath();
     } else if (Math.random() < 0.35) {
       if (game.audio) game.audio.playKill();
@@ -585,6 +617,103 @@ export class Enemy {
         }
       }
     }
+    
+    else if (this.aiState.startsWith('boss_titan_phase')) {
+      if (dist > 160) {
+        moveX = dx / dist;
+        moveY = dy / dist;
+      }
+      
+      this.shootTimer += dt;
+      if (this.shootTimer >= this.shootInterval) {
+        this.shootTimer = 0;
+        
+        const hpPercent = this.hp / this.maxHp;
+        if (hpPercent > 0.5) {
+          // Phase 1: Triple fireball spread
+          const baseAngle = Math.atan2(dy, dx);
+          const angles = [baseAngle - 0.2, baseAngle, baseAngle + 0.2];
+          angles.forEach(angle => {
+            this.game.spawnProjectile(this.x, this.y, angle, {
+              element: SPELL_TYPES.FIRE,
+              damage: 20,
+              speed: 180,
+              radius: 8,
+              sprite: 'proj_fire'
+            }, false);
+          });
+        } else {
+          // Phase 2: Magma Stomp (spawn fire pools around)
+          const baseAngle = Math.atan2(dy, dx);
+          // Spawn 5 fireballs
+          const angles = [baseAngle - 0.3, baseAngle - 0.15, baseAngle, baseAngle + 0.15, baseAngle + 0.3];
+          angles.forEach(angle => {
+            this.game.spawnProjectile(this.x, this.y, angle, {
+              element: SPELL_TYPES.FIRE,
+              damage: 22,
+              speed: 210,
+              radius: 8,
+              sprite: 'proj_fire'
+            }, false);
+          });
+          
+          // Stomp fire pools
+          const stompDirs = [
+            { x: 0, y: -100 }, { x: 0, y: 100 },
+            { x: -100, y: 0 }, { x: 100, y: 0 }
+          ];
+          stompDirs.forEach(d => {
+            this.game.spawnAreaEffect(this.x + d.x, this.y + d.y, 45, 'fire_pool', 3.0);
+          });
+        }
+      }
+    }
+    
+    else if (this.aiState.startsWith('boss_behemoth_phase')) {
+      if (dist > 180) {
+        moveX = dx / dist;
+        moveY = dy / dist;
+      }
+      
+      this.shootTimer += dt;
+      if (this.shootTimer >= this.shootInterval) {
+        this.shootTimer = 0;
+        
+        const hpPercent = this.hp / this.maxHp;
+        if (hpPercent > 0.5) {
+          // Phase 1: Void zaps/orbs circle
+          const baseAngle = Math.random() * Math.PI;
+          const bullets = 6;
+          for (let i = 0; i < bullets; i++) {
+            const angle = baseAngle + (i * (Math.PI * 2 / bullets));
+            this.game.spawnProjectile(this.x, this.y, angle, {
+              element: SPELL_TYPES.VOID,
+              damage: 22,
+              speed: 130,
+              radius: 9,
+              sprite: 'proj_void'
+            }, false);
+          }
+        } else {
+          // Phase 2: Gravity pull & tracking zaps
+          const baseAngle = Math.atan2(dy, dx);
+          // Fire 4 void spheres
+          for (let i = -2; i <= 2; i++) {
+            if (i === 0) continue;
+            this.game.spawnProjectile(this.x, this.y, baseAngle + i * 0.25, {
+              element: SPELL_TYPES.VOID,
+              damage: 25,
+              speed: 150,
+              radius: 9,
+              sprite: 'proj_void'
+            }, false);
+          }
+          
+          // Spawn a black hole singularity at player position!
+          this.game.spawnAreaEffect(this.game.player.x, this.game.player.y, 100, 'singularity', 4.0);
+        }
+      }
+    }
 
     // ── A* WAYPOINT NAVIGATION ────────────────────────────────────────────
     // Enemies follow a precomputed A* path through the cell graph so they
@@ -835,8 +964,8 @@ export class Enemy {
   getLocalTheme() {
     const lvl = this.game.levelManager;
     if (lvl && lvl.sectorThemes) {
-      const sx = Math.max(0, Math.min(2, Math.floor(this.x / 2000)));
-      const sy = Math.max(0, Math.min(2, Math.floor(this.y / 2000)));
+      const sx = Math.max(0, Math.min(lvl.maxSectorCols - 1, Math.floor(this.x / 2000)));
+      const sy = Math.max(0, Math.min(lvl.maxSectorRows - 1, Math.floor(this.y / 2000)));
       return lvl.sectorThemes[`${sx},${sy}`] || 'dungeon';
     }
     return (lvl && lvl.theme) || 'dungeon';
@@ -853,7 +982,7 @@ export class Enemy {
     const fIdx = Math.floor(this.frameTimer * 5) % 2; // simple walk animation cycles (frame 0 and 1)
 
     // Boss sizes, mini size, or standard size rendering
-    let size = this.type === 'archon' ? 64 : 32;
+    let size = (this.type === 'archon' || this.type === 'volcanic_titan' || this.type === 'void_behemoth') ? 64 : 32;
     if (this.type === 'slime_mini') size = 16;
 
     ctx.save();
@@ -894,7 +1023,7 @@ export class Enemy {
     ctx.restore();
 
     // Draw tiny Health Bar over non-boss enemies
-    if (this.game.showEnemyHealthbars && !inGrass && this.hp < this.maxHp && this.type !== 'archon') {
+    if (this.game.showEnemyHealthbars && !inGrass && this.hp < this.maxHp && this.type !== 'archon' && this.type !== 'volcanic_titan' && this.type !== 'void_behemoth') {
       const rx = this.x - this.game.camera.x;
       const ry = this.y - this.game.camera.y - this.radius - 8;
       const bw = 24;

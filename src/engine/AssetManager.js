@@ -342,6 +342,84 @@ export class AssetManager {
     ];
     this.sprites['boss_archon'] = this.createSprite(32, 32, archonGrid, 1);
 
+    // BOSS: VOLCANIC TITAN (32x32 px)
+    const titanGrid = [
+      [
+        "............kkkkkkkk............",
+        "..........kknnnnnnnnkk..........",
+        "........kknnnnnnnnnnnnkk........",
+        ".......knnnnnnnnnnnnnnnnk.......",
+        "......knnnnnnnnnnnnnnnnnnk......",
+        ".....knnnnrrnnnnnnnnrrnnnnk.....",
+        "....knnnnnrroknnnnkkoornnnnk....",
+        "....knnnnnnooknnnnkkoonnnnnk....",
+        "....knnnnnnnnnnnnnnnnnnnnnnk....",
+        ".....knnnnnnkkkkkkkknnnnnnk.....",
+        ".....knnnnnknnnnnnnnknnnnuk.....",
+        "......knnukrroooooorruunnk......",
+        ".......kkkrrrrrrrrrrrrkkk.......",
+        ".........krrrrrrrrrrrrk.........",
+        "........krrrrrkkrrrrrrrk........",
+        ".......krrrrrkkkkrrrrrrrk.......",
+        "......krrrrrkkkkkkrrrrrrrk......",
+        ".....krrrrrkkkkkkkkrrrrrrrk.....",
+        "....krrrrrkkkkkkkkkkrrrrrrrk....",
+        "...krrrrrkkkkkkkkkkkkrrrrrrgk...",
+        "..krrrrrkkkkkkkkkkkkkkrrrrrrgk..",
+        "..krrrrkkkkkkkkkkkkkkkkrrrrrgk..",
+        "..kkkkkkkkkkkkkkkkkkkkkkkkkkkk..",
+        "....knnnk............knnnk......",
+        "....knnnk............knnnk......",
+        "....knnnk............knnnk......",
+        ".....knk..............knk.......",
+        ".....knk..............knk.......",
+        "......kk..............kk........",
+        "......kk..............kk........",
+        "......k................k........",
+        "................................"
+      ]
+    ];
+    this.sprites['boss_titan'] = this.createSprite(32, 32, titanGrid, 1);
+
+    // BOSS: VOID BEHEMOTH (32x32 px)
+    const behemothGrid = [
+      [
+        "............kkkkkkkk............",
+        "..........kkxxxxxxxxkk..........",
+        "........kkvvvvvvvvvvvvkk........",
+        ".......kvvvvvvvvvvvvvvvvk.......",
+        "......kvvvvvvvvvvvvvvvvvvk......",
+        ".....kvvvvwwvvvvvvvvwwvvvvk.....",
+        "....kvvvvvwwkkvvvvkkwwvvvvvk....",
+        "....kvvvvvvvkkvvvvkkvvvvvvvk....",
+        "....kvvvvvvvvvvvvvvvvvvvvvvk....",
+        ".....kvvvvvvkkkkkkkkvvvvvvk.....",
+        ".....kvvvvvkvvvvvvvvkvvvvvk.....",
+        "......kvvvkcskkkkkkcskvvvk......",
+        ".......kkkcccccccccccckkk.......",
+        ".........kcccccccccccck.........",
+        "........kcccccskccccccck........",
+        ".......kcccccskkkccccccck.......",
+        "......kcccccskkkkkccccccck......",
+        ".....kcccccskkkkkkccccccck.....",
+        "....kcccccskkkkkkkkccccccck....",
+        "...kcccccskkkkkkkkkkccccccck...",
+        "..kcccccskkkkkkkkkkkkccccccck..",
+        "..kccccskkkkkkkkkkkkkkcccccck..",
+        "..kkkkkkkkkkkkkkkkkkkkkkkkkkkk..",
+        "....kvvvk............kvvvk......",
+        "....kvvvk............kvvvk......",
+        "....kvvvk............kvvvk......",
+        ".....kvk..............kvk.......",
+        ".....kvk..............kvk.......",
+        "......kk..............kk........",
+        "......kk..............kk........",
+        "......k................k........",
+        "................................"
+      ]
+    ];
+    this.sprites['boss_behemoth'] = this.createSprite(32, 32, behemothGrid, 1);
+
     // ----------------------------------------------------
     // PROJECTILES & SPELL EFFECTS (8x8 px)
     // ----------------------------------------------------
@@ -966,22 +1044,22 @@ export class AssetManager {
     ]]);
 
     this.sprites['icon_key'] = this.createSprite(16, 16, [[
-      "................",
-      "................",
-      "......kkk.......",
-      ".....kgggk......",
-      "....kgyyygk.....",
-      "....kgywygk.....",
-      "....kgywygk.....",
-      "....kgyyygk.....",
-      ".....kgggk..kk..",
-      "......kk...kttk.",
-      "...........kttk.",
-      "............kk..",
-      "................",
-      "................",
-      "................",
-      "................"
+      ".....kkkkk......",
+      "....kgggggk.....",
+      "...kgggygggk....",
+      "..kgggywygggk...",
+      "..kgyywywyygk...",
+      "..kgggywygggk...",
+      "...kgggygggk....",
+      "....kgggggkk....",
+      ".....kkkkk.kk...",
+      "........kgggk...",
+      "........kggk....",
+      "........kggkkkk.",
+      "........kgggggkk",
+      "........kggkkkk.",
+      "........kggk....",
+      ".........kk....."
     ]]);
 
     this.sprites['icon_book'] = this.createSprite(16, 16, [[
@@ -1137,46 +1215,68 @@ export class AssetManager {
       "kkkkkkkkkkkkkkkk"
     ]]);
 
-    // Relics Sprites
-    this.sprites['relic_feather'] = this.createSprite(8, 8, [[
+    // Relics Sprites (Unique per item)
+    this.sprites['relic_fire'] = this.createSprite(8, 8, [[
       "....kk..",
       "...krrk.",
       "..krrk..",
-      ".krrk...",
-      ".kok....",
-      "krrk....",
+      ".korr...",
+      ".kork...",
+      "kork....",
       "kk......",
       "........"
     ]]);
 
-    this.sprites['relic_core'] = this.createSprite(8, 8, [[
+    this.sprites['relic_frost'] = this.createSprite(8, 8, [[
       "...kk...",
-      "..kcck..",
-      ".kciick.",
-      "kciiwick",
-      ".kciick.",
-      "..kcck..",
+      "..kiik..",
+      ".kiiwik.",
+      "kiiwwwik",
+      ".kiiwik.",
+      "..kiik..",
       "...kk...",
       "........"
     ]]);
 
-    this.sprites['relic_ring'] = this.createSprite(8, 8, [[
+    this.sprites['relic_lightning'] = this.createSprite(8, 8, [[
       "..kkkk..",
       ".kyyyyk.",
       "kyywwyyk",
-      "kyw..wyk",
-      "kyw..wyk",
+      "kyw.kyyk",
+      "kykkkkyk",
       "kyywwyyk",
       ".kyyyyk.",
       "..kkkk.."
     ]]);
 
+    this.sprites['relic_void'] = this.createSprite(8, 8, [[
+      "....k...",
+      "...kvk..",
+      "..kvxvk.",
+      ".kvxxvk.",
+      "kvxxxxvk",
+      ".kvxxvk.",
+      "..kvk...",
+      "........"
+    ]]);
+
+    this.sprites['relic_time'] = this.createSprite(8, 8, [[
+      ".kkkkkk.",
+      "knnnnnnk",
+      "kntttttk",
+      ".kntttk.",
+      "..ktk...",
+      ".kntttk.",
+      "kntttttk",
+      ".kkkkkk."
+    ]]);
+
     this.sprites['relic_boots'] = this.createSprite(8, 8, [[
       "..kkkk..",
-      ".kttttk.",
-      ".ktkk...",
-      "kkttkk..",
-      "ktttttk.",
+      ".kiiiik.",
+      ".kikk...",
+      "kkwwkk..",
+      "kwwwwik.",
       "kkkkkkk.",
       "........",
       "........"
@@ -1184,30 +1284,108 @@ export class AssetManager {
 
     this.sprites['relic_shield'] = this.createSprite(8, 8, [[
       ".kkkkkk.",
-      "kssssssk",
-      "kssssssk",
-      "kasssask",
-      ".kasask.",
-      ".kassak.",
-      "..kak...",
+      "kbbbbbbk",
+      "kbbyybbk",
+      "kbywwybk",
+      ".kbyybk.",
+      ".kbbbbk.",
+      "..kbk...",
       "...k...."
     ]]);
 
-    this.sprites['relic_amulet'] = this.createSprite(8, 8, [[
+    this.sprites['relic_heart'] = this.createSprite(8, 8, [[
+      ".kk..kk.",
+      "kaaa.aaak",
+      "kaaaaaaak",
+      "kaaaaaaak",
+      ".kaaaaak.",
+      "..kaaak..",
+      "...kak...",
+      "....k..."
+    ]]);
+
+    this.sprites['relic_mana'] = this.createSprite(8, 8, [[
       "..kkkk..",
       ".kgggk.",
-      "kggbbgk.",
-      "kgbibgk.",
+      "kggiigk.",
+      "kgiwiigk",
       ".kgggk.",
       "..kgk...",
       "...k....",
       "........"
     ]]);
 
-    this.sprites['equip_wand'] = this.createSprite(8, 8, [[
+    this.sprites['relic_regen'] = this.createSprite(8, 8, [[
+      "...k....",
+      "..kfk...",
+      ".kffk...",
+      "kfffek..",
+      ".kffk...",
+      "..kek...",
+      "...k....",
+      "........"
+    ]]);
+
+    this.sprites['relic_crit'] = this.createSprite(8, 8, [[
+      "..kkkk..",
+      ".kaaaak.",
+      "kawwwawk",
+      "kawrrwak",
+      "kawwwawk",
+      ".kaaaak.",
+      "..kkkk..",
+      "........"
+    ]]);
+
+    this.sprites['relic_cast'] = this.createSprite(8, 8, [[
+      "...kk...",
+      "..kssk..",
+      ".ksswsk.",
+      "kswwwswk",
+      ".ksswsk.",
+      "..kssk..",
+      "...kk...",
+      "........"
+    ]]);
+
+    this.sprites['relic_alldmg'] = this.createSprite(8, 8, [[
+      "..kkkk..",
+      ".krrrwk.",
+      "krrrrrwk",
+      "krrkwrrk",
+      ".krkkrk.",
+      "..kkk...",
+      "...k....",
+      "........"
+    ]]);
+
+    this.sprites['relic_mpregen'] = this.createSprite(8, 8, [[
+      "....k...",
+      "...kik..",
+      "..kiik..",
+      ".kiwik..",
+      ".kwwik..",
+      "..kik...",
+      "...k....",
+      "........"
+    ]]);
+
+    this.sprites['relic_xp'] = this.createSprite(8, 8, [[
+      "..kkkk..",
+      ".kgggk.",
+      "kggwwgk.",
+      "kgwiigk.",
+      ".kgggk.",
+      "..kgk...",
+      "...k....",
+      "........"
+    ]]);
+
+    // Equipment Sprites (Unique per item)
+    this.sprites['equip_wand_novice'] = this.createSprite(8, 8, [[
       "......kk",
-      ".....kyy",
-      "....kyyk",
+      ".....kww",
+      "....kwwk",
       "...kskk.",
       "..ksk...",
       ".ksk....",
@@ -1215,7 +1393,7 @@ export class AssetManager {
       "........"
     ]]);
 
-    this.sprites['equip_staff'] = this.createSprite(8, 8, [[
+    this.sprites['equip_staff_fire'] = this.createSprite(8, 8, [[
       "....kkk.",
       "...krrro",
       "....kkko",
@@ -1226,21 +1404,54 @@ export class AssetManager {
       "kk......"
     ]]);
 
-    this.sprites['equip_hat'] = this.createSprite(8, 8, [[
+    this.sprites['equip_wand_mana'] = this.createSprite(8, 8, [[
+      "......kk",
+      ".....kii",
+      "....kiik",
+      "...kskk.",
+      "..ksk...",
+      ".ksk....",
+      "kkk.....",
+      "........"
+    ]]);
+
+    this.sprites['equip_hood_apprentice'] = this.createSprite(8, 8, [[
       "....k...",
       "...kbk..",
       "..kbbk..",
       ".kbbbbk.",
       "kkkkkkkk",
-      ".ksggsk.",
+      ".ksbbssk.",
       "........",
       "........"
     ]]);
 
-    this.sprites['equip_robe'] = this.createSprite(8, 8, [[
+    this.sprites['equip_crown_mage'] = this.createSprite(8, 8, [[
+      "..k.k...",
+      ".kykyk..",
+      ".kyyyyk.",
+      "kygwwgyk",
+      "kkkkkkkk",
+      "........",
+      "........",
+      "........"
+    ]]);
+
+    this.sprites['equip_robe_student'] = this.createSprite(8, 8, [[
       "..kkkk..",
-      ".kbwwbk.",
-      "kbbbbbbk",
+      ".kawwak.",
+      "kaaaaaak",
+      "kaaaaaak",
+      "kaaaaaak",
+      ".kaaaak.",
+      "..kkkk..",
+      "........"
+    ]]);
+
+    this.sprites['equip_robe_runic'] = this.createSprite(8, 8, [[
+      "..kkkk..",
+      ".kbyybk.",
+      "kbbwwbbk",
       "kbbbbbbk",
       "kbbbbbbk",
       ".kbbbbk.",
@@ -1248,15 +1459,48 @@ export class AssetManager {
       "........"
     ]]);
 
-    this.sprites['equip_boots'] = this.createSprite(8, 8, [[
+    this.sprites['equip_boots_leather'] = this.createSprite(8, 8, [[
       "........",
       "..kkkk..",
-      ".kssssk.",
-      ".kskk...",
-      "kksskk..",
-      "ksssssk.",
+      ".knnnnk.",
+      ".knkk...",
+      "kknnkk..",
+      "knnnnnk.",
       "kkkkkkk.",
       "........"
+    ]]);
+
+    this.sprites['equip_boots_wizard'] = this.createSprite(8, 8, [[
+      "........",
+      "..kkkk..",
+      ".kbbbbk.",
+      ".kbkk...",
+      "kkbbkk..",
+      "kbbbbbk.",
+      "kkkkkkk.",
+      "........"
+    ]]);
+
+    this.sprites['equip_ring_gold'] = this.createSprite(8, 8, [[
+      "..kkkk..",
+      ".kgggk.",
+      "kggwwgk.",
+      "kgw..wgk",
+      "kgw..wgk",
+      "kggwwgk.",
+      ".kgggk.",
+      "..kkkk.."
+    ]]);
+
+    this.sprites['equip_ring_crit'] = this.createSprite(8, 8, [[
+      "..kkkk..",
+      ".krrrk.",
+      "krrwwrk.",
+      "krw..wrk",
+      "krw..wrk",
+      "krrwwrk.",
+      ".krrrk.",
+      "..kkkk.."
     ]]);
 
     this.sprites['item_chest_relic'] = this.createSprite(16, 16, [[

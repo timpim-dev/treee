@@ -1,7 +1,7 @@
 /**
  * LevelManager - Manages arenas, waves, spawns, and dynamic events (Meteors, Storms)
  */
-import { RELICS_CATALOG, EQUIPMENT_CATALOG } from '../entities/Player.js';
+import { RELICS_CATALOG, EQUIPMENT_CATALOG, createScaledLootItem } from '../entities/Player.js';
 
 export class LevelManager {
   constructor(game) {
@@ -71,15 +71,23 @@ export class LevelManager {
     this.maxSectorRows = rows / 10;
     this.startSectorX = Math.floor(this.maxSectorCols / 2);
     this.startSectorY = Math.floor(this.maxSectorRows / 2);
-    this.unlockedSectors = new Set([`${this.startSectorX},${this.startSectorY}`]);
-    this.sectorThemes = { [`${this.startSectorX},${this.startSectorY}`]: 'dungeon' };
+    if (!this.unlockedSectors || this.unlockedSectors.size === 0) {
+      this.unlockedSectors = new Set([`${this.startSectorX},${this.startSectorY}`]);
+    }
+    if (!this.sectorThemes || Object.keys(this.sectorThemes).length === 0) {
+      this.sectorThemes = { [`${this.startSectorX},${this.startSectorY}`]: 'dungeon' };
+    }
     
-    // Allocate fullTileGrid and exploredGrid once at 300x300, keeping exploredGrid forever
+    // Allocate fullTileGrid and exploredGrid, keeping exploredGrid forever
     this.fullTileGrid = [];
-    this.exploredGrid = [];
+    if (!this.exploredGrid || this.exploredGrid.length === 0) {
+      this.exploredGrid = [];
+      for (let x = 0; x < this.fullTileWidth; x++) {
+        this.exploredGrid[x] = new Array(this.fullTileHeight).fill(false);
+      }
+    }
     for (let x = 0; x < this.fullTileWidth; x++) {
       this.fullTileGrid[x] = new Array(this.fullTileHeight).fill(0);
-      this.exploredGrid[x] = new Array(this.fullTileHeight).fill(false);
     }
     
     // Create cells grid for DFS maze generation
@@ -266,6 +274,22 @@ export class LevelManager {
     this.fullTileGrid[spawnCenterX - spawnRadius - 1][spawnCenterY] = 0;
     this.fullTileGrid[spawnCenterX + spawnRadius + 1][spawnCenterY] = 0;
 
+    // Carve around player if player exists
+    if (this.game && this.game.player) {
+      const px = this.game.player.x;
+      const py = this.game.player.y;
+      const pTx = Math.floor(px / 40);
+      const pTy = Math.floor(py / 40);
+      const carveRadius = 3;
+      for (let tx = pTx - carveRadius; tx <= pTx + carveRadius; tx++) {
+        for (let ty = pTy - carveRadius; ty <= pTy + carveRadius; ty++) {
+          if (tx > 0 && tx < this.fullTileWidth - 1 && ty > 0 && ty < this.fullTileHeight - 1) {
+            this.fullTileGrid[tx][ty] = 0;
+          }
+        }
+      }
+    }
+
     // Pre-generate explosive barrels
     this.fullExplosiveBarrels = [];
     for (let c = 0; c < cols; c++) {
@@ -342,6 +366,9 @@ export class LevelManager {
   }
 
   generateObstacles(retryCount = 0) {
+    if (retryCount === 0) {
+      this._generationValidated = false;
+    }
     if (!this.fullTileGrid) {
       this.preGenerateFullMaze();
     }
@@ -537,8 +564,8 @@ export class LevelManager {
             if (!neighborUnlocked) {
               if (this.tileGrid[tx][ty] !== 3) this.tileGrid[tx][ty] = 1;
             } else {
-              if (tx === sx * 50 + 27) {
-                const doorKey = `${tx},${ty}`;
+              if (tx >= sx * 50 + 26 && tx <= sx * 50 + 28) {
+                const doorKey = `${sx * 50 + 27},${ty}`;
                 const doorUnlocked = this.unlockedDoors.has(doorKey);
                 this.tileGrid[tx][ty] = doorUnlocked ? 0 : 3;
               } else {
@@ -554,8 +581,8 @@ export class LevelManager {
             if (!neighborUnlocked) {
               if (this.tileGrid[tx][ty] !== 3) this.tileGrid[tx][ty] = 1;
             } else {
-              if (tx === sx * 50 + 27) {
-                const doorKey = `${tx},${ty}`;
+              if (tx >= sx * 50 + 26 && tx <= sx * 50 + 28) {
+                const doorKey = `${sx * 50 + 27},${ty}`;
                 const doorUnlocked = this.unlockedDoors.has(doorKey);
                 this.tileGrid[tx][ty] = doorUnlocked ? 0 : 3;
               } else {
@@ -571,8 +598,8 @@ export class LevelManager {
             if (!neighborUnlocked) {
               if (this.tileGrid[tx][ty] !== 3) this.tileGrid[tx][ty] = 1;
             } else {
-              if (ty === sy * 50 + 27) {
-                const doorKey = `${tx},${ty}`;
+              if (ty >= sy * 50 + 26 && ty <= sy * 50 + 28) {
+                const doorKey = `${tx},${sy * 50 + 27}`;
                 const doorUnlocked = this.unlockedDoors.has(doorKey);
                 this.tileGrid[tx][ty] = doorUnlocked ? 0 : 3;
               } else {
@@ -588,8 +615,8 @@ export class LevelManager {
             if (!neighborUnlocked) {
               if (this.tileGrid[tx][ty] !== 3) this.tileGrid[tx][ty] = 1;
             } else {
-              if (ty === sy * 50 + 27) {
-                const doorKey = `${tx},${ty}`;
+              if (ty >= sy * 50 + 26 && ty <= sy * 50 + 28) {
+                const doorKey = `${tx},${sy * 50 + 27}`;
                 const doorUnlocked = this.unlockedDoors.has(doorKey);
                 this.tileGrid[tx][ty] = doorUnlocked ? 0 : 3;
               } else {
@@ -644,9 +671,17 @@ export class LevelManager {
       }
     }
     
-    // Set tileGrid values for doors so they render and behave correctly
+    // Set tileGrid values for doors so they render and behave correctly (3 tiles wide)
     this.doors.forEach(d => {
-      this.tileGrid[d.tx][d.ty] = 3;
+      if (d.dir === 'North' || d.dir === 'South') {
+        this.tileGrid[d.tx - 1][d.ty] = 3;
+        this.tileGrid[d.tx][d.ty] = 3;
+        this.tileGrid[d.tx + 1][d.ty] = 3;
+      } else {
+        this.tileGrid[d.tx][d.ty - 1] = 3;
+        this.tileGrid[d.tx][d.ty] = 3;
+        this.tileGrid[d.tx][d.ty + 1] = 3;
+      }
     });
 
     // Connectivity Check: BFS flood-fill from player position or spawn center
@@ -705,7 +740,13 @@ export class LevelManager {
     // For each door, if it is not reached by BFS, carve a corridor inward into the active sector
     if (this.doors) {
       this.doors.forEach(door => {
-        let reached = visited[door.tx][door.ty];
+        let reached = false;
+        if (door.dir === 'North' || door.dir === 'South') {
+          reached = visited[door.tx - 1][door.ty] || visited[door.tx][door.ty] || visited[door.tx + 1][door.ty];
+        } else {
+          reached = visited[door.tx][door.ty - 1] || visited[door.tx][door.ty] || visited[door.tx][door.ty + 1];
+        }
+
         if (!reached) {
           console.log(`[LevelManager] Door at (${door.tx}, ${door.ty}) not reachable. Carving corridor...`);
           let currX = door.tx;
@@ -726,10 +767,26 @@ export class LevelManager {
               break;
             }
             
-            this.tileGrid[currX][currY] = 0; // Clear to floor
-            visited[currX][currY] = true;
+            // Carve 3 tiles wide
+            if (stepY !== 0) {
+              for (let dx = -1; dx <= 1; dx++) {
+                const cx = currX + dx;
+                if (cx >= 0 && cx < this.tileWidth) {
+                  this.tileGrid[cx][currY] = 0; // Clear to floor
+                  visited[cx][currY] = true;
+                }
+              }
+            } else {
+              for (let dy = -1; dy <= 1; dy++) {
+                const cy = currY + dy;
+                if (cy >= 0 && cy < this.tileHeight) {
+                  this.tileGrid[currX][cy] = 0; // Clear to floor
+                  visited[currX][cy] = true;
+                }
+              }
+            }
             
-            // Check neighbors to see if we connected to a visited tile
+            // Check neighbors to see if we connected to a visited tile (not including the path we came from)
             let hitVisited = false;
             const checkDirs = [
               { dx: 0, dy: -1 },
@@ -737,22 +794,57 @@ export class LevelManager {
               { dx: -1, dy: 0 },
               { dx: 1, dy: 0 }
             ];
-            for (const cd of checkDirs) {
-              const nx = currX + cd.dx;
-              const ny = currY + cd.dy;
-              if (nx >= 0 && nx < this.tileWidth && ny >= 0 && ny < this.tileHeight) {
-                if (visited[nx][ny] && this.tileGrid[nx][ny] !== 1) {
-                  hitVisited = true;
-                  break;
+            
+            const checkCoords = [];
+            if (stepY !== 0) {
+              for (let dx = -1; dx <= 1; dx++) {
+                const cx = currX + dx;
+                if (cx >= 0 && cx < this.tileWidth) {
+                  checkCoords.push({ cx, cy: currY });
                 }
               }
+            } else {
+              for (let dy = -1; dy <= 1; dy++) {
+                const cy = currY + dy;
+                if (cy >= 0 && cy < this.tileHeight) {
+                  checkCoords.push({ cx: currX, cy });
+                }
+              }
+            }
+
+            for (const coord of checkCoords) {
+              for (const cd of checkDirs) {
+                const nx = coord.cx + cd.dx;
+                const ny = coord.cy + cd.dy;
+                // Exclude the slice we came from
+                if (stepY !== 0 && nx >= currX - stepX - 1 && nx <= currX - stepX + 1 && ny === currY - stepY) continue;
+                if (stepX !== 0 && ny >= currY - stepY - 1 && ny <= currY - stepY + 1 && nx === currX - stepX) continue;
+                
+                if (nx >= 0 && nx < this.tileWidth && ny >= 0 && ny < this.tileHeight) {
+                  if (visited[nx][ny] && this.tileGrid[nx][ny] !== 1) {
+                    hitVisited = true;
+                    break;
+                  }
+                }
+              }
+              if (hitVisited) break;
             }
             
             if (hitVisited) {
               break;
             }
           }
-          visited[door.tx][door.ty] = true;
+          
+          // Mark all 3 tiles of the door portal as visited
+          if (door.dir === 'North' || door.dir === 'South') {
+            visited[door.tx - 1][door.ty] = true;
+            visited[door.tx][door.ty] = true;
+            visited[door.tx + 1][door.ty] = true;
+          } else {
+            visited[door.tx][door.ty - 1] = true;
+            visited[door.tx][door.ty] = true;
+            visited[door.tx][door.ty + 1] = true;
+          }
         }
       });
     }
@@ -1129,6 +1221,27 @@ export class LevelManager {
       const currentSx = Math.max(0, Math.min(this.maxSectorCols - 1, Math.floor(this.game.player.x / 2000)));
       const currentSy = Math.max(0, Math.min(this.maxSectorRows - 1, Math.floor(this.game.player.y / 2000)));
       this.theme = this.sectorThemes[`${currentSx},${currentSy}`] || 'dungeon';
+      
+      // Void Rift mechanic: Spawns periodic singularities near the player
+      if (this.theme === 'void_rift') {
+        this.voidSingularityTimer = (this.voidSingularityTimer || 5.0) - dt;
+        if (this.voidSingularityTimer <= 0) {
+          this.voidSingularityTimer = 5.0 + Math.random() * 3.0; // every 5-8s
+          const offsetX = (Math.random() - 0.5) * 600;
+          const offsetY = (Math.random() - 0.5) * 600;
+          const sx = this.game.player.x + offsetX;
+          const sy = this.game.player.y + offsetY;
+          this.game.spawnAreaEffect(sx, sy, 80, 'singularity', 3.0);
+          if (this.game.particles) {
+            this.game.particles.spawnText(sx, sy - 20, "VOID INTRUSION", {
+              color: '#a55eea',
+              fontSize: 10,
+              fontPixel: true,
+              life: 1.5
+            });
+          }
+        }
+      }
     }
 
     // Dynamic filtering of active obstacles based on player proximity
@@ -1392,7 +1505,7 @@ export class LevelManager {
 
           // Spawn chest loot directly on the ground!
           loot.forEach(item => {
-            this.game.spawnItem(chest.x + (Math.random() - 0.5) * 16, chest.y + (Math.random() - 0.5) * 16, 'relic', item);
+            this.game.spawnItem(chest.x + (Math.random() - 0.5) * 16, chest.y + (Math.random() - 0.5) * 16, 'relic', createScaledLootItem(item, this.wave));
           });
 
           this.chests.splice(i, 1);
@@ -1492,11 +1605,18 @@ export class LevelManager {
     } else if (this.wave === 5 && this.enemiesSpawnedThisWave === 0) {
       // BOSS WAVE!
       type = 'archon';
+    } else if (this.wave === 10 && this.enemiesSpawnedThisWave === 0) {
+      // BOSS WAVE!
+      type = 'volcanic_titan';
+    } else if (this.wave === 15 && this.enemiesSpawnedThisWave === 0) {
+      // BOSS WAVE!
+      type = 'void_behemoth';
     } else {
       // Later waves have higher proportions of tough enemies
-      // Beyond wave 10, there is a 10% chance to spawn an Aether Archon boss
-      if (this.wave >= 10 && roll < 0.10) {
-        type = 'archon';
+      // Beyond wave 15, there is a 10% chance to spawn a random boss (if first spawn)
+      if (this.wave > 15 && roll < 0.10 && this.enemiesSpawnedThisWave === 0) {
+        const bosses = ['archon', 'volcanic_titan', 'void_behemoth'];
+        type = bosses[Math.floor(Math.random() * bosses.length)];
       } else {
         const enemyRoll = Math.random();
         if (enemyRoll < 0.25) type = 'slime';
@@ -1506,7 +1626,7 @@ export class LevelManager {
       }
     }
 
-    if (isElite && type !== 'archon' && type !== 'warden') {
+    if (isElite && type !== 'archon' && type !== 'volcanic_titan' && type !== 'void_behemoth' && type !== 'warden') {
       type = type + '_elite';
     }
 
@@ -1776,6 +1896,16 @@ export class LevelManager {
             strokeStyle = '#00a8a9';
             crackStyle = '#48dbfb';
             dotStyle = '#b2fefb';
+          } else if (theme === 'volcanic') {
+            fillStyle = '#c0392b'; // deep red
+            strokeStyle = '#962d22';
+            crackStyle = '#7f0000';
+            dotStyle = '#f39c12'; // lava embers
+          } else if (theme === 'void_rift') {
+            fillStyle = '#2c1a4d'; // void purple
+            strokeStyle = '#1c0d35';
+            crackStyle = '#4a1268'; // magenta glow
+            dotStyle = '#8e44ad'; // void dust
           } else if (theme === 'backrooms') {
             fillStyle = '#d1b87a'; // yellow carpet
             strokeStyle = '#b89e5c';
@@ -1805,7 +1935,20 @@ export class LevelManager {
             }
           }
           
-          if (this.game.showFloorGrid) {
+          if (theme === 'backrooms') {
+            // Soggy carpet — no tile grid, just organic damp patches
+            const dh = (tx * 13 + ty * 37) % 100;
+            if (dh < 15) {
+              ctx.fillStyle = '#a38b4d';
+              ctx.fillRect(rx + 6, ry + 8, 18, 14);
+            } else if (dh < 22) {
+              ctx.fillStyle = '#8f773b';
+              ctx.fillRect(rx + 14, ry + 4, 8, 8);
+            } else if (dh < 28) {
+              ctx.fillStyle = '#bda35c';
+              ctx.fillRect(rx + 2, ry + 22, 12, 10);
+            }
+          } else if (this.game.showFloorGrid) {
             ctx.strokeStyle = strokeStyle;
             ctx.lineWidth = 1;
             ctx.strokeRect(rx, ry, tileSize, tileSize);
@@ -1875,20 +2018,29 @@ export class LevelManager {
     ctx.lineWidth = 4;
     ctx.strokeRect(-camera.x, -camera.y, this.width, this.height);
 
-    // Draw Door portals
+    // Draw Door portals (3 blocks wide)
     if (this.doors) {
       this.doors.forEach(door => {
         const rx = door.x - camera.x;
         const ry = door.y - camera.y;
+        const isHorizontal = (door.dir === 'North' || door.dir === 'South');
         
         // Door background
         ctx.fillStyle = '#2f3542';
-        ctx.fillRect(rx - 20, ry - 20, 40, 40);
+        if (isHorizontal) {
+          ctx.fillRect(rx - 60, ry - 20, 120, 40);
+        } else {
+          ctx.fillRect(rx - 20, ry - 60, 40, 120);
+        }
         
         // Door frame
         ctx.strokeStyle = '#747d8c';
         ctx.lineWidth = 3;
-        ctx.strokeRect(rx - 20, ry - 20, 40, 40);
+        if (isHorizontal) {
+          ctx.strokeRect(rx - 60, ry - 20, 120, 40);
+        } else {
+          ctx.strokeRect(rx - 20, ry - 60, 40, 120);
+        }
         
         // Keep the door label readable instead of over-pixelating the text.
         ctx.font = "700 10px 'Orbitron', sans-serif";
@@ -1897,8 +2049,8 @@ export class LevelManager {
         ctx.lineWidth = 3;
         ctx.strokeStyle = '#000';
         ctx.fillStyle = '#ffffff';
-        ctx.strokeText(door.dir, rx, ry - 14);
-        ctx.fillText(door.dir, rx, ry - 14);
+        ctx.strokeText(door.dir, rx, ry);
+        ctx.fillText(door.dir, rx, ry);
       });
     }
 
@@ -2005,6 +2157,16 @@ export class LevelManager {
             wallMortar = '#b2ebf2';
             wallHighlight = '#ffffff';
             wallShadow = '#80deea';
+          } else if (theme === 'volcanic') {
+            wallBase = '#4a1b1b'; // dark volcanic rock
+            wallMortar = '#2c0f0f';
+            wallHighlight = '#e74c3c'; // red highlights
+            wallShadow = '#1c0a0a';
+          } else if (theme === 'void_rift') {
+            wallBase = '#11052c'; // void obsidian
+            wallMortar = '#0d0221';
+            wallHighlight = '#9b59b6'; // magenta highlights
+            wallShadow = '#070114';
           } else if (theme === 'backrooms') {
             wallBase = '#ffeaa7'; // yellow mono wallpaper
             wallMortar = '#d1b87a';
@@ -2015,23 +2177,41 @@ export class LevelManager {
           ctx.fillStyle = wallBase;
           ctx.fillRect(rx, ry, tileSize, tileSize);
           
-          // Draw procedural horizontal brick line textures
-          const xStart = W ? rx : rx + 4;
-          const xEnd = E ? rx + tileSize : rx + tileSize - 4;
-          ctx.fillStyle = wallMortar;
-          ctx.fillRect(xStart, ry + 13, xEnd - xStart, 2);
-          ctx.fillRect(xStart, ry + 26, xEnd - xStart, 2);
-          
-          // Draw vertical joints deterministically for brick look
-          const hash = (tx * 19 + ty * 23) % 100;
-          if (hash < 50) {
-            ctx.fillRect(rx + 20, ry, 2, 13);
-            ctx.fillRect(rx + 10, ry + 13, 2, 13);
-            ctx.fillRect(rx + 30, ry + 26, 2, 14);
+          if (theme === 'backrooms') {
+            // Vertical wallpaper stripes
+            ctx.fillStyle = '#e8d090';
+            ctx.fillRect(rx + 10, ry, 1, tileSize);
+            ctx.fillRect(rx + 20, ry, 1, tileSize);
+            ctx.fillRect(rx + 30, ry, 1, tileSize);
+            // Subtle horizontal seam
+            ctx.fillStyle = '#d4c07a';
+            ctx.fillRect(rx, ry + 20, tileSize, 1);
+            // Baseboard if floor below
+            if (!S) {
+              ctx.fillStyle = '#8f773b';
+              ctx.fillRect(rx, ry + tileSize - 5, tileSize, 5);
+              ctx.fillStyle = '#6d5a2e';
+              ctx.fillRect(rx, ry + tileSize - 6, tileSize, 1);
+            }
           } else {
-            ctx.fillRect(rx + 10, ry, 2, 13);
-            ctx.fillRect(rx + 30, ry + 13, 2, 13);
-            ctx.fillRect(rx + 20, ry + 26, 2, 14);
+            // Draw procedural horizontal brick line textures
+            const xStart = W ? rx : rx + 4;
+            const xEnd = E ? rx + tileSize : rx + tileSize - 4;
+            ctx.fillStyle = wallMortar;
+            ctx.fillRect(xStart, ry + 13, xEnd - xStart, 2);
+            ctx.fillRect(xStart, ry + 26, xEnd - xStart, 2);
+            
+            // Draw vertical joints deterministically for brick look
+            const hash = (tx * 19 + ty * 23) % 100;
+            if (hash < 50) {
+              ctx.fillRect(rx + 20, ry, 2, 13);
+              ctx.fillRect(rx + 10, ry + 13, 2, 13);
+              ctx.fillRect(rx + 30, ry + 26, 2, 14);
+            } else {
+              ctx.fillRect(rx + 10, ry, 2, 13);
+              ctx.fillRect(rx + 30, ry + 13, 2, 13);
+              ctx.fillRect(rx + 20, ry + 26, 2, 14);
+            }
           }
           
           // Connected highlights (top/left) and shadows (bottom/right)
@@ -2163,7 +2343,12 @@ export class LevelManager {
     // Choose new theme randomly for the target sector if it doesn't have one
     let newTheme = this.sectorThemes[targetSectorKey];
     if (!newTheme) {
-      if (this.backroomsSecretUnlocked) {
+      if (this.game.nextThemeOverride) {
+        newTheme = this.game.nextThemeOverride;
+        this.game.nextThemeOverride = null; // Consume override
+        const selectEl = document.getElementById('dev-next-theme');
+        if (selectEl) selectEl.value = '';
+      } else if (this.backroomsSecretUnlocked) {
         newTheme = 'backrooms';
       } else {
         const currentTheme = this.sectorThemes[`${currentSx},${currentSy}`] || 'dungeon';
@@ -2171,7 +2356,7 @@ export class LevelManager {
         if (roll < 0.005) {
           newTheme = 'backrooms';
         } else {
-          const themes = ['dungeon', 'gardens', 'underground', 'pool'];
+          const themes = ['dungeon', 'gardens', 'underground', 'pool', 'volcanic', 'void_rift'];
           const choices = themes.filter(t => t !== currentTheme);
           newTheme = choices[Math.floor(Math.random() * choices.length)];
         }
@@ -2204,6 +2389,8 @@ export class LevelManager {
     else if (newTheme === 'underground') this.game.unlockAchievement('spelunker');
     else if (newTheme === 'pool') this.game.unlockAchievement('abyssal_diver');
     else if (newTheme === 'backrooms') this.game.unlockAchievement('the_glitched');
+    else if (newTheme === 'volcanic') this.game.unlockAchievement('pyroclastic_survivor');
+    else if (newTheme === 'void_rift') this.game.unlockAchievement('void_walker');
     
     // Visual text banner
     const names = {
@@ -2211,14 +2398,18 @@ export class LevelManager {
       gardens: "THE HARMONIOUS GARDENS",
       underground: "THE DEEP CAVERNS",
       pool: "THE TRITON POOLS",
-      backrooms: "THE LIMITLESS BACKROOMS"
+      backrooms: "THE LIMITLESS BACKROOMS",
+      volcanic: "THE VOLCANIC CORE",
+      void_rift: "THE COSMIC VOID RIFT"
     };
     const colors = {
       dungeon: "#a55eea",
       gardens: "#2ecc71",
       underground: "#e67e22",
       pool: "#48dbfb",
-      backrooms: "#ffeaa7"
+      backrooms: "#ffeaa7",
+      volcanic: "#ff4757",
+      void_rift: "#a55eea"
     };
     
     const themeName = names[newTheme] || newTheme.toUpperCase();

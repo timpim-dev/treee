@@ -140,7 +140,7 @@ export class Companion {
           glow: true
         });
 
-        if (this.game.audio) this.game.audio.playFire();
+        if (this.game.audio) this.game.audio.playShoot();
 
         // Meteor Emperor keystone upgrade
         if (this.owner.modifiers.companion1_emperor_meteor && Math.random() < 0.20) {
@@ -190,17 +190,20 @@ export class Companion {
   }
 
   draw(ctx, assetManager) {
+    const rx = this.x - this.game.camera.x;
+    const ry = this.y - this.game.camera.y;
+
     // Draw 8-bit shadow
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    ctx.fillRect(this.x - 7, this.y + 7, 14, 3);
+    ctx.fillRect(rx - 7, ry + 7, 14, 3);
 
     ctx.save();
     if (this.isFacingLeft) {
-      ctx.translate(this.x, this.y);
+      ctx.translate(rx, ry);
       ctx.scale(-1, 1);
       assetManager.draw(ctx, this.spriteKey, 0, 0, 24, this.frameIndex, 0);
     } else {
-      assetManager.draw(ctx, this.spriteKey, this.x, this.y, 24, this.frameIndex, 0);
+      assetManager.draw(ctx, this.spriteKey, rx, ry, 24, this.frameIndex, 0);
     }
     ctx.restore();
   }

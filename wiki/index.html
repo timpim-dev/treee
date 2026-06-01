@@ -508,6 +508,7 @@
           <li><button class="nav-item-btn" data-category="regions">World Regions</button></li>
           <li><button class="nav-item-btn" data-category="combos">Elemental Synergies</button></li>
           <li><button class="nav-item-btn" data-category="satchel">Satchel & Gear</button></li>
+          <li><button class="nav-item-btn" data-category="bosses">Boss Anomalies</button></li>
         </ul>
       </div>
     </aside>
@@ -781,50 +782,71 @@
       <!-- 7. REGIONS -->
       <section class="wiki-section" id="sec-regions">
         <h1 class="sec-title">WORLD REGIONS</h1>
-        <p class="sec-intro">Explore a seamless grid of 3x3 sectors, each possessing custom brick textures, monster types, audio loops, and unique mechanics.</p>
+        <p class="sec-intro">Explore a seamless expanding grid of sectors, each possessing custom brick textures, monster types, audio loops, and unique mechanics.</p>
         
-        <div class="wiki-grid-2">
-          <div class="wiki-card">
-            <h3 class="wiki-card-title text-glow"><canvas class="wiki-icon" data-icon="dungeon" width="16" height="16" aria-hidden="true"></canvas> Dark Dungeon</h3>
-            <p class="wiki-card-subtitle">Default Sector</p>
-            <p>The standard sector with moderate obstacle layouts. Plays chiptune temple synth tracks.</p>
-          </div>
+        <div class="wiki-banner-grid">
+          <article class="wiki-banner-card">
+            <canvas class="wiki-banner-canvas" data-banner="dungeon" width="480" height="120" aria-hidden="true"></canvas>
+            <div class="wiki-banner-copy">
+              <h3 class="wiki-banner-title"><canvas class="wiki-icon" data-icon="dungeon" width="16" height="16" aria-hidden="true"></canvas> Dark Dungeon</h3>
+              <p class="wiki-banner-subtitle">Default Sector</p>
+              <p>The standard sector with moderate obstacle layouts. Plays chiptune temple synth tracks.</p>
+            </div>
+          </article>
           
-          <div class="wiki-card" style="border-color: #2ed573;">
-            <h3 class="wiki-card-title" style="color: #2ed573;"><canvas class="wiki-icon" data-icon="garden" width="16" height="16" aria-hidden="true"></canvas> Harmonious Gardens</h3>
-            <p class="wiki-card-subtitle">Gardens Sector</p>
-            <p style="margin-bottom: 8px;">Spawns patches of tall grass and plants. Plays chiptune forest melodies.</p>
-            <ul>
-              <li><strong>Tall Grass Stealth</strong>: Monsters inside grass fade out, hide health bars, and are immune to wisp/blizzard targeting.</li>
-              <li><strong>Ignition</strong>: Fire spells passing through grass set the tiles aflame, spawning temporary fire pools.</li>
-            </ul>
-          </div>
+          <article class="wiki-banner-card">
+            <canvas class="wiki-banner-canvas" data-banner="gardens" width="480" height="120" aria-hidden="true"></canvas>
+            <div class="wiki-banner-copy">
+              <h3 class="wiki-banner-title" style="color: #2ed573;"><canvas class="wiki-icon" data-icon="garden" width="16" height="16" aria-hidden="true"></canvas> Harmonious Gardens</h3>
+              <p class="wiki-banner-subtitle">Gardens Sector</p>
+              <p>Spawns patches of tall grass and plants. Plays chiptune forest melodies. Monsters inside grass are hidden and immune to auto-targeting. Fire spells set grass aflame, spawning temporary fire pools.</p>
+            </div>
+          </article>
           
-          <div class="wiki-card" style="border-color: #1e272e;">
-            <h3 class="wiki-card-title" style="color: #57606f;"><canvas class="wiki-icon" data-icon="cave" width="16" height="16" aria-hidden="true"></canvas> Deep Caverns</h3>
-            <p class="wiki-card-subtitle">Underground Sector</p>
-            <p style="margin-bottom: 8px;">Dark rocky environment. Plays deep cave synth ambient loops.</p>
-            <ul>
-              <li><strong>Lantern Glow</strong>: The screen is enveloped in darkness except for a pulsated glowing circle centered on the player.</li>
-            </ul>
-          </div>
+          <article class="wiki-banner-card">
+            <canvas class="wiki-banner-canvas" data-banner="underground" width="480" height="120" aria-hidden="true"></canvas>
+            <div class="wiki-banner-copy">
+              <h3 class="wiki-banner-title" style="color: #e67e22;"><canvas class="wiki-icon" data-icon="cave" width="16" height="16" aria-hidden="true"></canvas> Deep Caverns</h3>
+              <p class="wiki-banner-subtitle">Underground Sector</p>
+              <p>Dark rocky environment. Plays deep cave synth ambient loops. Limited lighting: screen is enveloped in darkness except for a pulsated glowing circle centered on the player.</p>
+            </div>
+          </article>
           
-          <div class="wiki-card" style="border-color: var(--color-frost);">
-            <h3 class="wiki-card-title text-frost"><canvas class="wiki-icon" data-icon="pool" width="16" height="16" aria-hidden="true"></canvas> Triton Pools</h3>
-            <p class="wiki-card-subtitle">Water Pools Sector</p>
-            <p style="margin-bottom: 8px;">Flooded water channels. Plays freezing land chiptune tracks.</p>
-            <ul>
-              <li><strong>Water Drag</strong>: Players and enemies suffer a 35% speed penalty.</li>
-              <li><strong>Extinguishment</strong>: Fire spells/pools entering water are vaporized into steam, dealing fire DoT.</li>
-              <li><strong>Ice Trails</strong>: Ice projectiles leave frozen paths. Walking on them boosts player speed by 40% (slippery), while freezing and slowing enemies.</li>
-            </ul>
-          </div>
+          <article class="wiki-banner-card">
+            <canvas class="wiki-banner-canvas" data-banner="pool" width="480" height="120" aria-hidden="true"></canvas>
+            <div class="wiki-banner-copy">
+              <h3 class="wiki-banner-title text-frost"><canvas class="wiki-icon" data-icon="pool" width="16" height="16" aria-hidden="true"></canvas> Triton Pools</h3>
+              <p class="wiki-banner-subtitle">Water Pools Sector</p>
+              <p>Flooded water channels. Plays freezing land tracks. Water drags players and non-warden enemies (35% speed penalty). Fire spells vaporize into steam. Ice spells leave frozen trails that boost player speed and freeze enemies.</p>
+            </div>
+          </article>
 
-          <div class="wiki-card" style="border-color: #ff9f43; grid-column: span 2;">
-            <h3 class="wiki-card-title" style="color: #ff9f43;"><canvas class="wiki-icon" data-icon="warning" width="16" height="16" aria-hidden="true"></canvas> Limitless Backrooms</h3>
-            <p class="wiki-card-subtitle">Glitched Sector (0.5% Transition Chance)</p>
-            <p>A yellow-wallpapered glitched maze populated by erratic monsters like "The Smiler" and "The Entity". Plays desert ambient tracks. Bypasses regular dungeon generation.</p>
-          </div>
+          <article class="wiki-banner-card">
+            <canvas class="wiki-banner-canvas" data-banner="volcanic" width="480" height="120" aria-hidden="true"></canvas>
+            <div class="wiki-banner-copy">
+              <h3 class="wiki-banner-title" style="color: #ff4757;"><canvas class="wiki-icon" data-icon="flame" width="16" height="16" aria-hidden="true"></canvas> Volcanic Core</h3>
+              <p class="wiki-banner-subtitle">Volcanic Sector</p>
+              <p>Red-hot volcanic core. Plays fiery, intense chiptune music. Volcanic heat deals minor periodic damage to the player unless they stand on ice trails or water. Fire spells deal 50% extra damage.</p>
+            </div>
+          </article>
+
+          <article class="wiki-banner-card">
+            <canvas class="wiki-banner-canvas" data-banner="void_rift" width="480" height="120" aria-hidden="true"></canvas>
+            <div class="wiki-banner-copy">
+              <h3 class="wiki-banner-title" style="color: #a55eea;"><canvas class="wiki-icon" data-icon="void" width="16" height="16" aria-hidden="true"></canvas> Void Rift</h3>
+              <p class="wiki-banner-subtitle">Cosmic Rift Sector</p>
+              <p>Low-gravity void area. Plays deep space ambient track. Spatial distortion causes the player to slide with low friction. Void spells are 30% more powerful. Spawns periodic gravity singularities that pull entities in.</p>
+            </div>
+          </article>
+
+          <article class="wiki-banner-card" style="grid-column: span 2;">
+            <canvas class="wiki-banner-canvas" data-banner="backrooms" width="480" height="120" aria-hidden="true"></canvas>
+            <div class="wiki-banner-copy">
+              <h3 class="wiki-banner-title" style="color: #ff9f43;"><canvas class="wiki-icon" data-icon="warning" width="16" height="16" aria-hidden="true"></canvas> Limitless Backrooms</h3>
+              <p class="wiki-banner-subtitle">Glitched Sector (0.5% Transition Chance)</p>
+              <p>A yellow-wallpapered glitched maze populated by erratic monsters like "The Smiler" and "The Entity". Plays desert ambient tracks. Bypasses regular dungeon generation.</p>
+            </div>
+          </article>
         </div>
       </section>
 
@@ -876,6 +898,18 @@
         </div>
         
         <div class="wiki-card" style="margin-top: 20px;">
+          <h3 class="wiki-card-title"><canvas class="wiki-icon" data-icon="shield" width="16" height="16" aria-hidden="true"></canvas> Loot Scaling & Rarity Tiers</h3>
+          <p style="margin-bottom: 8px;">Runes and Equipment dropped by chests, elite monsters, and bosses scale dynamically based on the current wave number:</p>
+          <ul>
+            <li><strong style="color: #ffffff;">Common (White)</strong>: Standard attributes found in early waves (Waves 1-4).</li>
+            <li><strong style="color: #70a1ff;">Rare (Blue)</strong>: Stats scaled up linearly starting at Wave 5 (+20% or higher).</li>
+            <li><strong style="color: #a55eea;">Epic (Purple)</strong>: High attribute multiplier starting at Wave 10 (+60% or higher).</li>
+            <li><strong style="color: #ff9f43;">Legendary (Orange)</strong>: Maximum overpowered stats starting at Wave 15 (+120% or higher).</li>
+          </ul>
+          <p style="margin-top: 8px;">Every single one of the 26 unique relics and equipment pieces features a distinct, custom pixel art texture to easily identify your gear at a glance.</p>
+        </div>
+        
+        <div class="wiki-card" style="margin-top: 20px;">
           <h3 class="wiki-card-title"><canvas class="wiki-icon" data-icon="trophy" width="16" height="16" aria-hidden="true"></canvas> Achievement Badges</h3>
           <p style="margin-bottom: 8px;">Earn permanent achievements that serialize alongside your save file. Examples include:</p>
           <ul>
@@ -883,6 +917,44 @@
             <li><strong>The Glitched</strong>: Discover the Limitless Backrooms.</li>
             <li><strong>AP Master</strong>: Spend 10 Aether Points inside the skill tree.</li>
             <li><strong>Archon Slayer</strong>: Defeat the wave-10 Aether Archon boss anomaly.</li>
+          </ul>
+      </section>
+
+      <!-- 10. BOSS ANOMALIES -->
+      <section class="wiki-section" id="sec-bosses">
+        <h1 class="sec-title">BOSS ANOMALIES</h1>
+        <p class="sec-intro">Formidable bosses spawn at critical wave checkpoints. Each boss possesses unique attack phases, bullet patterns, and mechanisms.</p>
+        
+        <div class="wiki-card" style="border-color: #7d5fff;">
+          <h3 class="wiki-card-title"><canvas class="wiki-icon" data-icon="dragon" width="16" height="16" aria-hidden="true"></canvas> Boss 1: The Aether Archon</h3>
+          <p class="wiki-card-subtitle">Spawns at Wave 5</p>
+          <p style="margin-bottom: 12px;">A radiant boss constructed from pure Aether energy. Fires rapid spiral light balls that fill the arena.</p>
+          <ul>
+            <li><strong>Spiral Barrage</strong>: Fires concentric rings of blue projectile pulses that spiral outward.</li>
+            <li><strong>Teleport Escape</strong>: Periodically teleports away when the player draws too close.</li>
+            <li><strong>Loot Drop</strong>: Drops rare artifacts, robe upgrades, and a golden key to unlock the exit door.</li>
+          </ul>
+        </div>
+        
+        <div class="wiki-card" style="border-color: #ff4757; margin-top: 20px;">
+          <h3 class="wiki-card-title"><canvas class="wiki-icon" data-icon="flame" width="16" height="16" aria-hidden="true"></canvas> Boss 2: The Volcanic Titan</h3>
+          <p class="wiki-card-subtitle">Spawns at Wave 10</p>
+          <p style="margin-bottom: 12px;">A behemoth of rock and molten lava. He thrives in intense heat and gains high knockback resistance.</p>
+          <ul>
+            <li><strong>Triple Magma</strong>: Shoots three heavy magma fireballs that burst into smaller fire cinders on impact.</li>
+            <li><strong>Volcanic Stomp (Phase 2)</strong>: Once health drops below 50%, he periodically stomps the ground to create temporary volcanic fire pools in cardinal directions.</li>
+            <li><strong>Loot Drop</strong>: Drops premium chest gear, fire robes, and a high-tier gold key.</li>
+          </ul>
+        </div>
+
+        <div class="wiki-card" style="border-color: #a55eea; margin-top: 20px;">
+          <h3 class="wiki-card-title"><canvas class="wiki-icon" data-icon="void" width="16" height="16" aria-hidden="true"></canvas> Boss 3: The Void Behemoth</h3>
+          <p class="wiki-card-subtitle">Spawns at Wave 15</p>
+          <p style="margin-bottom: 12px;">A cosmic anomaly that bends gravity. Defeating him requires navigating spatial distortions.</p>
+          <ul>
+            <li><strong>Tracking Void Spheres</strong>: Launches slow, homing purple orbs that track the player's movements.</li>
+            <li><strong>Gravity Singularity (Phase 2)</strong>: Below 50% HP, he summons crushing gravity singularities under the player's feet that pull all surrounding entities toward them.</li>
+            <li><strong>Loot Drop</strong>: Drops ultimate rarity void gear, highly potent runes, and a golden key.</li>
           </ul>
         </div>
       </section>
@@ -1092,15 +1164,25 @@
         ".kggggk.",
         "..kkkk.."
       ],
-      trophy: [
-        "..kkkk..",
-        ".kggggk.",
-        "kgyyyygk",
-        "kgywwygk",
-        "kgywwygk",
-        ".kggggk.",
-        "..k..k..",
-        "..k..k.."
+      flame: [
+        "...r....",
+        "..ror...",
+        ".rooyr..",
+        "rooyyyr.",
+        "royyyyyo",
+        ".oyyyyo.",
+        "..oyyo..",
+        "...oo..."
+      ],
+      void: [
+        "..vvvv..",
+        ".vkkkkv.",
+        "vkkwwkkv",
+        "vkwkkkwv",
+        "vkwkkkwv",
+        "vkkwwkkv",
+        ".vkkkkv.",
+        "..vvvv.."
       ]
     };
 
@@ -1241,6 +1323,179 @@
         ctx.fillRect(246, 38, 28, 28);
         ctx.fillStyle = '#fff';
         ctx.fillRect(256, 48, 6, 6);
+      } else if (bannerName === 'gardens') {
+        const grad = ctx.createLinearGradient(0, 0, w, h);
+        grad.addColorStop(0, '#051c0e');
+        grad.addColorStop(0.55, '#0d381e');
+        grad.addColorStop(1, '#165a30');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+        fillNoise(160, ['rgba(46,213,115,0.15)', 'rgba(16,172,132,0.12)', 'rgba(255,242,0,0.08)']);
+
+        ctx.fillStyle = '#0e2615';
+        ctx.fillRect(0, h - 24, w, 24);
+        
+        ctx.fillStyle = '#2ed573';
+        for (let i = 0; i < 20; i++) {
+          const x = 12 + i * 24 + (i % 3) * 6;
+          const gh = 25 + (i % 4) * 8;
+          ctx.fillRect(x, h - 24 - gh, 6, gh);
+          
+          if (i % 2 === 0) {
+            ctx.fillStyle = '#ff4757';
+            ctx.fillRect(x - 2, h - 24 - gh - 4, 10, 4);
+            ctx.fillStyle = '#f1c40f';
+            ctx.fillRect(x + 2, h - 24 - gh - 3, 2, 2);
+            ctx.fillStyle = '#2ed573';
+          }
+        }
+      } else if (bannerName === 'underground') {
+        const grad = ctx.createLinearGradient(0, 0, w, h);
+        grad.addColorStop(0, '#08080a');
+        grad.addColorStop(0.55, '#14141c');
+        grad.addColorStop(1, '#241f1a');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+        fillNoise(140, ['rgba(127,140,141,0.15)', 'rgba(87,96,111,0.12)']);
+
+        ctx.fillStyle = '#2f3542';
+        for (let i = 0; i < 12; i++) {
+          const x = 16 + i * 38;
+          const sh = 15 + (i % 3) * 12;
+          ctx.fillRect(x, 0, 12, sh);
+          ctx.fillRect(x + 3, sh, 6, 6);
+        }
+
+        ctx.fillStyle = '#57606f';
+        ctx.fillRect(0, h - 18, w, 18);
+        for (let i = 0; i < 10; i++) {
+          const x = 32 + i * 46;
+          const sh = 10 + (i % 2) * 15;
+          ctx.fillRect(x, h - 18 - sh, 14, sh);
+          ctx.fillRect(x + 4, h - 18 - sh - 6, 6, 6);
+        }
+
+        const radGrad = ctx.createRadialGradient(w/2, h/2, 10, w/2, h/2, 60);
+        radGrad.addColorStop(0, 'rgba(255, 242, 0, 0.25)');
+        radGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = radGrad;
+        ctx.beginPath();
+        ctx.arc(w/2, h/2, 60, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#70a1ff';
+        ctx.fillRect(w/2 - 6, h/2 - 6, 12, 12);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(w/2 - 3, h/2 - 4, 6, 3);
+      } else if (bannerName === 'pool') {
+        const grad = ctx.createLinearGradient(0, 0, w, h);
+        grad.addColorStop(0, '#030f1a');
+        grad.addColorStop(0.55, '#081f33');
+        grad.addColorStop(1, '#0e3a5c');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+        fillNoise(180, ['rgba(112,161,255,0.18)', 'rgba(116,185,255,0.12)', 'rgba(255,255,255,0.06)']);
+
+        ctx.fillStyle = 'rgba(112, 161, 255, 0.25)';
+        ctx.fillRect(0, h - 36, w, 36);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+        for (let i = 0; i < 4; i++) {
+          const y = h - 30 + i * 8;
+          ctx.fillRect(20 + (i % 2) * 50, y, w - 80, 2);
+        }
+
+        ctx.fillStyle = '#74b9ff';
+        ctx.fillRect(60, h - 38, 48, 6);
+        ctx.fillRect(280, h - 38, 64, 6);
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(66, h - 38, 36, 2);
+        ctx.fillRect(288, h - 38, 48, 2);
+
+        ctx.fillStyle = '#a4b0be';
+        ctx.fillRect(180, h - 60, 16, 24);
+        ctx.fillStyle = '#ced6e0';
+        ctx.fillRect(180, h - 60, 6, 24);
+      } else if (bannerName === 'volcanic') {
+        const grad = ctx.createLinearGradient(0, 0, w, h);
+        grad.addColorStop(0, '#0f0202');
+        grad.addColorStop(0.55, '#2a0808');
+        grad.addColorStop(1, '#4d1508');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+        fillNoise(200, ['rgba(255,71,87,0.18)', 'rgba(255,165,2,0.15)', 'rgba(255,255,255,0.05)']);
+
+        ctx.fillStyle = '#ff4757';
+        ctx.fillRect(0, h - 20, w, 20);
+        ctx.fillStyle = '#ffa502';
+        for (let i = 0; i < 8; i++) {
+          ctx.fillRect(i * 64 + (i % 2) * 12, h - 20, 24, 4);
+          ctx.fillRect(i * 64 + (i % 3) * 8, h - 12, 16, 4);
+        }
+
+        ctx.fillStyle = '#1e1515';
+        for (let i = 0; i < 6; i++) {
+          const x = 40 + i * 80 + (i % 2) * 16;
+          const ph = 30 + (i % 3) * 15;
+          ctx.fillRect(x, h - 20 - ph, 24, ph);
+          ctx.fillStyle = '#2f2525';
+          ctx.fillRect(x + 4, h - 20 - ph, 4, ph);
+          ctx.fillStyle = '#1e1515';
+        }
+
+        ctx.fillStyle = '#ff7f50';
+        for (let i = 0; i < 15; i++) {
+          const x = Math.floor(Math.random() * (w / 8)) * 8;
+          const y = 20 + (i * 6) % (h - 40);
+          ctx.fillRect(x, y, 4, 4);
+        }
+      } else if (bannerName === 'void_rift') {
+        const grad = ctx.createLinearGradient(0, 0, w, h);
+        grad.addColorStop(0, '#05020c');
+        grad.addColorStop(0.55, '#110826');
+        grad.addColorStop(1, '#280e47');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+        fillNoise(180, ['rgba(165,94,234,0.18)', 'rgba(224,86,253,0.12)', 'rgba(255,255,255,0.08)']);
+
+        ctx.fillStyle = 'rgba(224, 86, 253, 0.4)';
+        for (let i = 0; i < 6; i++) {
+          const sx = 60 + i * 70;
+          const sy = 25 + (i % 3) * 20;
+          ctx.fillRect(sx, sy - 4, 4, 12);
+          ctx.fillRect(sx - 4, sy, 12, 4);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(sx, sy, 4, 4);
+          ctx.fillStyle = 'rgba(224, 86, 253, 0.4)';
+        }
+
+        const cx = w * 0.65;
+        const cy = h/2;
+        
+        const radGrad = ctx.createRadialGradient(cx, cy, 5, cx, cy, 32);
+        radGrad.addColorStop(0, 'rgba(165, 94, 234, 0.8)');
+        radGrad.addColorStop(0.5, 'rgba(224, 86, 253, 0.3)');
+        radGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = radGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 32, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fillRect(cx - 24, cy - 2, 48, 4);
+        ctx.fillRect(cx - 18, cy - 6, 6, 4);
+        ctx.fillRect(cx + 12, cy + 2, 6, 4);
+
+        ctx.fillStyle = '#10121a';
+        ctx.fillRect(cx - 80, cy - 16, 12, 8);
+        ctx.fillRect(cx + 60, cy + 12, 8, 8);
+        ctx.fillRect(cx - 50, cy + 20, 6, 6);
       }
     }
 
