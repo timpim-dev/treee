@@ -78,7 +78,6 @@ export class LevelManager {
       this.sectorThemes = { [`${this.startSectorX},${this.startSectorY}`]: 'dungeon' };
     }
     
-    // Allocate fullTileGrid and exploredGrid, keeping exploredGrid forever
     this.fullTileGrid = [];
     if (!this.exploredGrid || this.exploredGrid.length === 0) {
       this.exploredGrid = [];
@@ -86,119 +85,288 @@ export class LevelManager {
         this.exploredGrid[x] = new Array(this.fullTileHeight).fill(false);
       }
     }
+    // Initialize fullTileGrid with all walls (1)
     for (let x = 0; x < this.fullTileWidth; x++) {
-      this.fullTileGrid[x] = new Array(this.fullTileHeight).fill(0);
+      this.fullTileGrid[x] = new Array(this.fullTileHeight).fill(1);
     }
     
-    // Create cells grid for DFS maze generation
-    const cells = [];
-    for (let c = 0; c < cols; c++) {
-      cells[c] = [];
-      for (let r = 0; r < rows; r++) {
-        cells[c][r] = {
-          c,
-          r,
-          visited: false,
-          walls: { north: true, south: true, east: true, west: true }
-        };
-      }
-    }
-    
-    // Choose special rooms in full grid
-    this.fullSpecialRooms = [];
-    const midC = Math.floor(cols / 2);
-    const midR = Math.floor(rows / 2);
+    // Choose 3 distinct sectors (excluding the starting sector) for special rooms
+    const specialSectors = [];
     const roomTypes = ['treasure', 'shrine', 'nest'];
-    const usedCells = new Set();
-    usedCells.add(`${midC},${midR}`);
+    const startSectorKey = `${this.startSectorX},${this.startSectorY}`;
     
-    for (let i = 0; i < roomTypes.length; i++) {
-      let attempts = 0;
-      while (attempts < 100) {
-        const rc = Math.floor(Math.random() * cols);
-        const rr = Math.floor(Math.random() * rows);
-        const key = `${rc},${rr}`;
-        if (!usedCells.has(key)) {
-          usedCells.add(key);
-          this.fullSpecialRooms.push({ c: rc, r: rr, type: roomTypes[i] });
-          break;
+    while (specialSectors.length < 3) {
+      const sx = Math.floor(Math.random() * this.maxSectorCols);
+      const sy = Math.floor(Math.random() * this.maxSectorRows);
+      const key = `${sx},${sy}`;
+      if (key !== startSectorKey && !specialSectors.some(s => s.key === key)) {
+        specialSectors.push({ sx, sy, type: roomTypes[specialSectors.length], key });
+      }
+    }
+    
+    this.fullSpecialRooms = specialSectors.map(s => {
+      return {
+        c: s.sx * 10 + 5,
+        r: s.sy * 10 + 5,
+        type: s.type
+      };
+    });
+    
+    const carveRect = (tx1, ty1, tx2, ty2, tileType = 0) => {
+      for (let x = tx1; x <= tx2; x++) {
+        for (let y = ty1; y <= ty2; y++) {
+          if (x >= 0 && x < this.fullTileWidth && y >= 0 && y < this.fullTileHeight) {
+            this.fullTileGrid[x][y] = tileType;
+          }
         }
-        attempts++;
+      }
+    };
+    
+    // Generate sectors
+    for (let sx = 0; sx < this.maxSectorCols; sx++) {
+      for (let sy = 0; sy < this.maxSectorRows; sy++) {
+        // Set sector boundaries as walls in the global fullTileGrid
+        // except at the door coordinate 27
+        for (let tx = sx * 50; tx < (sx + 1) * 50; tx++) {
+          if (tx !== sx * 50 + 27) {
+            this.fullTileGrid[tx][sy * 50] = 1;
+            this.fullTileGrid[tx][(sy + 1) * 50 - 1] = 1;
+          }
+        }
+        for (let ty = sy * 50; ty < (sy + 1) * 50; ty++) {
+          if (ty !== sy * 50 + 27) {
+            this.fullTileGrid[sx * 50][ty] = 1;
+            this.fullTileGrid[(sx + 1) * 50 - 1][ty] = 1;
+          }
+        }
+        
+        const isSpecial = specialSectors.find(s => s.sx === sx && s.sy === sy);
+        const roomTypeVal = isSpecial ? 2 : 0;
+        
+        // Determine theme for this sector (for backrooms maze check)
+        const sectorKey = `${sx},${sy}`;
+        const sectorTheme = (this.sectorThemes && this.sectorThemes[sectorKey]) || 'dungeon';
+        
+        // Sector-local tile origin
+        const ox = sx * 50;
+        const oy = sy * 50;
+        
+        if (sectorTheme === 'backrooms') {
+          // ── BACKROOMS: Recursive backtracker maze ──────────────────────
+          // Operate on a coarse grid within the 50x50 tile sector
+          // Each maze cell = 4 tiles, corridors = 2 tiles wide
+          const mazeW = 11; // cells across (11 * 4 = 44 tiles, fits in 50 with borders)
+          const mazeH = 11;
+          const cellSz = 4; // tiles per cell
+          const mazeOx = ox + 3; // offset from sector edge (leave border)
+          const mazeOy = oy + 3;
+          
+          // Initialize maze cells
+          const mazeCells = [];
+          for (let mx = 0; mx < mazeW; mx++) {
+            mazeCells[mx] = [];
+            for (let my = 0; my < mazeH; my++) {
+              mazeCells[mx][my] = { visited: false, walls: { N: true, S: true, E: true, W: true } };
+            }
+          }
+          
+          // Recursive backtracker (iterative stack version)
+          const stack = [{ x: Math.floor(mazeW / 2), y: Math.floor(mazeH / 2) }];
+          mazeCells[stack[0].x][stack[0].y].visited = true;
+          
+          while (stack.length > 0) {
+            const cur = stack[stack.length - 1];
+            const neighbors = [];
+            if (cur.y > 0 && !mazeCells[cur.x][cur.y - 1].visited) neighbors.push({ x: cur.x, y: cur.y - 1, wall: 'N', opp: 'S' });
+            if (cur.y < mazeH - 1 && !mazeCells[cur.x][cur.y + 1].visited) neighbors.push({ x: cur.x, y: cur.y + 1, wall: 'S', opp: 'N' });
+            if (cur.x > 0 && !mazeCells[cur.x - 1][cur.y].visited) neighbors.push({ x: cur.x - 1, y: cur.y, wall: 'W', opp: 'E' });
+            if (cur.x < mazeW - 1 && !mazeCells[cur.x + 1][cur.y].visited) neighbors.push({ x: cur.x + 1, y: cur.y, wall: 'E', opp: 'W' });
+            
+            if (neighbors.length > 0) {
+              const next = neighbors[Math.floor(Math.random() * neighbors.length)];
+              mazeCells[cur.x][cur.y].walls[next.wall] = false;
+              mazeCells[next.x][next.y].walls[next.opp] = false;
+              mazeCells[next.x][next.y].visited = true;
+              stack.push({ x: next.x, y: next.y });
+            } else {
+              stack.pop();
+            }
+          }
+          
+          // Carve maze corridors into tile grid (2-tile-wide passages)
+          for (let mx = 0; mx < mazeW; mx++) {
+            for (let my = 0; my < mazeH; my++) {
+              const cell = mazeCells[mx][my];
+              // Carve cell center (2x2 tiles)
+              const tcx = mazeOx + mx * cellSz + 1;
+              const tcy = mazeOy + my * cellSz + 1;
+              carveRect(tcx, tcy, tcx + 1, tcy + 1, 0);
+              
+              // Carve passages through open walls
+              if (!cell.walls.N) carveRect(tcx, tcy - cellSz + 2, tcx + 1, tcy - 1, 0);
+              if (!cell.walls.S) carveRect(tcx, tcy + 2, tcx + 1, tcy + cellSz - 1, 0);
+              if (!cell.walls.W) carveRect(tcx - cellSz + 2, tcy, tcx - 1, tcy + 1, 0);
+              if (!cell.walls.E) carveRect(tcx + 2, tcy, tcx + cellSz - 1, tcy + 1, 0);
+            }
+          }
+          
+          // Carve door connections to sector edges
+          const doorTile = 27; // tile offset within sector
+          // North door → carve from sector edge to nearest maze cell
+          if (sy > 0) carveRect(ox + 26, oy, ox + 28, mazeOy + 2, 0);
+          // South door
+          if (sy < this.maxSectorRows - 1) carveRect(ox + 26, mazeOy + mazeH * cellSz - 1, ox + 28, oy + 49, 0);
+          // West door
+          if (sx > 0) carveRect(ox, oy + 26, mazeOx + 2, oy + 28, 0);
+          // East door
+          if (sx < this.maxSectorCols - 1) carveRect(mazeOx + mazeW * cellSz - 1, oy + 26, ox + 49, oy + 28, 0);
+          
+          // Ensure center area (around tile 27,27) is open for special rooms
+          carveRect(ox + 24, oy + 24, ox + 30, oy + 30, roomTypeVal);
+          
+        } else {
+          // ── STANDARD: Large organic rooms with details ─────────────────
+          // 5 rooms: 1 large central hall + 4 cardinal rooms
+          const rooms = [];
+          
+          // Central hall (large)
+          const cwBase = 18 + Math.floor(Math.random() * 9); // 18-26 tiles
+          const chBase = 18 + Math.floor(Math.random() * 9);
+          rooms.push({
+            cx: 25, cy: 25, // center of sector (in local coords)
+            w: cwBase, h: chBase,
+            floorType: roomTypeVal
+          });
+          
+          // Cardinal rooms (medium)
+          const cardinals = [
+            { cx: 12, cy: 12 }, // NW
+            { cx: 38, cy: 12 }, // NE
+            { cx: 12, cy: 38 }, // SW
+            { cx: 38, cy: 38 }, // SE
+          ];
+          
+          for (const card of cardinals) {
+            const rw = 10 + Math.floor(Math.random() * 7); // 10-16 tiles
+            const rh = 10 + Math.floor(Math.random() * 7);
+            rooms.push({
+              cx: card.cx, cy: card.cy,
+              w: rw, h: rh,
+              floorType: 0
+            });
+          }
+          
+          // Carve all rooms
+          for (const room of rooms) {
+            const x1 = ox + room.cx - Math.floor(room.w / 2);
+            const y1 = oy + room.cy - Math.floor(room.h / 2);
+            const x2 = x1 + room.w - 1;
+            const y2 = y1 + room.h - 1;
+            carveRect(x1, y1, x2, y2, room.floorType);
+          }
+          
+          // Organic edge erosion: randomly add/remove 1-2 tiles at room edges
+          // Uses a seeded hash to be deterministic per sector
+          const erosionSeed = sx * 997 + sy * 1013;
+          for (const room of rooms) {
+            const x1 = ox + room.cx - Math.floor(room.w / 2);
+            const y1 = oy + room.cy - Math.floor(room.h / 2);
+            const x2 = x1 + room.w - 1;
+            const y2 = y1 + room.h - 1;
+            
+            // Erode top and bottom edges
+            for (let tx = x1; tx <= x2; tx++) {
+              const h1 = (tx * 31 + y1 * 17 + erosionSeed) % 100;
+              const h2 = (tx * 37 + y2 * 19 + erosionSeed) % 100;
+              if (h1 < 30 && y1 - 1 > oy + 1) carveRect(tx, y1 - 1, tx, y1 - 1, room.floorType); // expand top
+              if (h1 > 70 && y1 + 1 <= y2) { // retract top
+                if (tx >= 0 && tx < this.fullTileWidth && y1 >= 0 && y1 < this.fullTileHeight)
+                  this.fullTileGrid[tx][y1] = 1;
+              }
+              if (h2 < 30 && y2 + 1 < oy + 49) carveRect(tx, y2 + 1, tx, y2 + 1, room.floorType); // expand bottom
+              if (h2 > 70 && y2 - 1 >= y1) { // retract bottom
+                if (tx >= 0 && tx < this.fullTileWidth && y2 >= 0 && y2 < this.fullTileHeight)
+                  this.fullTileGrid[tx][y2] = 1;
+              }
+            }
+            // Erode left and right edges
+            for (let ty = y1; ty <= y2; ty++) {
+              const h1 = (x1 * 23 + ty * 41 + erosionSeed) % 100;
+              const h2 = (x2 * 29 + ty * 43 + erosionSeed) % 100;
+              if (h1 < 30 && x1 - 1 > ox + 1) carveRect(x1 - 1, ty, x1 - 1, ty, room.floorType);
+              if (h1 > 70 && x1 + 1 <= x2) {
+                if (x1 >= 0 && x1 < this.fullTileWidth && ty >= 0 && ty < this.fullTileHeight)
+                  this.fullTileGrid[x1][ty] = 1;
+              }
+              if (h2 < 30 && x2 + 1 < ox + 49) carveRect(x2 + 1, ty, x2 + 1, ty, room.floorType);
+              if (h2 > 70 && x2 - 1 >= x1) {
+                if (x2 >= 0 && x2 < this.fullTileWidth && ty >= 0 && ty < this.fullTileHeight)
+                  this.fullTileGrid[x2][ty] = 1;
+              }
+            }
+          }
+          
+          // Carve corridors connecting all cardinal rooms to center
+          // Corridor widths vary 3-5 tiles for organic feel
+          const corridorPairs = [
+            { from: rooms[1], to: rooms[0] }, // NW → center
+            { from: rooms[2], to: rooms[0] }, // NE → center
+            { from: rooms[3], to: rooms[0] }, // SW → center
+            { from: rooms[4], to: rooms[0] }, // SE → center
+          ];
+          
+          for (let i = 0; i < corridorPairs.length; i++) {
+            const fr = corridorPairs[i].from;
+            const to = corridorPairs[i].to;
+            const cw = 1 + Math.floor(((sx * 13 + sy * 7 + i * 31) % 3)); // 1-3 half-width → 3-7 total, clamped to 1-2
+            
+            // L-shaped corridor: horizontal then vertical
+            const midX = ox + to.cx;
+            const midY = oy + fr.cy;
+            
+            // Horizontal segment
+            const hx1 = Math.min(ox + fr.cx, midX);
+            const hx2 = Math.max(ox + fr.cx, midX);
+            carveRect(hx1, midY - cw, hx2, midY + cw, 0);
+            
+            // Vertical segment
+            const vy1 = Math.min(midY, oy + to.cy);
+            const vy2 = Math.max(midY, oy + to.cy);
+            carveRect(midX - cw, vy1, midX + cw, vy2, 0);
+          }
+          
+          // Also connect cardinal rooms to each other along edges
+          // N-rooms horizontal
+          carveRect(ox + rooms[1].cx, oy + 12 - 1, ox + rooms[2].cx, oy + 12 + 1, 0);
+          // S-rooms horizontal
+          carveRect(ox + rooms[3].cx, oy + 38 - 1, ox + rooms[4].cx, oy + 38 + 1, 0);
+          // W-rooms vertical
+          carveRect(ox + 12 - 1, oy + rooms[1].cy, ox + 12 + 1, oy + rooms[3].cy, 0);
+          // E-rooms vertical
+          carveRect(ox + 38 - 1, oy + rooms[2].cy, ox + 38 + 1, oy + rooms[4].cy, 0);
+          
+          // Carve door corridors to sector edges (3 tiles wide, connect to nearest room)
+          // North Door → connects to center (27, 25)
+          if (sy > 0) {
+            carveRect(ox + 26, oy, ox + 28, oy + 25, 0);
+          }
+          // South Door → connects to center
+          if (sy < this.maxSectorRows - 1) {
+            carveRect(ox + 26, oy + 25, ox + 28, oy + 49, 0);
+          }
+          // West Door → connects to center
+          if (sx > 0) {
+            carveRect(ox, oy + 26, ox + 25, oy + 28, 0);
+          }
+          // East Door → connects to center
+          if (sx < this.maxSectorCols - 1) {
+            carveRect(ox + 25, oy + 26, ox + 49, oy + 28, 0);
+          }
+        }
       }
     }
     
-    // DFS Maze generation
-    const stack = [];
-    let current = cells[0][0];
-    current.visited = true;
-    let visitedCount = 1;
-    const totalCells = cols * rows;
-    
-    while (visitedCount < totalCells) {
-      const neighbors = [];
-      const { c, r } = current;
-      if (r > 0 && !cells[c][r - 1].visited) neighbors.push({ cell: cells[c][r - 1], dir: 'north' });
-      if (r < rows - 1 && !cells[c][r + 1].visited) neighbors.push({ cell: cells[c][r + 1], dir: 'south' });
-      if (c < cols - 1 && !cells[c + 1][r].visited) neighbors.push({ cell: cells[c + 1][r], dir: 'east' });
-      if (c > 0 && !cells[c - 1][r].visited) neighbors.push({ cell: cells[c - 1][r], dir: 'west' });
-      
-      if (neighbors.length > 0) {
-        const nextObj = neighbors[Math.floor(Math.random() * neighbors.length)];
-        const nextCell = nextObj.cell;
-        if (nextObj.dir === 'north') { current.walls.north = false; nextCell.walls.south = false; }
-        else if (nextObj.dir === 'south') { current.walls.south = false; nextCell.walls.north = false; }
-        else if (nextObj.dir === 'east') { current.walls.east = false; nextCell.walls.west = false; }
-        else if (nextObj.dir === 'west') { current.walls.west = false; nextCell.walls.east = false; }
-        stack.push(current);
-        current = nextCell;
-        current.visited = true;
-        visitedCount++;
-      } else if (stack.length > 0) {
-        current = stack.pop();
-      } else {
-        break;
-      }
-    }
-    
-    // Randomly remove some remaining walls to make it a bit more open, but keep the maze structure
-    const hWalls = [];
-    const vWalls = [];
-    for (let c = 0; c < cols; c++) {
-      for (let r = 0; r < rows; r++) {
-        if (r > 0 && cells[c][r].walls.north) hWalls.push({ c, r, type: 'h' });
-        if (c > 0 && cells[c][r].walls.west) vWalls.push({ c, r, type: 'v' });
-      }
-    }
-    const allWalls = [...hWalls, ...vWalls];
-    const removeCount = Math.floor(allWalls.length * 0.20); 
-    for (let i = 0; i < removeCount; i++) {
-      const idx = Math.floor(Math.random() * allWalls.length);
-      const wall = allWalls.splice(idx, 1)[0];
-      if (wall.type === 'h') {
-        cells[wall.c][wall.r].walls.north = false;
-        cells[wall.c][wall.r - 1].walls.south = false;
-      } else {
-        cells[wall.c][wall.r].walls.west = false;
-        cells[wall.c - 1][wall.r].walls.east = false;
-      }
-    }
-    
-    // Clear walls of special rooms
-    for (const room of this.fullSpecialRooms) {
-      const cell = cells[room.c][room.r];
-      cell.walls.north = false;
-      cell.walls.south = false;
-      cell.walls.east = false;
-      cell.walls.west = false;
-      if (room.r > 0) cells[room.c][room.r - 1].walls.south = false;
-      if (room.r < rows - 1) cells[room.c][room.r + 1].walls.north = false;
-      if (room.c > 0) cells[room.c - 1][room.r].walls.east = false;
-      if (room.c < cols - 1) cells[room.c + 1][room.r].walls.west = false;
-    }
-    
-    this.fullNavCells = cells;
-    
-    // Compile outer boundaries to solid walls
+    // Compile outer boundaries of the entire world to solid walls
     for (let x = 0; x < this.fullTileWidth; x++) {
       this.fullTileGrid[x][0] = 1;
       this.fullTileGrid[x][this.fullTileHeight - 1] = 1;
@@ -208,72 +376,6 @@ export class LevelManager {
       this.fullTileGrid[this.fullTileWidth - 1][y] = 1;
     }
     
-    // Compile inner cell walls
-    for (let c = 0; c < cols; c++) {
-      for (let r = 0; r < rows; r++) {
-        const cell = cells[c][r];
-        if (r > 0 && cell.walls.north) {
-          const ty = r * 5;
-          const startTx = c * 5;
-          const endTx = Math.min(this.fullTileWidth - 1, (c + 1) * 5);
-          for (let tx = startTx; tx <= endTx; tx++) this.fullTileGrid[tx][ty] = 1;
-        }
-        if (c > 0 && cell.walls.west) {
-          const tx = c * 5;
-          const startTy = r * 5;
-          const endTy = Math.min(this.fullTileHeight - 1, (r + 1) * 5);
-          for (let ty = startTy; ty <= endTy; ty++) this.fullTileGrid[tx][ty] = 1;
-        }
-      }
-    }
-    
-    // Clear special room interiors and set to runic flooring
-    for (const room of this.fullSpecialRooms) {
-      const startTx = room.c * 5 + 1;
-      const endTx = room.c * 5 + 4;
-      const startTy = room.r * 5 + 1;
-      const endTy = room.r * 5 + 4;
-      for (let tx = startTx; tx <= endTx; tx++) {
-        for (let ty = startTy; ty <= endTy; ty++) {
-          if (tx > 0 && tx < this.fullTileWidth - 1 && ty > 0 && ty < this.fullTileHeight - 1) {
-            this.fullTileGrid[tx][ty] = 2; // Runic flooring
-          }
-        }
-      }
-    }
-    
-    // Carve a small spawn room inside the starting sector.
-    // Keep the rest of the sector maze-shaped so walls still generate normally.
-    const startTx0 = this.startSectorX * 50;
-    const startTy0 = this.startSectorY * 50;
-    const spawnCenterX = startTx0 + 25;
-    const spawnCenterY = startTy0 + 25;
-    const spawnRadius = 5;
-    for (let tx = spawnCenterX - spawnRadius; tx <= spawnCenterX + spawnRadius; tx++) {
-      for (let ty = spawnCenterY - spawnRadius; ty <= spawnCenterY + spawnRadius; ty++) {
-        if (tx > 0 && tx < this.fullTileWidth - 1 && ty > 0 && ty < this.fullTileHeight - 1) {
-          this.fullTileGrid[tx][ty] = 0;
-        }
-      }
-    }
-    for (let tx = spawnCenterX - spawnRadius - 1; tx <= spawnCenterX + spawnRadius + 1; tx++) {
-      if (tx > 0 && tx < this.fullTileWidth - 1) {
-        this.fullTileGrid[tx][spawnCenterY - spawnRadius - 1] = 1;
-        this.fullTileGrid[tx][spawnCenterY + spawnRadius + 1] = 1;
-      }
-    }
-    for (let ty = spawnCenterY - spawnRadius - 1; ty <= spawnCenterY + spawnRadius + 1; ty++) {
-      if (ty > 0 && ty < this.fullTileHeight - 1) {
-        this.fullTileGrid[spawnCenterX - spawnRadius - 1][ty] = 1;
-        this.fullTileGrid[spawnCenterX + spawnRadius + 1][ty] = 1;
-      }
-    }
-    // Open four exits so the spawn room doesn't feel sealed off.
-    this.fullTileGrid[spawnCenterX][spawnCenterY - spawnRadius - 1] = 0;
-    this.fullTileGrid[spawnCenterX][spawnCenterY + spawnRadius + 1] = 0;
-    this.fullTileGrid[spawnCenterX - spawnRadius - 1][spawnCenterY] = 0;
-    this.fullTileGrid[spawnCenterX + spawnRadius + 1][spawnCenterY] = 0;
-
     // Carve around player if player exists
     if (this.game && this.game.player) {
       const px = this.game.player.x;
@@ -290,6 +392,26 @@ export class LevelManager {
       }
     }
 
+    // Compile cells connectivity for pathfinding navCells
+    const cells = [];
+    for (let c = 0; c < cols; c++) {
+      cells[c] = [];
+      for (let r = 0; r < rows; r++) {
+        const north = r === 0 || this.fullTileGrid[c * 5 + 2][r * 5] === 1;
+        const south = r === rows - 1 || this.fullTileGrid[c * 5 + 2][(r + 1) * 5] === 1;
+        const west = c === 0 || this.fullTileGrid[c * 5][r * 5 + 2] === 1;
+        const east = c === cols - 1 || this.fullTileGrid[(c + 1) * 5][r * 5 + 2] === 1;
+        
+        cells[c][r] = {
+          c,
+          r,
+          visited: true,
+          walls: { north, south, east, west }
+        };
+      }
+    }
+    this.fullNavCells = cells;
+
     // Pre-generate explosive barrels
     this.fullExplosiveBarrels = [];
     for (let c = 0; c < cols; c++) {
@@ -297,9 +419,16 @@ export class LevelManager {
         const cx = (c + 0.5) * cellSize;
         const cy = (r + 0.5) * cellSize;
         if (Math.hypot(cx - this.fullWidth / 2, cy - this.fullHeight / 2) < 200) continue;
+        if (this.fullTileGrid[c*5 + 2][r*5 + 2] === 1) continue;
+        
         if (Math.random() < 0.12) {
           const bx = cx + (Math.random() - 0.5) * 60;
           const by = cy + (Math.random() - 0.5) * 60;
+          const bTx = Math.floor(bx / 40);
+          const bTy = Math.floor(by / 40);
+          if (bTx > 0 && bTx < this.fullTileWidth - 1 && bTy > 0 && bTy < this.fullTileHeight - 1) {
+            if (this.fullTileGrid[bTx][bTy] === 1) continue;
+          }
           let overlap = false;
           for (const b of this.fullExplosiveBarrels) {
             if (Math.hypot(b.x - bx, b.y - by) < 40) { overlap = true; break; }
@@ -312,6 +441,9 @@ export class LevelManager {
     }
 
     // Make the spawn area immediately discovered
+    const spawnCenterX = this.startSectorX * 50 + 27;
+    const spawnCenterY = this.startSectorY * 50 + 27;
+    const spawnRadius = 5;
     for (let tx = spawnCenterX - spawnRadius - 2; tx <= spawnCenterX + spawnRadius + 2; tx++) {
       for (let ty = spawnCenterY - spawnRadius - 2; ty <= spawnCenterY + spawnRadius + 2; ty++) {
         if (tx >= 0 && tx < this.fullTileWidth && ty >= 0 && ty < this.fullTileHeight) {
@@ -328,8 +460,8 @@ export class LevelManager {
       return { x: 1000, y: 1000 };
     }
     return {
-      x: (this.startSectorX + 0.5) * 2000,
-      y: (this.startSectorY + 0.5) * 2000
+      x: this.startSectorX * 2000 + 1080,
+      y: this.startSectorY * 2000 + 1080
     };
   }
 
@@ -686,8 +818,8 @@ export class LevelManager {
 
     // Connectivity Check: BFS flood-fill from player position or spawn center
     // to find all reachable floor tiles, converting unreachable floor pockets into solid walls (1).
-    let startTx = this.startSectorX * 50 + 25;
-    let startTy = this.startSectorY * 50 + 25;
+    let startTx = this.startSectorX * 50 + 27;
+    let startTy = this.startSectorY * 50 + 27;
     if (this.game.player) {
       startTx = Math.max(0, Math.min(this.tileWidth - 1, Math.floor(this.game.player.x / 40)));
       startTy = Math.max(0, Math.min(this.tileHeight - 1, Math.floor(this.game.player.y / 40)));
@@ -695,8 +827,8 @@ export class LevelManager {
     
     // Ensure the start position itself is not inside a wall (fallback if it is)
     if (this.tileGrid[startTx][startTy] === 1) {
-      startTx = this.startSectorX * 50 + 25;
-      startTy = this.startSectorY * 50 + 25;
+      startTx = this.startSectorX * 50 + 27;
+      startTy = this.startSectorY * 50 + 27;
     }
     
     console.log(`[LevelManager] BFS start tile: (${startTx}, ${startTy}), val: ${this.tileGrid[startTx][startTy]}`);
@@ -866,20 +998,43 @@ export class LevelManager {
     // Store visited grid for spawn checking
     this.reachableGrid = visited;
 
-    // Hollow out massive solid blocks of walls
-    this.hollowSolidWalls();
+    // Hollow out massive solid blocks of walls (Disabled to prevent unreachable pocket rooms)
+    // this.hollowSolidWalls();
 
-    // Reconstruct physics obstacles (pillars) for active region
+    // Reconstruct physics obstacles (pillars) for active region (surface/boundary walls only)
     this.allObstacles = [];
+    const dirs = [
+      { x: -1, y: 0 },
+      { x: 1, y: 0 },
+      { x: 0, y: -1 },
+      { x: 0, y: 1 }
+    ];
     for (let tx = 0; tx < this.tileWidth; tx++) {
       for (let ty = 0; ty < this.tileHeight; ty++) {
         if (this.tileGrid[tx][ty] === 1) {
-          this.allObstacles.push({
-            x: tx * 40 + 20,
-            y: ty * 40 + 20,
-            radius: 20,
-            type: 'pillar'
-          });
+          let isBoundary = false;
+          for (const d of dirs) {
+            const nx = tx + d.x;
+            const ny = ty + d.y;
+            if (nx >= 0 && nx < this.tileWidth && ny >= 0 && ny < this.tileHeight) {
+              const val = this.tileGrid[nx][ny];
+              if (val === 0 || val === 2 || val === 3) {
+                isBoundary = true;
+                break;
+              }
+            } else {
+              isBoundary = true;
+              break;
+            }
+          }
+          if (isBoundary) {
+            this.allObstacles.push({
+              x: tx * 40 + 20,
+              y: ty * 40 + 20,
+              radius: 20,
+              type: 'pillar'
+            });
+          }
         }
       }
     }
@@ -2029,8 +2184,100 @@ export class LevelManager {
             }
           }
 
-          // Gameplay mechanic: Tall grass patches in Gardens theme
+          // ── Rich per-theme floor decorations (visual only) ──────────
           const hash = (tx * 17 + ty * 31) % 100;
+          const hash2 = (tx * 53 + ty * 11) % 100;
+          
+          if (theme === 'dungeon') {
+            // Rubble pile (small cluster of darker pixels)
+            if (hash < 8) {
+              ctx.fillStyle = '#1e2030';
+              ctx.fillRect(rx + 14, ry + 16, 4, 3);
+              ctx.fillRect(rx + 16, ry + 14, 3, 2);
+              ctx.fillStyle = '#252740';
+              ctx.fillRect(rx + 18, ry + 17, 2, 2);
+            }
+            // Dark stain patch
+            if (hash2 < 6) {
+              ctx.fillStyle = 'rgba(8, 9, 15, 0.4)';
+              ctx.fillRect(rx + 8, ry + 10, 10, 8);
+            }
+            // Cobweb corner hint
+            if (hash > 92) {
+              ctx.strokeStyle = 'rgba(40, 42, 60, 0.5)';
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.moveTo(rx, ry);
+              ctx.lineTo(rx + 8, ry + 6);
+              ctx.moveTo(rx, ry);
+              ctx.lineTo(rx + 6, ry + 8);
+              ctx.stroke();
+            }
+          } else if (theme === 'underground') {
+            // Mineral vein (thin colored line)
+            if (hash < 10) {
+              ctx.strokeStyle = '#7d5b3c';
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.moveTo(rx + 5, ry + 12);
+              ctx.lineTo(rx + 22, ry + 18);
+              ctx.lineTo(rx + 35, ry + 14);
+              ctx.stroke();
+            }
+            // Crystal glint
+            if (hash2 < 5) {
+              ctx.fillStyle = '#c9a84c';
+              ctx.fillRect(rx + 28, ry + 24, 2, 2);
+              ctx.fillStyle = '#f5d76e';
+              ctx.fillRect(rx + 29, ry + 25, 1, 1);
+            }
+          } else if (theme === 'volcanic') {
+            // Lava hairline crack
+            if (hash < 12) {
+              ctx.strokeStyle = '#e74c3c';
+              ctx.lineWidth = 1;
+              ctx.globalAlpha = 0.5;
+              ctx.beginPath();
+              ctx.moveTo(rx + 4, ry + 20);
+              ctx.lineTo(rx + 18, ry + 22);
+              ctx.lineTo(rx + 24, ry + 18);
+              ctx.lineTo(rx + 36, ry + 24);
+              ctx.stroke();
+              ctx.globalAlpha = 1;
+            }
+            // Ember cluster
+            if (hash2 < 7) {
+              ctx.fillStyle = '#f39c12';
+              ctx.fillRect(rx + 20, ry + 30, 2, 2);
+              ctx.fillStyle = '#e74c3c';
+              ctx.fillRect(rx + 24, ry + 28, 1, 1);
+            }
+          } else if (theme === 'void_rift') {
+            // Energy wisp trail
+            if (hash < 8) {
+              ctx.fillStyle = 'rgba(155, 89, 182, 0.3)';
+              ctx.fillRect(rx + 10, ry + 14, 6, 2);
+              ctx.fillRect(rx + 14, ry + 12, 2, 6);
+            }
+            // Constellation dots
+            if (hash2 < 10) {
+              ctx.fillStyle = '#8e44ad';
+              ctx.fillRect(rx + 8, ry + 8, 1, 1);
+              ctx.fillRect(rx + 30, ry + 20, 1, 1);
+              ctx.fillRect(rx + 18, ry + 34, 1, 1);
+            }
+          } else if (theme === 'pool') {
+            // Ripple ring
+            if (hash < 6) {
+              ctx.strokeStyle = 'rgba(72, 219, 251, 0.25)';
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.arc(rx + 20, ry + 20, 8, 0, Math.PI * 2);
+              ctx.stroke();
+            }
+          }
+
+          // Gameplay mechanic: Tall grass patches in Gardens theme
           if (theme === 'gardens' && hash >= 50 && hash < 75) {
             ctx.fillStyle = '#11572b'; // darker grass background
             ctx.fillRect(rx, ry, tileSize, tileSize);
@@ -2061,13 +2308,18 @@ export class LevelManager {
               ctx.fillStyle = '#bda35c';
               ctx.fillRect(rx + 2, ry + 22, 12, 10);
             }
+            // Fluorescent light reflection on floor
+            if (dh > 85) {
+              ctx.fillStyle = 'rgba(255, 255, 220, 0.06)';
+              ctx.fillRect(rx + 4, ry + 2, 32, 4);
+            }
           } else if (this.game.showFloorGrid) {
             ctx.strokeStyle = strokeStyle;
             ctx.lineWidth = 1;
             ctx.strokeRect(rx, ry, tileSize, tileSize);
             
-            const hash = (tx * 17 + ty * 31) % 100;
-            if (hash < 12) {
+            const gridHash = (tx * 17 + ty * 31) % 100;
+            if (gridHash < 12) {
               // Draw a diagonal crack
               ctx.strokeStyle = crackStyle;
               ctx.lineWidth = 1.5;
@@ -2076,19 +2328,19 @@ export class LevelManager {
               ctx.lineTo(rx + 16, ry + 16);
               ctx.lineTo(rx + 12, ry + 26);
               ctx.stroke();
-            } else if (hash < 20) {
+            } else if (gridHash < 20) {
               // Tiny stone/debris dot details or flowers
               ctx.fillStyle = dotStyle;
               if (theme === 'gardens') {
                 // Draw flower dots (yellow/pink)
                 ctx.fillRect(rx + 24, ry + 12, 3, 3);
-                ctx.fillStyle = hash % 2 === 0 ? '#e84393' : '#f1c40f';
+                ctx.fillStyle = gridHash % 2 === 0 ? '#e84393' : '#f1c40f';
                 ctx.fillRect(rx + 10, ry + 28, 4, 4);
               } else {
                 ctx.fillRect(rx + 24, ry + 12, 3, 3);
                 ctx.fillRect(rx + 10, ry + 28, 2, 2);
               }
-            } else if (hash < 26) {
+            } else if (gridHash < 26) {
               // Vertical split lines to simulate smaller brick pavers
               ctx.strokeStyle = strokeStyle;
               ctx.lineWidth = 1;

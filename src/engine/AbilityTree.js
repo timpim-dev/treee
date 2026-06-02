@@ -389,7 +389,12 @@ export class AbilityTree {
       /* t4  */ { id: 'comp2_t4', name: 'Chrono Feathers',  desc: '+20 Companion Time Damage.',                           stats: { companion2_damage: 20 },                x: 140,  y: -80,  cost: 1, conn: ['comp2_t2'],         expansion: 0 },
       /* t5  */ { id: 'comp2_t5', name: 'Future Vision',    desc: '+15% Companion Attack Speed, player +5% CDR.',        stats: { companion2_speed: 0.15, cooldownReduction: 0.05 }, x: -90, y: -130, cost: 2, conn: ['comp2_t3'],       expansion: 0 },
       /* t6  */ { id: 'comp2_t6', name: 'Chrono Synergy',   desc: 'Player gains +20% Time Damage, +20 Max Mana.',        stats: { timeDamage: 0.20, maxMp: 20 },          x: 90,   y: -130, cost: 2, conn: ['comp2_t4'],         expansion: 0 },
-      /* t7  */ { id: 'comp2_t7', name: 'Chrono Lord',      desc: 'Keystone: Companion zaps chain-strike up to 3 targets.', stats: { companion2_chain_zap: true },             x: 0,    y: -170, cost: 3, conn: ['comp2_t5', 'comp2_t6'], type: 'keystone', expansion: 0 }
+      /* t7  */ { id: 'comp2_t7', name: 'Chrono Lord',      desc: 'Keystone: Companion zaps chain-strike up to 3 targets.', stats: { companion2_chain_zap: true },             x: 0,    y: -170, cost: 3, conn: ['comp2_t5', 'comp2_t6'], type: 'keystone', expansion: 0 },
+      /* t8  */ { id: 'comp2_t8', name: 'Temporal Shift',   desc: 'Player gains +5% Cooldown Reduction.',                stats: { cooldownReduction: 0.05 },              x: -60,  y: -230, cost: 2, conn: ['comp2_t7'],         expansion: 1 },
+      /* t9  */ { id: 'comp2_t9', name: 'Chrono Acceleration', desc: '+25 Companion Damage, +10% Companion Attack Speed.', stats: { companion2_damage: 25, companion2_speed: 0.10 }, x: 60,  y: -230, cost: 2, conn: ['comp2_t7'],    expansion: 1 },
+      /* t10 */ { id: 'comp2_t10', name: 'Hourglass Shield', desc: 'Player gains +5% Damage Reduction, +15 Max Mana.',    stats: { damageReduction: 0.05, maxMp: 15 },    x: -120, y: -280, cost: 2, conn: ['comp2_t8'],         expansion: 1 },
+      /* t11 */ { id: 'comp2_t11', name: 'Aeon Mastery',     desc: 'Player gains +25% Time Damage, +15 Max HP.',          stats: { timeDamage: 0.25, maxHp: 15 },          x: 120,  y: -280, cost: 2, conn: ['comp2_t9'],         expansion: 1 },
+      /* t12 */ { id: 'comp2_t12', name: 'Chrono Emperor',   desc: 'Keystone: Companion zaps have 20% chance to spawn a Time Bubble (slow area).', stats: { companion2_emperor_bubble: true }, x: 0,  y: -340, cost: 3, conn: ['comp2_t10', 'comp2_t11'], type: 'keystone', expansion: 1 }
     ];
 
     comp2Data.forEach(n => {
@@ -464,6 +469,18 @@ export class AbilityTree {
   }
 
   /**
+   * Checks if Companion 2's Tree is completed (Tiers 1-7 nodes unlocked)
+   */
+  isCompanion2TreeCompleted() {
+    if (!this.nodes['comp2_root'] || !this.nodes['comp2_root'].unlocked) return false;
+    for (let tier = 1; tier <= 7; tier++) {
+      const id = `comp2_t${tier}`;
+      if (!this.nodes[id] || !this.nodes[id].unlocked) return false;
+    }
+    return true;
+  }
+
+  /**
    * Check if a node is unlockable (connected to an unlocked node and player has AP)
    */
   isUnlockable(node) {
@@ -475,6 +492,8 @@ export class AbilityTree {
       if (node.expansion === 2 && !this.game.player.unlockedCompanion2) return false;
     } else if (node.view === 'companion1') {
       if (node.expansion === 1 && !this.game.player.completedCompanion1Tree) return false;
+    } else if (node.view === 'companion2') {
+      if (node.expansion === 1 && !this.game.player.completedCompanion2Tree) return false;
     }
 
     // Must be connected to an unlocked node in the SAME view
@@ -501,6 +520,8 @@ export class AbilityTree {
       if (node.expansion === 2 && !this.game.player.unlockedCompanion2) return false;
     } else if (node.view === 'companion1') {
       if (node.expansion === 1 && !this.game.player.completedCompanion1Tree) return false;
+    } else if (node.view === 'companion2') {
+      if (node.expansion === 1 && !this.game.player.completedCompanion2Tree) return false;
     }
 
     return true;

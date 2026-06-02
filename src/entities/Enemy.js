@@ -38,6 +38,11 @@ export class Enemy {
     // Animation frame tick
     this.frameTimer = Math.random();
     
+    // Movement wobble (organic weave)
+    this._wobbleAngle = 0;
+    this._wobbleTarget = 0;
+    this._wobbleTimer = Math.random() * 0.5;
+    
     // State timer trackers
     this.shootTimer = Math.random() * 2.0; // random offset for shooters
     this.teleportCooldown = 3.0;
@@ -767,6 +772,25 @@ export class Enemy {
       // Close enough — head straight at the player
       moveX = dx / directDist;
       moveY = dy / directDist;
+    }
+
+    // ── Movement wobble (organic weave, excluded for bosses/charging) ─────
+    const isBossOrCharging = this.aiState.startsWith('boss_') || this.isCharging;
+    if (!isBossOrCharging && (moveX !== 0 || moveY !== 0)) {
+      this._wobbleTimer -= dt;
+      if (this._wobbleTimer <= 0) {
+        this._wobbleTimer = 0.3 + Math.random() * 0.5;
+        this._wobbleTarget = (Math.random() - 0.5) * 0.42; // ±12° in radians
+      }
+      // Smoothly interpolate wobble angle
+      this._wobbleAngle += (this._wobbleTarget - this._wobbleAngle) * Math.min(1, dt * 6);
+      // Rotate moveX/moveY by wobble angle
+      const cosW = Math.cos(this._wobbleAngle);
+      const sinW = Math.sin(this._wobbleAngle);
+      const wmx = moveX * cosW - moveY * sinW;
+      const wmy = moveX * sinW + moveY * cosW;
+      moveX = wmx;
+      moveY = wmy;
     }
 
     // ── Local pillar repulsion (prevents clipping into wall edges) ────────

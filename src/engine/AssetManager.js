@@ -1491,6 +1491,17 @@ export class AssetManager {
       ".kkkkkk."
     ]]);
 
+    this.sprites['relic_griffin_hourglass'] = this.createSprite(8, 8, [[
+      ".kkkkkk.",
+      "kggggggk",
+      "kgtttttk",
+      ".kgtttk.",
+      "..gtg...",
+      ".kgtttk.",
+      "kgtttttk",
+      ".kkkkkk."
+    ]]);
+
     this.sprites['relic_boots'] = this.createSprite(8, 8, [[
       "..kkkk..",
       ".kiiiik.",

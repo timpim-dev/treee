@@ -33,7 +33,7 @@ export class Game {
     this.showFloorGrid = true;
     this.lowParticleMode = false;
     this.showSpellTrails = true;
-    this.isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    this.isLocalDev = true;
     this.devtoolsVisible = false;
     this.customPresetIdx = 0;
     this.nextThemeOverride = null;
@@ -188,6 +188,7 @@ export class Game {
           this.player.unlockedCompanion1 = true;
           this.player.unlockedCompanion2 = true;
           this.player.completedCompanion1Tree = true;
+          this.player.completedCompanion2Tree = true;
           
           if (unlockedCount > 0) {
             this.player.recalculateModifiers(this.abilityTree);
@@ -2812,6 +2813,12 @@ export class Game {
     let dt = (time - this.lastTime) / 1000.0;
     this.lastTime = time;
 
+    // Track FPS history
+    const currentFps = dt > 0 ? Math.round(1 / dt) : 60;
+    if (!this._fpsHistory) this._fpsHistory = [];
+    this._fpsHistory.push(currentFps);
+    if (this._fpsHistory.length > 60) this._fpsHistory.shift();
+
     // Prevent huge jumps when tabbing out
     if (dt > 0.1) dt = 0.1;
     this.frameIndex += dt;
@@ -3584,6 +3591,29 @@ export class Game {
     // Render floor details / grid sand texture
     this.drawFloorGrid();
 
+    // Draw Dev Grid Overlay
+    if (this.devShowGrid) {
+      this.ctx.save();
+      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      this.ctx.lineWidth = 1;
+      const bounds = this.levelManager.getNearbyTileBounds();
+      if (bounds) {
+        for (let tx = bounds.startTx; tx <= bounds.endTx; tx++) {
+          for (let ty = bounds.startTy; ty <= bounds.endTy; ty++) {
+            const rx = tx * 40 - this.camera.x;
+            const ry = ty * 40 - this.camera.y;
+            this.ctx.strokeRect(rx, ry, 40, 40);
+            
+            // Draw coordinate labels very small
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            this.ctx.font = '7px sans-serif';
+            this.ctx.fillText(`${tx},${ty}`, rx + 2, ry + 8);
+          }
+        }
+      }
+      this.ctx.restore();
+    }
+
     // Draw active area effect circles (e.g. fire/steam clouds)
     this.areaEffects.forEach((ae) => {
       const rx = ae.x - this.camera.x;
@@ -3672,6 +3702,63 @@ export class Game {
     // Draw graphical particle impacts & damage text
     this.particles.draw(this.ctx, this.camera);
 
+    // Draw Dev Paths Overlay (in world space)
+    if (this.devShowPaths) {
+      this.ctx.save();
+      this.ctx.strokeStyle = 'rgba(231, 76, 60, 0.6)';
+      this.ctx.lineWidth = 1.5;
+      this.enemies.forEach(enemy => {
+        if (!enemy.dead && enemy._path && enemy._path.length > 0) {
+          this.ctx.beginPath();
+          this.ctx.moveTo(enemy.x - this.camera.x, enemy.y - this.camera.y);
+          enemy._path.forEach(wp => {
+            this.ctx.lineTo(wp.x - this.camera.x, wp.y - this.camera.y);
+          });
+          this.ctx.stroke();
+
+          // Small circles at waypoints
+          enemy._path.forEach(wp => {
+            this.drawCircle(this.ctx, wp.x - this.camera.x, wp.y - this.camera.y, 3, 'rgba(231, 76, 60, 0.8)', null, 0);
+          });
+        }
+      });
+      this.ctx.restore();
+    }
+
+    // Draw Dev Hitboxes Overlay (in world space)
+    if (this.devShowHitboxes) {
+      this.ctx.save();
+      // Player
+      this.drawCircle(this.ctx, this.player.x - this.camera.x, this.player.y - this.camera.y, this.player.radius, null, '#2ecc71', 1.5);
+      // Enemies
+      this.enemies.forEach(enemy => {
+        if (!enemy.dead) {
+          this.drawCircle(this.ctx, enemy.x - this.camera.x, enemy.y - this.camera.y, enemy.radius, null, '#e74c3c', 1.5);
+        }
+      });
+      // Companions
+      if (this.companions) {
+        this.companions.forEach(comp => {
+          this.drawCircle(this.ctx, comp.x - this.camera.x, comp.y - this.camera.y, comp.radius || 12, null, '#00d2d3', 1.5);
+        });
+      }
+      // Projectiles
+      this.projectiles.forEach(proj => {
+        this.drawCircle(this.ctx, proj.x - this.camera.x, proj.y - this.camera.y, proj.radius, null, '#f1c40f', 1.2);
+      });
+      // Ground items
+      this.items.forEach(item => {
+        this.drawCircle(this.ctx, item.x - this.camera.x, item.y - this.camera.y, item.radius || 10, null, '#3498db', 1.2);
+      });
+      // Obstacles
+      if (this.levelManager && this.levelManager.obstacles) {
+        this.levelManager.obstacles.forEach(obs => {
+          this.drawCircle(this.ctx, obs.x - this.camera.x, obs.y - this.camera.y, obs.radius, null, '#e67e22', 1.2);
+        });
+      }
+      this.ctx.restore();
+    }
+
     // Underground Caverns limited light mechanic
     if (this.levelManager && this.levelManager.theme === 'underground') {
       this.drawUndergroundDarkness();
@@ -3688,35 +3775,41 @@ export class Game {
     if (this.state === 'PLAYING') {
       this.drawMinimap();
     }
+
+    // Draw Dev FPS Overlay (in screen space)
+    if (this.devShowFps) {
+      this.ctx.save();
+      this.ctx.fillStyle = '#2ecc71';
+      this.ctx.font = 'bold 12px monospace';
+      const avgFps = this._fpsHistory && this._fpsHistory.length > 0
+        ? Math.round(this._fpsHistory.reduce((a, b) => a + b, 0) / this._fpsHistory.length)
+        : 60;
+      this.ctx.fillText(`FPS: ${avgFps}`, 10, 25);
+      this.ctx.restore();
+    }
   }
 
   drawUndergroundDarkness() {
     this.ctx.save();
     
-    // Center at player coordinates (world space)
-    const px = this.player.x;
-    const py = this.player.y;
+    // Center at player coordinates in camera space
+    const rx = this.player.x - this.camera.x;
+    const ry = this.player.y - this.camera.y;
     
     // Pulsate the lantern light radius slightly
     const time = Date.now() * 0.003;
     const pulsate = Math.sin(time) * 4;
     const lightRadius = 140 + pulsate;
     
-    // Viewport coordinates in world space
-    const vx = this.camera.x - 200;
-    const vy = this.camera.y - 200;
-    const vw = this.canvas.width + 400;
-    const vh = this.canvas.height + 400;
-    
-    // Create radial gradient overlay
-    const grad = this.ctx.createRadialGradient(px, py, 25, px, py, lightRadius);
+    // Create radial gradient overlay in camera space
+    const grad = this.ctx.createRadialGradient(rx, ry, 25, rx, ry, lightRadius);
     grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
     grad.addColorStop(0.5, 'rgba(5, 5, 12, 0.45)');
     grad.addColorStop(0.85, 'rgba(5, 5, 12, 0.94)');
     grad.addColorStop(1, 'rgba(5, 5, 12, 0.99)');
     
     this.ctx.fillStyle = grad;
-    this.ctx.fillRect(vx, vy, vw, vh);
+    this.ctx.fillRect(rx - 2000, ry - 2000, 4000, 4000);
     
     this.ctx.restore();
   }
@@ -4494,6 +4587,26 @@ export class Game {
           this.player.runeStorage.push(opRelic);
           this.uiNotifyCombo("LEGENDARY LOOT AWARDED!", "hybrid");
           this.particles.spawnText(this.player.x, this.player.y - 45, "LEGENDARY ARCHON CROWN RECEIVED!", { color: '#7d5fff', fontSize: 13, fontPixel: true, life: 4.0 });
+        }
+      }
+    }
+
+    if (this.abilityTree.isCompanion2TreeCompleted()) {
+      if (!this.player.completedCompanion2Tree) {
+        this.player.completedCompanion2Tree = true;
+        
+        if (!this.player.completedCompanion2TreeAwarded) {
+          this.player.completedCompanion2TreeAwarded = true;
+          const opRelic = {
+            id: 'relic_griffin_hourglass',
+            name: 'Griffin Hourglass',
+            desc: 'LEGENDARY: +50% Cooldown Reduction, +50 Max MP, +30% Time Damage.',
+            sprite: 'relic_griffin_hourglass',
+            stats: { cooldownReduction: 0.50, maxMp: 50, timeDamage: 0.30 }
+          };
+          this.player.runeStorage.push(opRelic);
+          this.uiNotifyCombo("LEGENDARY LOOT AWARDED!", "time");
+          this.particles.spawnText(this.player.x, this.player.y - 45, "LEGENDARY GRIFFIN HOURGLASS RECEIVED!", { color: '#ff9f43', fontSize: 13, fontPixel: true, life: 4.0 });
         }
       }
     }

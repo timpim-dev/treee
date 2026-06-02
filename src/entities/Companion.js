@@ -172,7 +172,10 @@ export class Companion {
         // Trigger chain or zapping sounds
         if (this.game.audio) this.game.audio.playLightning();
 
-        // Apply a slow state on zap impact (handled in projectile hit in Game.js)
+        // Chrono Emperor keystone upgrade
+        if (this.owner.modifiers.companion2_emperor_bubble && Math.random() < 0.20) {
+          this.triggerCompanionTimeBubble(nearest.x, nearest.y);
+        }
       }
     }
   }
@@ -193,6 +196,19 @@ export class Companion {
       this.game.particles.createExplosion(tx, ty, '#ff6348', 12, 90, 4);
       if (this.game.audio) this.game.audio.playExplosion();
     }, 600);
+  }
+
+  triggerCompanionTimeBubble(tx, ty) {
+    this.game.particles.spawnText(tx, ty - 25, 'TIME BUBBLE!', { color: '#ff9f43', fontSize: 9, fontPixel: true, life: 0.8 });
+    this.game.spawnAreaEffect(tx, ty, 60, 'chrono_slow', 2.0);
+    this.game.particles.spawn(tx, ty, {
+      vx: 0,
+      vy: 0,
+      color: '#ff9f43',
+      size: 4,
+      life: 0.5,
+      glow: true
+    });
   }
 
   draw(ctx, assetManager) {

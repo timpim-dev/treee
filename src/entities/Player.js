@@ -284,6 +284,8 @@ export class Player {
     this.unlockedCompanion2 = false;
     this.completedCompanion1Tree = false;
     this.completedCompanion1TreeAwarded = false;
+    this.completedCompanion2Tree = false;
+    this.completedCompanion2TreeAwarded = false;
 
     // Load local save progress if existing
     this.loadGameState();
@@ -826,52 +828,59 @@ export class Player {
       }
     }
     
-    // Movement integration
-    this.x += this.vx * this.getSpeed() * dt;
-    this.y += this.vy * this.getSpeed() * dt;
-
-    // Boundary check inside Arena level
-    this.x = Math.max(this.radius + 40, Math.min(lvl.width - this.radius - 40, this.x));
-    this.y = Math.max(this.radius + 40, Math.min(lvl.height - this.radius - 40, this.y));
-
-    // Handle collision with solid square wall tiles via 3x3 grid look-up
-    const ptx = Math.floor(this.x / 40);
-    const pty = Math.floor(this.y / 40);
+    // Movement integration with sub-stepping to prevent phasing through walls
+    const moveDist = Math.hypot(this.vx * this.getSpeed() * dt, this.vy * this.getSpeed() * dt);
+    const subSteps = Math.ceil(moveDist / 10);
+    const stepDx = (this.vx * this.getSpeed() * dt) / subSteps;
+    const stepDy = (this.vy * this.getSpeed() * dt) / subSteps;
     
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        const ntx = ptx + dx;
-        const nty = pty + dy;
-        if (ntx >= 0 && ntx < lvl.tileWidth && nty >= 0 && nty < lvl.tileHeight) {
-          if (lvl.tileGrid[ntx][nty] === 1) {
-            const minX = ntx * 40;
-            const maxX = minX + 40;
-            const minY = nty * 40;
-            const maxY = minY + 40;
-            
-            const closestX = Math.max(minX, Math.min(this.x, maxX));
-            const closestY = Math.max(minY, Math.min(this.y, maxY));
-            
-            const odx = this.x - closestX;
-            const ody = this.y - closestY;
-            const odist = Math.hypot(odx, ody);
-            
-            if (odist < this.radius) {
-              if (odist > 0.01) {
-                const pushAmount = this.radius - odist;
-                this.x += (odx / odist) * pushAmount;
-                this.y += (ody / odist) * pushAmount;
-              } else {
-                // Centered inside, push out to closest edge
-                const distL = this.x - minX;
-                const distR = maxX - this.x;
-                const distT = this.y - minY;
-                const distB = maxY - this.y;
-                const minDist = Math.min(distL, distR, distT, distB);
-                if (minDist === distL) this.x -= this.radius;
-                else if (minDist === distR) this.x += this.radius;
-                else if (minDist === distT) this.y -= this.radius;
-                else this.y += this.radius;
+    for (let step = 0; step < subSteps; step++) {
+      this.x += stepDx;
+      this.y += stepDy;
+      
+      // Boundary check inside Arena level
+      this.x = Math.max(this.radius + 40, Math.min(lvl.width - this.radius - 40, this.x));
+      this.y = Math.max(this.radius + 40, Math.min(lvl.height - this.radius - 40, this.y));
+      
+      // Resolve collisions with walls
+      const ptx = Math.floor(this.x / 40);
+      const pty = Math.floor(this.y / 40);
+      
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const ntx = ptx + dx;
+          const nty = pty + dy;
+          if (ntx >= 0 && ntx < lvl.tileWidth && nty >= 0 && nty < lvl.tileHeight) {
+            if (lvl.tileGrid[ntx][nty] === 1) {
+              const minX = ntx * 40;
+              const maxX = minX + 40;
+              const minY = nty * 40;
+              const maxY = minY + 40;
+              
+              const closestX = Math.max(minX, Math.min(this.x, maxX));
+              const closestY = Math.max(minY, Math.min(this.y, maxY));
+              
+              const odx = this.x - closestX;
+              const ody = this.y - closestY;
+              const odist = Math.hypot(odx, ody);
+              
+              if (odist < this.radius) {
+                if (odist > 0.01) {
+                  const pushAmount = this.radius - odist;
+                  this.x += (odx / odist) * pushAmount;
+                  this.y += (ody / odist) * pushAmount;
+                } else {
+                  // Centered inside, push out to closest edge
+                  const distL = this.x - minX;
+                  const distR = maxX - this.x;
+                  const distT = this.y - minY;
+                  const distB = maxY - this.y;
+                  const minDist = Math.min(distL, distR, distT, distB);
+                  if (minDist === distL) this.x -= this.radius;
+                  else if (minDist === distR) this.x += this.radius;
+                  else if (minDist === distT) this.y -= this.radius;
+                  else this.y += this.radius;
+                }
               }
             }
           }
@@ -1093,7 +1102,9 @@ export class Player {
       unlockedCompanion1: this.unlockedCompanion1,
       unlockedCompanion2: this.unlockedCompanion2,
       completedCompanion1Tree: this.completedCompanion1Tree,
-      completedCompanion1TreeAwarded: this.completedCompanion1TreeAwarded
+      completedCompanion1TreeAwarded: this.completedCompanion1TreeAwarded,
+      completedCompanion2Tree: this.completedCompanion2Tree,
+      completedCompanion2TreeAwarded: this.completedCompanion2TreeAwarded
     };
 
     for (const key in this.game.abilityTree.nodes) {
@@ -1134,6 +1145,8 @@ export class Player {
         this.unlockedCompanion2 = progress.unlockedCompanion2 || false;
         this.completedCompanion1Tree = progress.completedCompanion1Tree || false;
         this.completedCompanion1TreeAwarded = progress.completedCompanion1TreeAwarded || false;
+        this.completedCompanion2Tree = progress.completedCompanion2Tree || false;
+        this.completedCompanion2TreeAwarded = progress.completedCompanion2TreeAwarded || false;
         if (this.game.levelManager) {
           if (progress.theme) this.game.levelManager.theme = progress.theme;
           if (progress.unlockedSectors) {
