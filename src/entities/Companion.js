@@ -28,12 +28,18 @@ export class Companion {
     let targetX, targetY;
     if (isMoving) {
       const angle = Math.atan2(playerVy, playerVx);
-      targetX = this.owner.x - Math.cos(angle) * 35;
-      targetY = this.owner.y - Math.sin(angle) * 35 - 12;
+      const sideAngle = this.type === 1 ? angle + 0.3 : angle - 0.3;
+      targetX = this.owner.x - Math.cos(sideAngle) * 35;
+      targetY = this.owner.y - Math.sin(sideAngle) * 35 - 12;
     } else {
       const time = this.game.frameIndex * 2;
-      targetX = this.owner.x - 25 + Math.sin(time) * 10;
-      targetY = this.owner.y - 20 + Math.cos(time * 0.5) * 8;
+      if (this.type === 1) {
+        targetX = this.owner.x - 25 + Math.sin(time) * 10;
+        targetY = this.owner.y - 20 + Math.cos(time * 0.5) * 8;
+      } else {
+        targetX = this.owner.x + 25 - Math.sin(time) * 10;
+        targetY = this.owner.y - 20 + Math.cos(time * 0.5 + Math.PI) * 8;
+      }
     }
 
     const dx = targetX - this.x;

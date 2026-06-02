@@ -863,6 +863,12 @@ export class LevelManager {
     }
     console.log(`[LevelManager] Converted ${convertedCount} unreachable floor tiles to walls.`);
 
+    // Store visited grid for spawn checking
+    this.reachableGrid = visited;
+
+    // Hollow out massive solid blocks of walls
+    this.hollowSolidWalls();
+
     // Reconstruct physics obstacles (pillars) for active region
     this.allObstacles = [];
     for (let tx = 0; tx < this.tileWidth; tx++) {
@@ -930,6 +936,45 @@ export class LevelManager {
       const sy = Math.floor(room.r / 10);
       return this.unlockedSectors.has(`${sx},${sy}`);
     });
+  }
+
+  hollowSolidWalls() {
+    if (!this.tileGrid) return;
+    const newGrid = [];
+    for (let x = 0; x < this.tileWidth; x++) {
+      newGrid[x] = [...this.tileGrid[x]];
+    }
+
+    for (let tx = 1; tx < this.tileWidth - 1; tx++) {
+      const sx = Math.floor(tx / 50);
+      for (let ty = 1; ty < this.tileHeight - 1; ty++) {
+        const sy = Math.floor(ty / 50);
+        
+        // Only hollow out walls in unlocked sectors.
+        // Unexplored/locked sectors must remain filled solid walls.
+        if (!this.unlockedSectors.has(`${sx},${sy}`)) {
+          continue;
+        }
+
+        if (this.tileGrid[tx][ty] === 1) {
+          // Check if it and all 8 neighbors are walls
+          let surrounded = true;
+          for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+              if (this.tileGrid[tx + dx][ty + dy] !== 1) {
+                surrounded = false;
+                break;
+              }
+            }
+            if (!surrounded) break;
+          }
+          if (surrounded) {
+            newGrid[tx][ty] = 0; // Hollow it out to floor
+          }
+        }
+      }
+    }
+    this.tileGrid = newGrid;
   }
 
   // ── Navigation helpers ──────────────────────────────────────────────────
@@ -1132,13 +1177,13 @@ export class LevelManager {
     }
   }
 
-  spawnChest() {
+  spawnChest(specificSectorKey = null) {
     let px = 0, py = 0;
     let valid = false;
     let attempts = 0;
 
     const unlockedList = Array.from(this.unlockedSectors);
-    const chosenSectorKey = unlockedList[Math.floor(Math.random() * unlockedList.length)];
+    const chosenSectorKey = specificSectorKey || unlockedList[Math.floor(Math.random() * unlockedList.length)];
     const [sx, sy] = chosenSectorKey.split(',').map(Number);
     const minX = sx * 2000 + 100;
     const maxX = (sx + 1) * 2000 - 100;
@@ -1153,6 +1198,12 @@ export class LevelManager {
       // Check distance to player
       const pdist = Math.hypot(this.game.player.x - px, this.game.player.y - py);
       if (pdist < 200) continue;
+
+      const tx = Math.floor(px / 40);
+      const ty = Math.floor(py / 40);
+      if (tx < 0 || tx >= this.tileWidth || ty < 0 || ty >= this.tileHeight) continue;
+      if (this.tileGrid[tx][ty] !== 0) continue;
+      if (this.reachableGrid && !this.reachableGrid[tx][ty]) continue;
 
       let obsOverlap = false;
       this.obstacles.forEach((obs) => {
@@ -1170,13 +1221,13 @@ export class LevelManager {
     }
   }
 
-  spawnShrine() {
+  spawnShrine(specificSectorKey = null) {
     let px = 0, py = 0;
     let valid = false;
     let attempts = 0;
 
     const unlockedList = Array.from(this.unlockedSectors);
-    const chosenSectorKey = unlockedList[Math.floor(Math.random() * unlockedList.length)];
+    const chosenSectorKey = specificSectorKey || unlockedList[Math.floor(Math.random() * unlockedList.length)];
     const [sx, sy] = chosenSectorKey.split(',').map(Number);
     const minX = sx * 2000 + 100;
     const maxX = (sx + 1) * 2000 - 100;
@@ -1191,6 +1242,12 @@ export class LevelManager {
       // Check distance to player
       const pdist = Math.hypot(this.game.player.x - px, this.game.player.y - py);
       if (pdist < 200) continue;
+
+      const tx = Math.floor(px / 40);
+      const ty = Math.floor(py / 40);
+      if (tx < 0 || tx >= this.tileWidth || ty < 0 || ty >= this.tileHeight) continue;
+      if (this.tileGrid[tx][ty] !== 0) continue;
+      if (this.reachableGrid && !this.reachableGrid[tx][ty]) continue;
 
       let overlap = false;
       this.obstacles.forEach((obs) => {
@@ -1532,7 +1589,11 @@ export class LevelManager {
     const minDist = 350; // Just off-screen
     
     for (let tx = 0; tx < this.tileWidth; tx++) {
+      const secX = Math.floor(tx / 50);
       for (let ty = 0; ty < this.tileHeight; ty++) {
+        const secY = Math.floor(ty / 50);
+        if (!this.unlockedSectors.has(`${secX},${secY}`)) continue;
+        
         if (this.tileGrid[tx][ty] === 0) {
           const wx = tx * 40 + 20;
           const wy = ty * 40 + 20;
@@ -1547,7 +1608,11 @@ export class LevelManager {
     // Fallback if no tiles fit inside the band
     if (candidates.length === 0) {
       for (let tx = 0; tx < this.tileWidth; tx++) {
+        const secX = Math.floor(tx / 50);
         for (let ty = 0; ty < this.tileHeight; ty++) {
+          const secY = Math.floor(ty / 50);
+          if (!this.unlockedSectors.has(`${secX},${secY}`)) continue;
+          
           if (this.tileGrid[tx][ty] === 0) {
             const wx = tx * 40 + 20;
             const wy = ty * 40 + 20;
@@ -1564,10 +1629,14 @@ export class LevelManager {
     if (candidates.length > 0) {
       spawnPos = candidates[Math.floor(Math.random() * candidates.length)];
     } else {
-      // Fallback: search for any floor tile
+      // Fallback: search for any floor tile in unlocked sectors
       const allFloor = [];
       for (let tx = 0; tx < this.tileWidth; tx++) {
+        const secX = Math.floor(tx / 50);
         for (let ty = 0; ty < this.tileHeight; ty++) {
+          const secY = Math.floor(ty / 50);
+          if (!this.unlockedSectors.has(`${secX},${secY}`)) continue;
+          
           if (this.tileGrid[tx][ty] === 0) {
             allFloor.push({ x: tx * 40 + 20, y: ty * 40 + 20 });
           }
@@ -1582,9 +1651,17 @@ export class LevelManager {
       sx = spawnPos.x;
       sy = spawnPos.y;
     } else {
-      // Last resort fallback
-      sx = this.width / 2;
-      sy = this.height / 2;
+      // Last resort fallback: center of the first unlocked sector
+      const unlockedList = Array.from(this.unlockedSectors);
+      if (unlockedList.length > 0) {
+        const chosenSectorKey = unlockedList[0];
+        const [secX, secY] = chosenSectorKey.split(',').map(Number);
+        sx = secX * 2000 + 1000;
+        sy = secY * 2000 + 1000;
+      } else {
+        sx = this.width / 2;
+        sy = this.height / 2;
+      }
     }
 
     // Choose enemy archetype based on wave
@@ -1875,46 +1952,82 @@ export class LevelManager {
           const rx = tx * tileSize - camera.x;
           const ry = ty * tileSize - camera.y;
           
-          // Theme coloring
+          // Theme coloring & tileset variations to prevent visual uniformity
+          const variant = (tx * 7 + ty * 13) % 4;
+          
           let fillStyle = '#121320';
           let strokeStyle = '#0e0f18';
           let crackStyle = '#08090f';
           let dotStyle = '#1d1e2f';
           
           if (theme === 'gardens') {
-            fillStyle = '#1b7a3e'; // grass forest green
-            strokeStyle = '#145c2f'; // grass borders
+            fillStyle = variant === 1 ? '#1e8544' : variant === 2 ? '#166934' : '#1b7a3e';
+            strokeStyle = '#145c2f';
             crackStyle = '#0e3e20';
-            dotStyle = '#f1c40f'; // flower dots
+            dotStyle = '#f1c40f';
           } else if (theme === 'underground') {
-            fillStyle = '#4a2c11'; // rock brown
+            fillStyle = variant === 1 ? '#563314' : variant === 2 ? '#3f250e' : '#4a2c11';
             strokeStyle = '#331e0b';
             crackStyle = '#1e1106';
             dotStyle = '#5c3715';
           } else if (theme === 'pool') {
-            fillStyle = '#00d2d3'; // cyan pool tiles
+            fillStyle = variant === 1 ? '#2de0e0' : variant === 2 ? '#00a3a4' : '#00d2d3';
             strokeStyle = '#00a8a9';
             crackStyle = '#48dbfb';
             dotStyle = '#b2fefb';
           } else if (theme === 'volcanic') {
-            fillStyle = '#c0392b'; // deep red
+            fillStyle = variant === 1 ? '#a93226' : variant === 2 ? '#d35400' : variant === 3 ? '#2c1111' : '#c0392b';
             strokeStyle = '#962d22';
             crackStyle = '#7f0000';
-            dotStyle = '#f39c12'; // lava embers
+            dotStyle = '#f39c12';
           } else if (theme === 'void_rift') {
-            fillStyle = '#2c1a4d'; // void purple
+            fillStyle = variant === 1 ? '#371c66' : variant === 2 ? '#1c0f33' : '#2c1a4d';
             strokeStyle = '#1c0d35';
-            crackStyle = '#4a1268'; // magenta glow
-            dotStyle = '#8e44ad'; // void dust
+            crackStyle = '#4a1268';
+            dotStyle = '#8e44ad';
           } else if (theme === 'backrooms') {
-            fillStyle = '#d1b87a'; // yellow carpet
+            fillStyle = variant === 1 ? '#dbbf85' : variant === 2 ? '#c5ac70' : variant === 3 ? '#bfa767' : '#d1b87a';
             strokeStyle = '#b89e5c';
             crackStyle = '#a38b4d';
-            dotStyle = '#8f773b'; // carpet muck stains
+            dotStyle = '#8f773b';
+          } else {
+            // dungeon (default)
+            fillStyle = variant === 1 ? '#161827' : variant === 2 ? '#0d0e17' : '#121320';
           }
           
           ctx.fillStyle = fillStyle;
           ctx.fillRect(rx, ry, tileSize, tileSize);
+
+          // Extra details for Variant 3 of specific themes
+          if (variant === 3) {
+            if (theme === 'dungeon') {
+              ctx.fillStyle = '#1a1c2e'; // subtle brick seam
+              ctx.fillRect(rx, ry + 20, tileSize, 1);
+            } else if (theme === 'gardens') {
+              ctx.fillStyle = '#11572b'; // tiny grass blades
+              ctx.fillRect(rx + 10, ry + 15, 2, 4);
+              ctx.fillRect(rx + 25, ry + 8, 2, 4);
+            } else if (theme === 'underground') {
+              ctx.fillStyle = '#2f1b0a'; // tiny crack detail
+              ctx.fillRect(rx + 15, ry + 12, 6, 2);
+              ctx.fillRect(rx + 19, ry + 14, 2, 4);
+            } else if (theme === 'pool') {
+              ctx.strokeStyle = '#00b8b9'; // 2x2 grid subdivisions for pool mosaic look
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.moveTo(rx + 20, ry);
+              ctx.lineTo(rx + 20, ry + tileSize);
+              ctx.moveTo(rx, ry + 20);
+              ctx.lineTo(rx + tileSize, ry + 20);
+              ctx.stroke();
+            } else if (theme === 'volcanic' && fillStyle === '#2c1111') {
+              ctx.fillStyle = '#e67e22'; // obsidian ember core
+              ctx.fillRect(rx + 19, ry + 19, 2, 2);
+            } else if (theme === 'void_rift') {
+              ctx.fillStyle = '#a55eea'; // stellar dust pixel
+              ctx.fillRect(rx + 12, ry + 22, 2, 2);
+            }
+          }
 
           // Gameplay mechanic: Tall grass patches in Gardens theme
           const hash = (tx * 17 + ty * 31) % 100;
@@ -2381,9 +2494,6 @@ export class LevelManager {
     
     this.unlockedDoors.add(`${neighborTx},${neighborTy}`);
     
-    // Increment wave
-    this.wave++;
-    
     // Unlock explore achievements
     if (newTheme === 'gardens') this.game.unlockAchievement('flora_explorer');
     else if (newTheme === 'underground') this.game.unlockAchievement('spelunker');
@@ -2429,7 +2539,22 @@ export class LevelManager {
     else if (door.dir === 'West') this.game.player.x -= pushDist;
     else if (door.dir === 'East') this.game.player.x += pushDist;
     
-    // Start next wave (which re-generates obstacles, chests, spawns)
-    this.startNextWave();
+    // Regenerate obstacles to update active bounds and open the door without triggering a new wave
+    this.generateObstacles();
+
+    // Spawn special room contents in the new sector if any exist
+    this.spawnSpecialRoomsContents();
+    if (this.specialSpawns) {
+      this.specialSpawns.forEach(spawn => {
+        this.game.spawnEnemy(spawn.x, spawn.y, spawn.type);
+      });
+    }
+
+    // Spawn 1 chest and 1 shrine inside the newly unlocked sector
+    this.spawnChest(targetSectorKey);
+    this.spawnShrine(targetSectorKey);
+
+    // Update HUD
+    this.game.updateHUD();
   }
 }

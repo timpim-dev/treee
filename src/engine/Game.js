@@ -1977,9 +1977,14 @@ export class Game {
         for (const key in visibleNodes) {
           const node = visibleNodes[key];
           const dist = Math.hypot(node.x - treeX, node.y - treeY);
-          const radius = node.type === 'root' ? 14 : node.type === 'keystone' ? 12 : 10;
+          const baseRadius = node.type === 'root'     ? 20
+                           : node.type === 'keystone' ? 17
+                           : node.type === 'major' || node.type === 'unlock' ? 13
+                           : 10;
+          const viewScale = (node.view === 'companion1' || node.view === 'companion2') ? 1.3 : 1.0;
+          const r = Math.round(baseRadius * viewScale);
           
-          if (dist < radius + 4) {
+          if (dist < r + 4) {
             foundNode = node;
             break;
           }

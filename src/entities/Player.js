@@ -671,14 +671,14 @@ export class Player {
 
     this.onIceTrail = false;
     
-    // Volcanic heat damage mechanic (2.5 DPS, ticks as 2 damage every 0.8 seconds)
+    // Volcanic heat damage mechanic (1.25 DPS, ticks as 1 damage every 0.8 seconds)
     const lvl = this.game.levelManager;
     if (lvl && lvl.theme === 'volcanic' && !this.game.isTutorial) {
       if (!this.onIceTrail) {
         this.volcanicHeatTimer = (this.volcanicHeatTimer || 0) + dt;
         if (this.volcanicHeatTimer >= 0.8) {
           this.volcanicHeatTimer = 0;
-          const heatDmg = 2;
+          const heatDmg = 1;
           this.hp -= heatDmg;
           if (this.game.showDamageNumbers) {
             this.game.particles.spawnText(this.x, this.y - 20, `-${heatDmg}`, {
@@ -811,7 +811,7 @@ export class Player {
       const fireRate = Math.max(0.3, 1.2 - (this.modifiers.wispSpeed || 0) * 0.2);
       if (this.wispShootTimer >= fireRate) {
         this.wispShootTimer = 0;
-        const wispCount = Math.max(1, Math.round(1 + (this.modifiers.wispCount || 0)));
+        const wispCount = Math.max(1, Math.round(this.modifiers.wispCount || 1));
         for (let w = 0; w < wispCount; w++) {
           this.wispShootNearestEnemy(w, wispCount);
         }
@@ -834,7 +834,7 @@ export class Player {
     this.x = Math.max(this.radius + 40, Math.min(lvl.width - this.radius - 40, this.x));
     this.y = Math.max(this.radius + 40, Math.min(lvl.height - this.radius - 40, this.y));
 
-    // Handle collision with stone pillar obstacles via 3x3 grid look-up
+    // Handle collision with solid square wall tiles via 3x3 grid look-up
     const ptx = Math.floor(this.x / 40);
     const pty = Math.floor(this.y / 40);
     
@@ -844,19 +844,35 @@ export class Player {
         const nty = pty + dy;
         if (ntx >= 0 && ntx < lvl.tileWidth && nty >= 0 && nty < lvl.tileHeight) {
           if (lvl.tileGrid[ntx][nty] === 1) {
-            const obsX = ntx * 40 + 20;
-            const obsY = nty * 40 + 20;
-            const obsRadius = 20;
+            const minX = ntx * 40;
+            const maxX = minX + 40;
+            const minY = nty * 40;
+            const maxY = minY + 40;
             
-            const odx = this.x - obsX;
-            const ody = this.y - obsY;
+            const closestX = Math.max(minX, Math.min(this.x, maxX));
+            const closestY = Math.max(minY, Math.min(this.y, maxY));
+            
+            const odx = this.x - closestX;
+            const ody = this.y - closestY;
             const odist = Math.hypot(odx, ody);
-            const minDist = this.radius + obsRadius;
             
-            if (odist < minDist && odist > 0.01) {
-              const angle = Math.atan2(ody, odx);
-              this.x = obsX + Math.cos(angle) * minDist;
-              this.y = obsY + Math.sin(angle) * minDist;
+            if (odist < this.radius) {
+              if (odist > 0.01) {
+                const pushAmount = this.radius - odist;
+                this.x += (odx / odist) * pushAmount;
+                this.y += (ody / odist) * pushAmount;
+              } else {
+                // Centered inside, push out to closest edge
+                const distL = this.x - minX;
+                const distR = maxX - this.x;
+                const distT = this.y - minY;
+                const distB = maxY - this.y;
+                const minDist = Math.min(distL, distR, distT, distB);
+                if (minDist === distL) this.x -= this.radius;
+                else if (minDist === distR) this.x += this.radius;
+                else if (minDist === distT) this.y -= this.radius;
+                else this.y += this.radius;
+              }
             }
           }
         }
@@ -923,15 +939,7 @@ export class Player {
         this.vx = 0;
         this.vy = 0;
         
-        if (this.game.particles) {
-          this.game.particles.createExplosion(this.x, this.y, '#eccc68', 12, 60, 2);
-          this.game.particles.spawnText(this.x, this.y - 30, "UNSTUCK!", {
-            color: '#eccc68',
-            fontSize: 10,
-            fontPixel: true,
-            life: 1.5
-          });
-        }
+        // Silent teleportation: no particles/text
       }
     }
   }
@@ -1270,7 +1278,7 @@ export class Player {
     // Draw Wisp(s) if unlocked
     if (this.modifiers.unlockWisp) {
       const wispRadius = 30;
-      const count = Math.max(1, Math.round(1 + (this.modifiers.wispCount || 0)));
+      const count = Math.max(1, Math.round(this.modifiers.wispCount || 1));
       for (let w = 0; w < count; w++) {
         const orbitOffset = (w / count) * Math.PI * 2;
         const wx = this.x + Math.cos(this.wispAngle + orbitOffset) * wispRadius - this.game.camera.x;

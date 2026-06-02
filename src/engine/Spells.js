@@ -142,13 +142,50 @@ export const SpellBook = {
       
       const dashDist = 120 * (player.modifiers.dashDistance || 1.0);
       
-      // Spawn trail particles
-      if (game.showSpellTrails) {
+      const startX = player.x;
+      const startY = player.y;
+      const proposedX = startX + Math.cos(angle) * dashDist;
+      const proposedY = startY + Math.sin(angle) * dashDist;
+
+      // Trace path to find the actual landing spot and prevent phasing
+      const lvl = game.levelManager;
+      const dist = Math.hypot(proposedX - startX, proposedY - startY);
+      const stepSize = 4;
+      const steps = Math.floor(dist / stepSize);
+      let lastValidX = startX;
+      let lastValidY = startY;
+
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const curX = startX + (proposedX - startX) * t;
+        const curY = startY + (proposedY - startY) * t;
+
+        // Check map boundaries
+        if (curX < 20 || curX > lvl.width - 20 || curY < 20 || curY > lvl.height - 20) {
+          break;
+        }
+
+        const sx = Math.floor(curX / 2000);
+        const sy = Math.floor(curY / 2000);
+
+        // Check if sector is unlocked (phase through walls/pillars is allowed inside explored sectors)
+        if (!lvl.unlockedSectors.has(`${sx},${sy}`)) {
+          break;
+        }
+
+        lastValidX = curX;
+        lastValidY = curY;
+      }
+      
+      const finalDashDist = Math.hypot(lastValidX - startX, lastValidY - startY);
+
+      // Spawn trail particles along the actually traveled path
+      if (game.showSpellTrails && finalDashDist > 0) {
         const particleCount = 10;
         for (let i = 0; i < particleCount; i++) {
           const t = i / particleCount;
-          const tx = player.x + Math.cos(angle) * dashDist * t;
-          const ty = player.y + Math.sin(angle) * dashDist * t;
+          const tx = startX + (lastValidX - startX) * t;
+          const ty = startY + (lastValidY - startY) * t;
           game.particles.spawn(tx, ty, {
             vx: (Math.random() - 0.5) * 20,
             vy: (Math.random() - 0.5) * 20,
@@ -163,17 +200,17 @@ export const SpellBook = {
 
       // Check if player has lightning dash upgrade (leaves chain lightning)
       if (player.modifiers.lightningDash) {
-        game.triggerChainLightning(player.x, player.y, 15, 3, 200);
+        game.triggerChainLightning(startX, startY, 15, 3, 200);
       }
 
       // Chrono displacement: leave a slow zone behind
       if (player.modifiers.chronoDashSlow) {
-        game.spawnAreaEffect(player.x, player.y, 80, 'chrono_slow', 3.0);
+        game.spawnAreaEffect(startX, startY, 80, 'chrono_slow', 3.0);
       }
 
-      // Perform teleport
-      player.x += Math.cos(angle) * dashDist;
-      player.y += Math.sin(angle) * dashDist;
+      // Perform teleport to the last valid position
+      player.x = lastValidX;
+      player.y = lastValidY;
       player.dashCooldownTimer = player.getSpellCooldown('aether_dash');
       if (game.audio) game.audio.playTeleport();
       
@@ -379,10 +416,39 @@ export const SpellBook = {
 
       // Blink to target (clamped to level bounds and kept away from walls)
       const lvl = game.levelManager;
-      const tx = Math.max(20, Math.min(lvl.width - 20, worldMouse.x));
-      const ty = Math.max(20, Math.min(lvl.height - 20, worldMouse.y));
-      player.x = tx;
-      player.y = ty;
+      const targetX = Math.max(20, Math.min(lvl.width - 20, worldMouse.x));
+      const targetY = Math.max(20, Math.min(lvl.height - 20, worldMouse.y));
+
+      const dist = Math.hypot(targetX - originX, targetY - originY);
+      const stepSize = 4;
+      const steps = Math.floor(dist / stepSize);
+      let lastValidX = originX;
+      let lastValidY = originY;
+
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const curX = originX + (targetX - originX) * t;
+        const curY = originY + (targetY - originY) * t;
+
+        // Check map boundaries
+        if (curX < 20 || curX > lvl.width - 20 || curY < 20 || curY > lvl.height - 20) {
+          break;
+        }
+
+        const sx = Math.floor(curX / 2000);
+        const sy = Math.floor(curY / 2000);
+
+        // Check if sector is unlocked (phase through walls/pillars is allowed inside explored sectors)
+        if (!lvl.unlockedSectors.has(`${sx},${sy}`)) {
+          break;
+        }
+
+        lastValidX = curX;
+        lastValidY = curY;
+      }
+
+      player.x = lastValidX;
+      player.y = lastValidY;
       player.iframeTimer = 0.35;
       if (game.audio) game.audio.playTeleport();
       game.particles.createExplosion(player.x, player.y, '#a55eea', 12, 80, 2);

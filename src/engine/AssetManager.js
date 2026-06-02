@@ -1023,6 +1023,226 @@ export class AssetManager {
       "kkkkkkkkkkkkkkkk"
     ]]);
 
+    // Time Warp
+    this.sprites['icon_time_warp'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks...kkkkkk...sk",
+      "ks..kttttttsk.sk",
+      "ks.kts....ttksk",
+      "ks.k...tt..tksk",
+      "ks.k..tttt.tksk",
+      "ks.k...tt..tksk",
+      "ks.kts....ttksk",
+      "ks..kttttttsk.sk",
+      "ks...kkkkkk...sk",
+      "ks............sk",
+      "ks............sk",
+      "ks............sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    // Solar Beam
+    this.sprites['icon_solar_beam'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks.rro........sk",
+      "ks..rrroo.....sk",
+      "ks...rrrooo...sk",
+      "ks....rrrooo..sk",
+      "ks.....rrrooo.sk",
+      "ks..k...rrroo.sk",
+      "ks..kk...rro..sk",
+      "ks...k........sk",
+      "ks............sk",
+      "ks............sk",
+      "ks............sk",
+      "ks............sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    // Glacial Fissure
+    this.sprites['icon_glacial_fissure'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks............sk",
+      "ks......cc....sk",
+      "ks.....cicc...sk",
+      "ks....ciiiic..sk",
+      "ks.c.ciiiwicc.sk",
+      "ks.cciiiwiic..sk",
+      "ks..ciiiic....sk",
+      "ks...cicc.....sk",
+      "ks....cc......sk",
+      "ks............sk",
+      "ks............sk",
+      "ks............sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    // Void Beam
+    this.sprites['icon_void_beam'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks.vv.........sk",
+      "ks..vvvx......sk",
+      "ks...vvvxx....sk",
+      "ks....vvvxx...sk",
+      "ks.....vvvxx..sk",
+      "ks......vvvx..sk",
+      "ks.......vv...sk",
+      "ks............sk",
+      "ks............sk",
+      "ks............sk",
+      "ks............sk",
+      "ks............sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    // Time Bubble
+    this.sprites['icon_time_bubble'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks.....kkkk...sk",
+      "ks...kttwwttk.sk",
+      "ks..ktw....wtksk",
+      "ks.ktw......wtksk",
+      "ks.kt........tksk",
+      "ks.kt........tksk",
+      "ks.ktw......wtksk",
+      "ks..ktw....wtksk",
+      "ks...kttwwttk.sk",
+      "ks.....kkkk...sk",
+      "ks............sk",
+      "ks............sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    // Thunderbolt
+    this.sprites['icon_thunderbolt'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks......yy....sk",
+      "ks.....yyy....sk",
+      "ks....yyyy....sk",
+      "ks...yyyyy....sk",
+      "ks..yyyyyyk...sk",
+      "ks...kkkyyk...sk",
+      "ks.....yyyk...sk",
+      "ks....yyyy....sk",
+      "ks...yyyy.....sk",
+      "ks....yyk.....sk",
+      "ks.....kk.....sk",
+      "ks............sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    // Volcanic Eruption
+    this.sprites['icon_volcanic_eruption'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks......oo....sk",
+      "ks.....orok...sk",
+      "ks....krrrok..sk",
+      "ks.....kkk....sk",
+      "ks....kaaak...sk",
+      "ks...kaaaak...sk",
+      "ks..kaaaaaak..sk",
+      "ks.kaaaaaaaak.sk",
+      "kskaaaaaaaaak.sk",
+      "ks............sk",
+      "ks............sk",
+      "ks............sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    // Absolute Zero
+    this.sprites['icon_absolute_zero'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks......c.....sk",
+      "ks.....ccc....sk",
+      "ks....ccccc...sk",
+      "ks..cc.ccc.cc.sk",
+      "ks...cciciic..sk",
+      "ks....ciwic...sk",
+      "ks...cciciic..sk",
+      "ks..cc.ccc.cc.sk",
+      "ks....ccccc...sk",
+      "ks.....ccc....sk",
+      "ks......c.....sk",
+      "ks............sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    // Singularity Collapse
+    this.sprites['icon_void_singularity_collapse'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks............sk",
+      "ks.....kkk....sk",
+      "ks....kvvxk...sk",
+      "ks...kvxwxvxk.sk",
+      "ks...kvwkwxk..sk",
+      "ks...kvwkwxk..sk",
+      "ks...kvxwxvxk.sk",
+      "ks....kvvxk...sk",
+      "ks.....kkk....sk",
+      "ks............sk",
+      "ks............sk",
+      "ks............sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    // Temporal Rewind
+    this.sprites['icon_temporal_rewind'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks....kkkk....sk",
+      "ks...kt...k...sk",
+      "ks..kt....tk..sk",
+      "ks.kt......t..sk",
+      "ks.k...kk..tk.sk",
+      "ks.k..ktk..tk.sk",
+      "ks.k...kk..tk.sk",
+      "ks..kt....tk..sk",
+      "ks...ktttt....sk",
+      "ks............sk",
+      "ks............sk",
+      "ks............sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
+    // Storm Deity Wrath
+    this.sprites['icon_storm_deity_wrath'] = this.createSprite(16, 16, [[
+      "kkkkkkkkkkkkkkkk",
+      "kssssssssssssssk",
+      "ks....aaaa....sk",
+      "ks...aaasaaa..sk",
+      "ks..aasssaaa..sk",
+      "ks.aassssssaa.sk",
+      "ks..aaaaaaa...sk",
+      "ks...y...y....sk",
+      "ks..yy..yy....sk",
+      "ks.yyy.yyy....sk",
+      "ks..yy..yy....sk",
+      "ks...y...y....sk",
+      "ks............sk",
+      "ks............sk",
+      "kssssssssssssssk",
+      "kkkkkkkkkkkkkkkk"
+    ]]);
+
     // Utility / UI icons
     this.sprites['icon_lock'] = this.createSprite(16, 16, [[
       "kkkkkkkkkkkkkkkk",
