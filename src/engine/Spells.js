@@ -129,10 +129,10 @@ export const SpellBook = {
       // Get dash vector based on keyboard input direction
       let dx = 0;
       let dy = 0;
-      if (game.keys['w'] || game.keys['arrowup']) dy -= 1;
-      if (game.keys['s'] || game.keys['arrowdown']) dy += 1;
-      if (game.keys['a'] || game.keys['arrowleft']) dx -= 1;
-      if (game.keys['d'] || game.keys['arrowright']) dx += 1;
+      if (game.keys[game.keybinds.move_up] || game.keys['arrowup']) dy -= 1;
+      if (game.keys[game.keybinds.move_down] || game.keys['arrowdown']) dy += 1;
+      if (game.keys[game.keybinds.move_left] || game.keys['arrowleft']) dx -= 1;
+      if (game.keys[game.keybinds.move_right] || game.keys['arrowright']) dx += 1;
       
       // Default to target direction if no movement keys pressed
       let angle = targetAngle;

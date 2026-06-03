@@ -54,6 +54,16 @@ export class LevelManager {
     this.eventTimer = 15.0; // Random events every 15s
     this.meteorIndicators = [];
     this.backroomsSecretUnlocked = false;
+
+    // Story & custom triggers
+    this.buttons = [];
+    this.teleporters = [];
+    this.valves = [];
+    this.lavaVents = [];
+    this.bossTriggers = [];
+    this.exitPortal = null;
+    this.chapterBatteryCompanion = null;
+    this.darknessDrainTimer = 0;
   }
 
   preGenerateFullMaze() {
@@ -457,8 +467,11 @@ export class LevelManager {
   }
 
   getSpawnPoint() {
-    if (this.game.isTutorial) {
-      return { x: 1000, y: 1000 };
+    if (this.game.isStoryMode || this.game.isCustomLevel) {
+      return {
+        x: this.game.playerSpawnX || 1000,
+        y: this.game.playerSpawnY || 1000
+      };
     }
     return {
       x: this.startSectorX * 2000 + 1080,
@@ -508,8 +521,13 @@ export class LevelManager {
     
     this.allObstacles = [];
     
-    // In tutorial, force to sector (1,1) dimensions and ignore other sectors
-    if (this.game.isTutorial) {
+    // In Story mode or Custom Builder mode, load layout directly
+    if (this.game.isStoryMode || this.game.isCustomLevel) {
+      this.theme = this.game.loadedLevelTheme || 'dungeon';
+      this.sectorThemes = { '0,0': this.theme };
+      this.unlockedSectors = new Set(['0,0']);
+      this.maxSectorCols = 1;
+      this.maxSectorRows = 1;
       this.navCols = 10;
       this.navRows = 10;
       this.navCellSize = 200;
@@ -522,15 +540,9 @@ export class LevelManager {
       for (let c = 0; c < 10; c++) {
         this.navCells[c] = [];
         for (let r = 0; r < 10; r++) {
-          const fullCell = this.fullNavCells[c + 55][r + 55];
           this.navCells[c][r] = {
             c, r, visited: true,
-            walls: {
-              north: r === 0 ? true : fullCell.walls.north,
-              south: r === 9 ? true : fullCell.walls.south,
-              east: c === 9 ? true : fullCell.walls.east,
-              west: c === 0 ? true : fullCell.walls.west
-            }
+            walls: { north: false, south: false, east: false, west: false }
           };
         }
       }
@@ -538,18 +550,79 @@ export class LevelManager {
       this.tileGrid = [];
       for (let x = 0; x < 50; x++) {
         this.tileGrid[x] = new Array(50).fill(0);
-        for (let y = 0; y < 50; y++) {
-          if (x === 0 || x === 49 || y === 0 || y === 49) {
-            this.tileGrid[x][y] = 1;
-          } else {
-            this.tileGrid[x][y] = this.fullTileGrid[x + 275][y + 275];
+      }
+      
+      this.chests = [];
+      this.shrines = [];
+      this.buttons = [];
+      this.teleporters = [];
+      this.valves = [];
+      this.lavaVents = [];
+      this.bossTriggers = [];
+      this.customEnemySpawns = [];
+      this.exitPortal = null;
+      this.chapterBatteryCompanion = null;
+      
+      const layout = this.game.loadedLevelLayout;
+      if (layout) {
+        for (let ty = 0; ty < 50; ty++) {
+          const rowStr = layout[ty] || "#".repeat(50);
+          for (let tx = 0; tx < 50; tx++) {
+            const char = rowStr[tx] || '.';
+            
+            if (char === '#' || char === '1') {
+              this.tileGrid[tx][ty] = 1; // Wall
+            } else {
+              this.tileGrid[tx][ty] = 0; // Floor
+            }
+            
+            const worldX = tx * 40 + 20;
+            const worldY = ty * 40 + 20;
+            
+            if (char === 'P') {
+              this.game.playerSpawnX = worldX;
+              this.game.playerSpawnY = worldY;
+            } else if (char === 'C') {
+              this.chests.push({ x: worldX, y: worldY, radius: 12, unlockTimer: 3.0 });
+            } else if (char === 'H') {
+              const buffType = this.shrines.length % 3 === 0 ? 'fire' : this.shrines.length % 3 === 1 ? 'frost' : 'void';
+              this.shrines.push({ x: worldX, y: worldY, radius: 12, buffType, active: true, cooldown: 0 });
+            } else if (char === 'S') {
+              this.buttons.push({ x: worldX, y: worldY, radius: 14, active: false, id: `btn_${this.buttons.length}` });
+            } else if (char === 'D') {
+              const doorObst = { x: worldX, y: worldY, radius: 20, type: 'door', id: `door_${this.allObstacles.length}`, closed: true };
+              this.allObstacles.push(doorObst);
+            } else if (char === 'T') {
+              this.teleporters.push({ x: worldX, y: worldY, radius: 14, cooldown: 0 });
+            } else if (char === 'L') {
+              this.lavaVents.push({ x: worldX, y: worldY, radius: 16, active: false, eruptionTimer: 2.0 + Math.random() * 2.0 });
+            } else if (char === 'V') {
+              this.valves.push({ x: worldX, y: worldY, radius: 16, interactionTimer: 0, cooled: false });
+            } else if (char === 'B') {
+              this.bossTriggers.push({ x: worldX, y: worldY, radius: 25, active: false, spawned: false });
+            } else if (char === 'e') {
+              this.customEnemySpawns.push({ x: worldX, y: worldY, type: 'slime' });
+            } else if (char === 'k') {
+              this.customEnemySpawns.push({ x: worldX, y: worldY, type: 'skeleton' });
+            } else if (char === 'r') {
+              this.customEnemySpawns.push({ x: worldX, y: worldY, type: 'horror' });
+            }
           }
         }
       }
       
-      this.doors = [];
-      for (let tx = 1; tx < 49; tx++) {
-        for (let ty = 1; ty < 49; ty++) {
+      // Link teleporters in a ring
+      if (this.teleporters.length > 1) {
+        for (let i = 0; i < this.teleporters.length; i++) {
+          const nextIdx = (i + 1) % this.teleporters.length;
+          this.teleporters[i].targetX = this.teleporters[nextIdx].x;
+          this.teleporters[i].targetY = this.teleporters[nextIdx].y;
+        }
+      }
+      
+      // Fill walls
+      for (let tx = 0; tx < 50; tx++) {
+        for (let ty = 0; ty < 50; ty++) {
           if (this.tileGrid[tx][ty] === 1) {
             this.allObstacles.push({
               x: tx * 40 + 20,
@@ -560,11 +633,29 @@ export class LevelManager {
           }
         }
       }
+      
+      this.exploredGrid = [];
+      for (let x = 0; x < 50; x++) {
+        this.exploredGrid[x] = new Array(50).fill(false);
+      }
+      
+      const spTx = Math.floor((this.game.playerSpawnX || 1000) / 40);
+      const spTy = Math.floor((this.game.playerSpawnY || 1000) / 40);
+      const spawnRadius = 5;
+      for (let tx = spTx - spawnRadius; tx <= spTx + spawnRadius; tx++) {
+        for (let ty = spTy - spawnRadius; ty <= spTy + spawnRadius; ty++) {
+          if (tx >= 0 && tx < 50 && ty >= 0 && ty < 50) {
+            this.exploredGrid[tx][ty] = true;
+          }
+        }
+      }
+      
       this.obstacles = [...this.allObstacles];
       this.specialRooms = [];
+      this._generationValidated = true;
       return;
     }
-    
+
     // Regular gameplay: Expanded 12x12 sectors grid layout
     this.navCols = 120;
     this.navRows = 120;
@@ -1429,6 +1520,12 @@ export class LevelManager {
   }
 
   update(dt) {
+    if (this.game.isStoryMode || this.game.isCustomLevel) {
+      this.updateStoryOrCustomLevel(dt);
+      this.updateInteractives(dt);
+      return;
+    }
+
     // Dynamic theme update based on player position
     if (this.game.player && this.sectorThemes) {
       const currentSx = Math.max(0, Math.min(this.maxSectorCols - 1, Math.floor(this.game.player.x / 2000)));
@@ -1636,6 +1733,284 @@ export class LevelManager {
 
     // Update dynamic events
     this.updateEvents(dt);
+  }
+
+  updateStoryOrCustomLevel(dt) {
+    if (!this.game.player) return;
+    const player = this.game.player;
+
+    // Uncover fog of war around player in story/custom mode
+    if (this.exploredGrid) {
+      const px = Math.floor(player.x / 40);
+      const py = Math.floor(player.y / 40);
+      const radius = 5;
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dy = -radius; dy <= radius; dy++) {
+          const tx = px + dx;
+          const ty = py + dy;
+          if (tx >= 0 && tx < this.tileWidth && ty >= 0 && ty < this.tileHeight) {
+            this.exploredGrid[tx][ty] = true;
+          }
+        }
+      }
+    }
+
+    // 1. Teleporters Cooldowns and Overlaps
+    if (this.teleporters) {
+      this.teleporters.forEach((tp) => {
+        if (tp.cooldown > 0) tp.cooldown -= dt;
+        
+        const dist = Math.hypot(player.x - tp.x, player.y - tp.y);
+        if (dist < 22 && tp.cooldown <= 0) {
+          // Send to linked teleporter
+          if (tp.targetX !== undefined) {
+            tp.cooldown = 1.2;
+            this.game.particles.createExplosion(player.x, player.y, '#a55eea', 15, 60, 2.0);
+            
+            player.x = tp.targetX;
+            player.y = tp.targetY;
+            
+            this.game.particles.createExplosion(player.x, player.y, '#a55eea', 15, 60, 2.0);
+            if (this.game.audio) this.game.audio.playCollect();
+            this.game.particles.spawnText(player.x, player.y - 40, "VOID SHIFT!", { color: '#a55eea', fontSize: 10, fontPixel: true });
+            
+            // Set cooldown on the target teleporter as well
+            const targetTp = this.teleporters.find(t => t.x === tp.targetX && t.y === tp.targetY);
+            if (targetTp) targetTp.cooldown = 1.2;
+          }
+        }
+      });
+    }
+
+    // 2. Buttons / Switches
+    if (this.buttons) {
+      let activeCount = 0;
+      this.buttons.forEach(btn => {
+        const dist = Math.hypot(player.x - btn.x, player.y - btn.y);
+        if (dist < 18) {
+          if (!btn.active) {
+            btn.active = true;
+            this.game.particles.createExplosion(btn.x, btn.y, '#2ed573', 8, 30, 1.2);
+            if (this.game.audio) this.game.audio.playCollect();
+            this.game.particles.spawnText(btn.x, btn.y - 20, "SWITCH ACTIVATED!", { color: '#2ed573', fontSize: 9, fontPixel: true });
+          }
+        }
+        if (btn.active) activeCount++;
+      });
+
+      // Chapter 1 Puzzle: Stand on all 3 buttons to unlock boss doors
+      if (this.game.isStoryMode && this.game.storyChapter === 1) {
+        if (activeCount >= 3) {
+          let doorUnlocked = false;
+          this.allObstacles.forEach(obs => {
+            if (obs.type === 'door' && obs.closed) {
+              obs.closed = false;
+              doorUnlocked = true;
+              this.game.particles.createExplosion(obs.x, obs.y, '#2ed573', 25, 90, 2.5);
+            }
+          });
+          if (doorUnlocked) {
+            this.obstacles = this.allObstacles.filter(o => o.type !== 'door' || o.closed);
+            if (this.game.audio) this.game.audio.playUnlock();
+            this.game.particles.spawnText(player.x, player.y - 60, "RUNE GATES OPENED!", { color: '#2ed573', fontSize: 12, fontPixel: true });
+          }
+        }
+      }
+    }
+
+    // 3. Shrines Order Puzzle (Chapter 2)
+    if (this.game.isStoryMode && this.game.storyChapter === 2) {
+      this.shrineSequence = this.shrineSequence || [];
+      this.shrines.forEach(shrine => {
+        if (shrine.active) {
+          const dist = Math.hypot(player.x - shrine.x, player.y - shrine.y);
+          if (dist < 22) {
+            shrine.active = false;
+            this.shrineSequence.push(shrine.buffType);
+            this.game.particles.createExplosion(shrine.x, shrine.y, '#f1c40f', 12, 50, 1.5);
+            if (this.game.audio) this.game.audio.playClick();
+            
+            const step = this.shrineSequence.length - 1;
+            const targetSeq = ['fire', 'frost', 'void'];
+            if (shrine.buffType === targetSeq[step]) {
+              this.game.particles.spawnText(shrine.x, shrine.y - 20, `${shrine.buffType.toUpperCase()} ALIGNED!`, { color: '#2ecc71', fontSize: 10, fontPixel: true });
+              
+              if (this.shrineSequence.length === 3) {
+                let doorUnlocked = false;
+                this.allObstacles.forEach(obs => {
+                  if (obs.type === 'door' && obs.closed) {
+                    obs.closed = false;
+                    doorUnlocked = true;
+                    this.game.particles.createExplosion(obs.x, obs.y, '#2ed573', 25, 90, 2.5);
+                  }
+                });
+                if (doorUnlocked) {
+                  this.obstacles = this.allObstacles.filter(o => o.type !== 'door' || o.closed);
+                  if (this.game.audio) this.game.audio.playUnlock();
+                  this.game.particles.spawnText(player.x, player.y - 60, "GARDEN SEAL BROKEN!", { color: '#2ed573', fontSize: 12, fontPixel: true });
+                }
+              }
+            } else {
+              // Incorrect sequence: Reset and punish
+              this.game.particles.spawnText(shrine.x, shrine.y - 20, "MISALIGNMENT: RESET!", { color: '#ff4757', fontSize: 11, fontPixel: true });
+              if (this.game.audio) this.game.audio.playHurt();
+              
+              this.shrineSequence = [];
+              this.shrines.forEach(s => s.active = true);
+              
+              for (let i = 0; i < 3; i++) {
+                const angle = (i / 3) * Math.PI * 2;
+                this.game.spawnEnemy(shrine.x + Math.cos(angle) * 80, shrine.y + Math.sin(angle) * 80, 'slime');
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // 4. Chapter 3 Battery Companion (Darkness health drain)
+    if (this.game.isStoryMode && this.game.storyChapter === 3) {
+      if (!this.chapterBatteryCompanion) {
+        const bx = this.game.playerSpawnX || 1000;
+        const by = this.game.playerSpawnY || 1000;
+        this.chapterBatteryCompanion = { x: bx, y: by, vx: 0, vy: 0, radius: 10 };
+      }
+      
+      const companion = this.chapterBatteryCompanion;
+      const cDist = Math.hypot(player.x - companion.x, player.y - companion.y);
+      if (cDist > 60) {
+        const angle = Math.atan2(player.y - companion.y, player.x - companion.x);
+        companion.vx = Math.cos(angle) * 130;
+        companion.vy = Math.sin(angle) * 130;
+      } else {
+        companion.vx *= 0.8;
+        companion.vy *= 0.8;
+      }
+      companion.x += companion.vx * dt;
+      companion.y += companion.vy * dt;
+      
+      if (Math.random() < 0.2 && this.game.particles) {
+        this.game.particles.spawn(companion.x, companion.y, { color: '#70a1ff', speed: 20, life: 0.8, size: 2 });
+      }
+
+      if (cDist > 160) {
+        this.darknessDrainTimer = (this.darknessDrainTimer || 0) + dt;
+        if (this.darknessDrainTimer >= 0.5) {
+          this.darknessDrainTimer = 0;
+          player.hp = Math.max(1, player.hp - 2);
+          player.mp = Math.max(0, player.mp - 4);
+          this.game.particles.spawnText(player.x, player.y - 30, "OUT OF LIGHT: DRAINING!", { color: '#ff4757', fontSize: 10, fontPixel: true });
+          if (this.game.particles) {
+            this.game.particles.createExplosion(player.x, player.y, '#8e44ad', 4, 15, 0.7);
+          }
+        }
+      } else {
+        this.darknessDrainTimer = 0;
+      }
+    }
+
+    // 5. Chapter 4 Lava Vents & Cooling Valves
+    if (this.game.isStoryMode && this.game.storyChapter === 4) {
+      if (this.lavaVents) {
+        this.lavaVents.forEach(vent => {
+          vent.eruptionTimer -= dt;
+          if (vent.eruptionTimer <= 0) {
+            vent.eruptionTimer = 3.0 + Math.random() * 2.0;
+            this.game.spawnAreaEffect(vent.x, vent.y, 60, 'lava_fire', 2.0);
+            this.game.particles.createExplosion(vent.x, vent.y, '#ff9f43', 15, 70, 1.8);
+            if (this.game.audio) this.game.audio.playExplosion();
+          }
+        });
+      }
+
+      if (this.valves) {
+        let cooledCount = 0;
+        this.valves.forEach(valve => {
+          if (!valve.cooled) {
+            const dist = Math.hypot(player.x - valve.x, player.y - valve.y);
+            if (dist < 24) {
+              valve.interactionTimer += dt;
+              if (Math.random() < 0.25) {
+                this.game.particles.spawn(valve.x + (Math.random() - 0.5) * 20, valve.y - 10, { color: '#54a0ff', speed: 30, life: 0.6, size: 2.5 });
+              }
+              if (valve.interactionTimer >= 3.0) {
+                valve.cooled = true;
+                this.game.particles.createExplosion(valve.x, valve.y, '#54a0ff', 20, 80, 2.0);
+                if (this.game.audio) this.game.audio.playUnlock();
+                this.game.particles.spawnText(valve.x, valve.y - 25, "VALVE STABILIZED!", { color: '#54a0ff', fontSize: 10, fontPixel: true });
+              }
+            } else {
+              valve.interactionTimer = Math.max(0, valve.interactionTimer - dt);
+            }
+          } else {
+            cooledCount++;
+          }
+        });
+
+        if (cooledCount >= 3) {
+          let doorUnlocked = false;
+          this.allObstacles.forEach(obs => {
+            if (obs.type === 'door' && obs.closed) {
+              obs.closed = false;
+              doorUnlocked = true;
+              this.game.particles.createExplosion(obs.x, obs.y, '#2ed573', 25, 90, 2.5);
+            }
+          });
+          if (doorUnlocked) {
+            this.obstacles = this.allObstacles.filter(o => o.type !== 'door' || o.closed);
+            if (this.game.audio) this.game.audio.playUnlock();
+            this.game.particles.spawnText(player.x, player.y - 60, "CORE ROOM UNLOCKED!", { color: '#2ed573', fontSize: 12, fontPixel: true });
+          }
+        }
+      }
+    }
+
+    // 6. Boss spawner triggers
+    if (this.bossTriggers) {
+      this.bossTriggers.forEach(trig => {
+        if (!trig.spawned) {
+          const dist = Math.hypot(player.x - trig.x, player.y - trig.y);
+          if (dist < 45) {
+            trig.spawned = true;
+            
+            // Lock entrance gates
+            let doorLocked = false;
+            this.allObstacles.forEach(obs => {
+              if (obs.type === 'door' && !obs.closed) {
+                const dDist = Math.hypot(obs.x - trig.x, obs.y - trig.y);
+                if (dDist < 160) {
+                  obs.closed = true;
+                  doorLocked = true;
+                  this.game.particles.createExplosion(obs.x, obs.y, '#ff4757', 20, 80, 2.0);
+                }
+              }
+            });
+            if (doorLocked) {
+              this.obstacles = [...this.allObstacles];
+            }
+
+            let bossType = 'horror';
+            if (this.game.isStoryMode) {
+              if (this.game.storyChapter === 1) bossType = 'skeleton_king';
+              else if (this.game.storyChapter === 2) bossType = 'spore_blossom';
+              else if (this.game.storyChapter === 3) bossType = 'shadow_lurker';
+              else if (this.game.storyChapter === 4) bossType = 'flame_colossus';
+              else if (this.game.storyChapter === 5) bossType = 'void_archmage';
+            }
+            this.game.spawnEnemy(trig.x, trig.y, bossType);
+            this.game.particles.spawnText(trig.x, trig.y - 60, "BOSS ENCOUNTER!", { color: '#ff4757', fontSize: 14, fontPixel: true });
+          }
+        }
+      });
+    }
+
+    // 7. Exit Portal Interaction
+    if (this.exitPortal) {
+      const dist = Math.hypot(player.x - this.exitPortal.x, player.y - this.exitPortal.y);
+      if (dist < 26) {
+        this.game.triggerStoryWin();
+      }
+    }
   }
 
   updateInteractives(dt) {
@@ -2098,12 +2473,22 @@ export class LevelManager {
     if (!bounds) return;
     const { startTx, endTx, startTy, endTy } = bounds;
 
+    const player = this.game?.player;
+    const renderDist = this.game?.renderDistance || 1200;
+    const shouldCull = (wx, wy) => {
+      if (!player) return false;
+      return Math.hypot(wx - player.x, wy - player.y) > renderDist;
+    };
+
     for (let tx = startTx; tx <= endTx; tx++) {
       const sx = Math.floor(tx / 50);
       for (let ty = startTy; ty <= endTy; ty++) {
         const sy = Math.floor(ty / 50);
         const theme = (this.sectorThemes && this.sectorThemes[`${sx},${sy}`]) || 'dungeon';
         
+        // Render distance check
+        if (shouldCull(tx * tileSize + tileSize / 2, ty * tileSize + tileSize / 2)) continue;
+
         // Draw floor if it's a floor tile (0) or door tile (3 - draws floor under the door object)
         if (this.tileGrid[tx][ty] === 0 || this.tileGrid[tx][ty] === 3) {
           const rx = tx * tileSize - camera.x;
@@ -2380,6 +2765,13 @@ export class LevelManager {
     
     const tileSize = 40;
     
+    const player = this.game?.player;
+    const renderDist = this.game?.renderDistance || 1200;
+    const shouldCull = (wx, wy) => {
+      if (!player) return false;
+      return Math.hypot(wx - player.x, wy - player.y) > renderDist;
+    };
+
     // Draw outer boundary line
     ctx.strokeStyle = '#1e1f2f';
     ctx.lineWidth = 4;
@@ -2388,6 +2780,7 @@ export class LevelManager {
     // Draw Door portals (3 blocks wide)
     if (this.doors) {
       this.doors.forEach(door => {
+        if (shouldCull(door.x, door.y)) return;
         const rx = door.x - camera.x;
         const ry = door.y - camera.y;
         const isHorizontal = (door.dir === 'North' || door.dir === 'South');
@@ -2423,6 +2816,7 @@ export class LevelManager {
 
     // Draw Shrines
     this.shrines.forEach((shrine) => {
+      if (shouldCull(shrine.x, shrine.y)) return;
       const rx = shrine.x - camera.x;
       const ry = shrine.y - camera.y;
       
@@ -2444,6 +2838,7 @@ export class LevelManager {
 
     // Draw Chests
     this.chests.forEach((chest) => {
+      if (shouldCull(chest.x, chest.y)) return;
       const rx = chest.x - camera.x;
       const ry = chest.y - camera.y;
       
@@ -2469,6 +2864,154 @@ export class LevelManager {
       }
     });
 
+    // Draw custom story triggers
+    // A. Switch Buttons
+    if (this.buttons) {
+      this.buttons.forEach(btn => {
+        if (shouldCull(btn.x, btn.y)) return;
+        const rx = btn.x - camera.x;
+        const ry = btn.y - camera.y;
+        
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(rx - 14, ry + 4, 28, 4);
+
+        ctx.fillStyle = btn.active ? '#2ed573' : '#747d8c';
+        ctx.strokeStyle = '#2f3542';
+        ctx.lineWidth = 2;
+        ctx.fillRect(rx - 12, ry - 12, 24, 24);
+        ctx.strokeRect(rx - 12, ry - 12, 24, 24);
+        
+        ctx.fillStyle = btn.active ? '#58ea8d' : '#a4b0be';
+        ctx.fillRect(rx - 6, ry - 6, 12, 12);
+      });
+    }
+
+    // B. Locked Doors
+    this.allObstacles.forEach(obs => {
+      if (obs.type === 'door' && obs.closed) {
+        if (shouldCull(obs.x, obs.y)) return;
+        const rx = obs.x - camera.x;
+        const ry = obs.y - camera.y;
+        
+        ctx.fillStyle = '#4b6584';
+        ctx.strokeStyle = '#2f3542';
+        ctx.lineWidth = 3;
+        ctx.fillRect(rx - 18, ry - 18, 36, 36);
+        ctx.strokeRect(rx - 18, ry - 18, 36, 36);
+        
+        ctx.fillStyle = '#ff4757';
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('⛉', rx, ry);
+      }
+    });
+
+    // C. Teleporters
+    if (this.teleporters) {
+      this.teleporters.forEach(tp => {
+        if (shouldCull(tp.x, tp.y)) return;
+        const rx = tp.x - camera.x;
+        const ry = tp.y - camera.y;
+        
+        ctx.strokeStyle = '#a55eea';
+        ctx.lineWidth = 2;
+        this.game.drawCircle(ctx, rx, ry, tp.radius, null, '#a55eea', 2);
+        
+        const pulse = Math.abs(Math.sin(Date.now() / 150)) * 6;
+        ctx.fillStyle = 'rgba(165, 94, 234, 0.25)';
+        this.game.drawCircle(ctx, rx, ry, tp.radius - 4 + pulse, 'rgba(165, 94, 234, 0.25)');
+      });
+    }
+
+    // D. Valves
+    if (this.valves) {
+      this.valves.forEach(valve => {
+        if (shouldCull(valve.x, valve.y)) return;
+        const rx = valve.x - camera.x;
+        const ry = valve.y - camera.y;
+        
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(rx - 16, ry + 6, 32, 4);
+
+        ctx.fillStyle = valve.cooled ? '#54a0ff' : '#ff4757';
+        ctx.strokeStyle = '#2f3542';
+        ctx.lineWidth = 2.5;
+        this.game.drawCircle(ctx, rx, ry, valve.radius, valve.cooled ? '#54a0ff' : '#ff4757', '#2f3542', 2.5);
+        
+        ctx.strokeStyle = '#2f3542';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(rx - 12, ry); ctx.lineTo(rx + 12, ry);
+        ctx.moveTo(rx, ry - 12); ctx.lineTo(rx, ry + 12);
+        ctx.stroke();
+
+        if (valve.interactionTimer > 0 && !valve.cooled) {
+          const bw = 24;
+          const bh = 3;
+          const bx = rx - bw/2;
+          const by = ry - valve.radius - 8;
+          ctx.fillStyle = 'rgba(0,0,0,0.7)';
+          ctx.fillRect(bx, by, bw, bh);
+          ctx.fillStyle = '#54a0ff';
+          ctx.fillRect(bx, by, bw * (valve.interactionTimer / 3.0), bh);
+        }
+      });
+    }
+
+    // E. Lava Vents
+    if (this.lavaVents) {
+      this.lavaVents.forEach(vent => {
+        if (shouldCull(vent.x, vent.y)) return;
+        const rx = vent.x - camera.x;
+        const ry = vent.y - camera.y;
+        
+        ctx.strokeStyle = '#ff9f43';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(rx - 14, ry - 8); ctx.lineTo(rx + 10, ry + 10);
+        ctx.moveTo(rx + 12, ry - 10); ctx.lineTo(rx - 8, ry + 8);
+        ctx.stroke();
+        
+        ctx.fillStyle = 'rgba(255, 159, 67, 0.15)';
+        this.game.drawCircle(ctx, rx, ry, vent.radius, 'rgba(255, 159, 67, 0.15)');
+      });
+    }
+
+    // F. Exit Portal
+    if (this.exitPortal) {
+      if (!shouldCull(this.exitPortal.x, this.exitPortal.y)) {
+        const rx = this.exitPortal.x - camera.x;
+        const ry = this.exitPortal.y - camera.y;
+        
+        const pulse = 16 + Math.sin(Date.now() / 100) * 4;
+        ctx.fillStyle = 'rgba(236, 204, 104, 0.35)';
+        this.game.drawCircle(ctx, rx, ry, pulse, 'rgba(236, 204, 104, 0.35)', '#eccc68', 2);
+        this.game.drawCircle(ctx, rx, ry, pulse - 6, 'rgba(255, 255, 255, 0.45)');
+        
+        ctx.fillStyle = '#eccc68';
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('EXIT', rx, ry);
+      }
+    }
+
+    // G. Battery Companion
+    if (this.chapterBatteryCompanion) {
+      if (!shouldCull(this.chapterBatteryCompanion.x, this.chapterBatteryCompanion.y)) {
+        const rx = this.chapterBatteryCompanion.x - camera.x;
+        const ry = this.chapterBatteryCompanion.y - camera.y;
+        
+        ctx.fillStyle = 'rgba(112, 161, 255, 0.04)';
+        this.game.drawCircle(ctx, rx, ry, 160, 'rgba(112, 161, 255, 0.04)');
+        this.game.drawCircle(ctx, rx, ry, 40, 'rgba(112, 161, 255, 0.12)', '#70a1ff', 1);
+
+        ctx.fillStyle = '#ffffff';
+        this.game.drawCircle(ctx, rx, ry, 6, '#ffffff', '#70a1ff', 2);
+      }
+    }
+
     // Draw wall tiles (connected textures) and explosive barrels
     const bounds = this.getNearbyTileBounds();
     if (!bounds) return;
@@ -2479,6 +3022,10 @@ export class LevelManager {
     for (let tx = startTx; tx <= endTx; tx++) {
       for (let ty = startTy; ty <= endTy; ty++) {
         if (this.tileGrid[tx][ty] === 1) {
+          const tileWorldX = tx * tileSize + tileSize / 2;
+          const tileWorldY = ty * tileSize + tileSize / 2;
+          if (shouldCull(tileWorldX, tileWorldY)) continue;
+
           const rx = tx * tileSize - camera.x;
           const ry = ty * tileSize - camera.y;
           // Check if there is floor below this wall
@@ -2494,6 +3041,10 @@ export class LevelManager {
     for (let tx = startTx; tx <= endTx; tx++) {
       for (let ty = startTy; ty <= endTy; ty++) {
         if (this.tileGrid[tx][ty] === 1) {
+          const tileWorldX = tx * tileSize + tileSize / 2;
+          const tileWorldY = ty * tileSize + tileSize / 2;
+          if (shouldCull(tileWorldX, tileWorldY)) continue;
+
           const rx = tx * tileSize - camera.x;
           const ry = ty * tileSize - camera.y;
           
@@ -2596,6 +3147,7 @@ export class LevelManager {
     // Draw explosive barrels (which are obstacles, but not walls)
     this.obstacles.forEach((obs) => {
       if (obs.type !== 'explosive_barrel') return;
+      if (shouldCull(obs.x, obs.y)) return;
       const rx = obs.x - camera.x;
       const ry = obs.y - camera.y;
 
@@ -2618,6 +3170,7 @@ export class LevelManager {
 
     // Draw Event Warning Indicators
     this.meteorIndicators.forEach((met) => {
+      if (shouldCull(met.x, met.y)) return;
       const rx = met.x - camera.x;
       const ry = met.y - camera.y;
       

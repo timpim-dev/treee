@@ -12,6 +12,7 @@ import { Companion } from '../entities/Companion.js';
 import { SPELL_TYPES, SpellBook, processCombo } from './Spells.js';
 import { TwitchManager } from './TwitchManager.js';
 import { PocketBaseClient } from './PocketBaseClient.js';
+import { StoryLevels } from './StoryLevels.js';
 
 export class Game {
   constructor() {
@@ -39,7 +40,7 @@ export class Game {
     this.showFloorGrid = true;
     this.lowParticleMode = false;
     this.showSpellTrails = true;
-    this.isLocalDev = ['localhost', '127.0.0.1'].includes(window.location.hostname) || window.location.protocol === 'file:';
+    this.isLocalDev = ['localhost', '127.0.0.1'].includes(window.location.hostname);
     this.devtoolsVisible = false;
     this.customPresetIdx = 0;
     this.nextThemeOverride = null;
@@ -148,6 +149,13 @@ export class Game {
       });
     }
 
+    this.initKeybinds();
+    this.initPlayerAccountUI();
+    this.initLevelBuilderUI();
+    this.initStoryModeUI();
+    this.parseTwitchOAuthHash();
+    this.parsePlayerOAuthRedirect();
+
     // Start rendering loops
     window.addEventListener('resize', () => {
       this.resizeCanvas();
@@ -188,7 +196,28 @@ export class Game {
   // ----------------------------------------------------
   initInputListeners() {
     window.addEventListener('keydown', (e) => {
-      const key = e.key.toLowerCase();
+      const rawKey = e.key;
+      
+      // Controls remapping interception
+      if (this.remappingAction) {
+        e.preventDefault();
+        if (rawKey === 'Escape') {
+          this.remappingAction = null;
+          this.renderKeybindList();
+          return;
+        }
+        
+        const newKey = rawKey.toLowerCase();
+        this.keybinds[this.remappingAction] = newKey;
+        this.remappingAction = null;
+        
+        localStorage.setItem('aetherweaver_keybinds', JSON.stringify(this.keybinds));
+        if (this.audio) this.audio.playBuy();
+        this.renderKeybindList();
+        return;
+      }
+
+      const key = rawKey.toLowerCase();
       this.keys[key] = true;
       
       // Debug cheats
@@ -247,6 +276,16 @@ export class Game {
       
       // State transitions via buttons
       if (key === 'escape' || key === 'p') {
+        if (this.isCustomLevel && (this.state === 'PLAYING' || this.state === 'PAUSED')) {
+          e.preventDefault();
+          this.setState('LEVEL_BUILDER');
+          return;
+        }
+        if (this.isStoryMode && (this.state === 'PLAYING' || this.state === 'PAUSED')) {
+          e.preventDefault();
+          this.setState('STORY_CHAPTERS');
+          return;
+        }
         if (this.state === 'PLAYING') {
           this.setState('PAUSED');
         } else if (this.state === 'PAUSED') {
@@ -306,16 +345,24 @@ export class Game {
           worldMouse.x - this.player.x
         );
 
-        if (key === ' ' || key === 'spacebar') {
+        const checkBind = (action) => {
+          const bind = this.keybinds[action];
+          if (bind === ' ' || bind === 'space' || bind === 'spacebar') {
+            return key === ' ' || key === 'spacebar' || key === 'space';
+          }
+          return key === bind;
+        };
+
+        if (checkBind('cast_utility')) {
           e.preventDefault();
           this.player.castSpell('utility', playerAngle);
-        } else if (key === 'q') {
+        } else if (checkBind('cast_ultimate')) {
           this.player.castSpell('ultimate', playerAngle);
-        } else if (key === 'e') {
+        } else if (checkBind('cast_extra')) {
           this.player.castSpell('extra', playerAngle);
-        } else if (key === '1' && this.player.maxSpellSlots >= 6) {
+        } else if (checkBind('cast_slot6') && this.player.maxSpellSlots >= 6) {
           this.player.castSpell('slot6', playerAngle);
-        } else if (key === '2' && this.player.maxSpellSlots >= 7) {
+        } else if (checkBind('cast_slot7') && this.player.maxSpellSlots >= 7) {
           this.player.castSpell('slot7', playerAngle);
         }
       }
@@ -550,6 +597,65 @@ export class Game {
     }
     setRenderDistanceUI(this.renderDistance || 1200);
     updateCheckboxesUI();
+
+    // Minecraft-style Settings Tabs Switching
+    const settingsTabs = document.querySelectorAll('.settings-tab-btn');
+    settingsTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        if (this.audio) this.audio.playClick();
+        settingsTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+
+        const tabId = tab.getAttribute('data-tab');
+        document.querySelectorAll('.settings-tab-pane').forEach(pane => {
+          pane.classList.add('hidden');
+        });
+        const targetPane = document.getElementById(`settings-tab-${tabId}`);
+        if (targetPane) targetPane.classList.remove('hidden');
+
+        if (tabId === 'controls') {
+          const lbl = document.getElementById('lbl-detected-layout');
+          if (lbl) lbl.innerText = this.detectedLayout;
+          this.renderKeybindList();
+        }
+      });
+    });
+
+    // Keybind Reset button
+    const btnResetKeybinds = document.getElementById('btn-reset-keybinds');
+    if (btnResetKeybinds) {
+      btnResetKeybinds.addEventListener('click', () => {
+        if (this.detectedLayout === 'AZERTY') {
+          this.keybinds = {
+            move_up: 'z',
+            move_down: 's',
+            move_left: 'q',
+            move_right: 'd',
+            cast_utility: ' ',
+            cast_ultimate: 'a',
+            cast_extra: 'e',
+            cast_slot6: '1',
+            cast_slot7: '2'
+          };
+        } else {
+          this.keybinds = {
+            move_up: 'w',
+            move_down: 's',
+            move_left: 'a',
+            move_right: 'd',
+            cast_utility: ' ',
+            cast_ultimate: 'q',
+            cast_extra: 'e',
+            cast_slot6: '1',
+            cast_slot7: '2'
+          };
+        }
+        this.remappingAction = null;
+        localStorage.setItem('aetherweaver_keybinds', JSON.stringify(this.keybinds));
+        this.renderKeybindList();
+        if (this.audio) this.audio.playBuy();
+      });
+    }
 
     // Main Menu Buttons
     const btnPlayMenu = document.getElementById('btn-play-menu');
@@ -1041,6 +1147,26 @@ export class Game {
         pbLoggedInSection.classList.add('hidden');
       }
     };
+
+    // Hide manual connection elements and streamer auth settings to enforce "just make it a log in with twitch button"
+    const manualRow = document.getElementById('twitch-channel-input')?.parentElement;
+    if (manualRow) manualRow.style.display = 'none';
+    if (btnTwitchConnect) btnTwitchConnect.style.display = 'none';
+    const autoconnectRow = document.getElementById('chk-twitch-autoconnect')?.parentElement?.parentElement;
+    if (autoconnectRow) autoconnectRow.style.display = 'none';
+    const pbSection = document.getElementById('pb-login-section')?.parentElement;
+    if (pbSection) pbSection.style.display = 'none';
+
+    // Hook up the Login with Twitch OAuth button
+    const btnTwitchLoginOauth = document.getElementById('btn-twitch-login-oauth');
+    if (btnTwitchLoginOauth) {
+      btnTwitchLoginOauth.addEventListener('click', () => {
+        const clientID = 'xum8ic091zzcy86ukzj14apzwjatky'; // standard Twitch client id
+        const redirectUri = encodeURIComponent(window.location.origin + window.location.pathname);
+        const twitchAuthUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientID}&redirect_uri=${redirectUri}&response_type=token&scope=chat:read`;
+        window.location.href = twitchAuthUrl;
+      });
+    }
 
     if (btnTwitchSetupMenu) {
       btnTwitchSetupMenu.addEventListener('click', () => {
@@ -2338,6 +2464,14 @@ export class Game {
     const spawnPoint = this.levelManager.getSpawnPoint();
     this.player.x = spawnPoint.x;
     this.player.y = spawnPoint.y;
+    
+    // Spawn custom level enemies if any exist
+    if (this.levelManager.customEnemySpawns) {
+      this.levelManager.customEnemySpawns.forEach(sp => {
+        this.spawnEnemy(sp.x, sp.y, sp.type);
+      });
+    }
+    
     this.player.vx = 0;
     this.player.vy = 0;
     this.player.hp = this.player.getMaxHp();
@@ -2417,6 +2551,7 @@ export class Game {
   }
 
   setState(newState) {
+    console.log(`[State] Changing state to: ${newState}`);
     this.state = newState;
     
     if (this.audio) this.audio.playStateChange();
@@ -2473,6 +2608,9 @@ export class Game {
       newState === 'SETTINGS'      ? 'panel-settings' :
       newState === 'TWITCH'        ? 'panel-twitch' :
       newState === 'WORLD_MAP'     ? 'panel-worldmap' :
+      newState === 'LEVEL_BUILDER' ? 'panel-level-builder' :
+      newState === 'STORY_CHAPTERS'? 'panel-story-chapters' :
+      newState === 'PLAYER_ACCOUNT'? 'panel-player-account' :
       newState === 'LEADERBOARD'   ? 'panel-leaderboard' : ''
     );
 
@@ -2543,7 +2681,7 @@ export class Game {
   }
 
   showPanel(panelId) {
-    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-worldmap', 'panel-play-menu', 'panel-customize', 'panel-credits', 'panel-contact', 'panel-settings', 'panel-twitch'];
+    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-worldmap', 'panel-play-menu', 'panel-customize', 'panel-credits', 'panel-contact', 'panel-settings', 'panel-twitch', 'panel-level-builder', 'panel-story-chapters', 'panel-player-account'];
     overlays.forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
@@ -2766,7 +2904,7 @@ export class Game {
       })
       .catch((e) => {
         console.warn("Could not fetch local leaderboard data, trying PocketBase...", e);
-        fetch(`${this.pbClient.baseUrl}/api/collections/dr_leaderboard/records?sort=-score&limit=10`)
+        fetch(`${this.pbClient.baseUrl}/api/collections/ag_leaderboard/records?sort=-score&limit=10`)
           .then((res) => {
             if (!res.ok) throw new Error("PocketBase fetch failed");
             return res.json();
@@ -2837,7 +2975,7 @@ export class Game {
       })
       .catch((err) => {
         console.warn("Local API submission error, trying PocketBase...", err);
-        fetch(`${this.pbClient.baseUrl}/api/collections/dr_leaderboard/records`, {
+        fetch(`${this.pbClient.baseUrl}/api/collections/ag_leaderboard/records`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -2924,10 +3062,19 @@ export class Game {
     document.getElementById('hud-xp-fill').style.width = `${xpPct}%`;
 
     // Wave countdown timer formatting
+    const waveStatusEl = document.getElementById('hud-wave-status');
+    if (waveStatusEl) {
+      waveStatusEl.classList.toggle('hidden', this.isStoryMode);
+    }
+
     document.getElementById('hud-wave-title').innerText = `WAVE ${this.levelManager.wave}`;
     const min = Math.floor(this.levelManager.waveTimer / 60);
     const sec = Math.floor(this.levelManager.waveTimer % 60);
-    document.getElementById('hud-wave-timer').innerText = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+    const timerEl = document.getElementById('hud-wave-timer');
+    if (timerEl) {
+      timerEl.innerText = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+      timerEl.classList.toggle('pulse-red', this.levelManager.waveTimer <= 5);
+    }
     document.getElementById('hud-enemies-left').innerText = `Enemies: ${this.enemies.length}`;
 
     // Shards, Keys and Ability Points indicators
@@ -3152,10 +3299,10 @@ export class Game {
     // Update Player controller
     let targetVx = 0;
     let targetVy = 0;
-    if (this.keys['w'] || this.keys['arrowup']) targetVy -= 1;
-    if (this.keys['s'] || this.keys['arrowdown']) targetVy += 1;
-    if (this.keys['a'] || this.keys['arrowleft']) targetVx -= 1;
-    if (this.keys['d'] || this.keys['arrowright']) targetVx += 1;
+    if (this.keys[this.keybinds.move_up] || this.keys['arrowup']) targetVy -= 1;
+    if (this.keys[this.keybinds.move_down] || this.keys['arrowdown']) targetVy += 1;
+    if (this.keys[this.keybinds.move_left] || this.keys['arrowleft']) targetVx -= 1;
+    if (this.keys[this.keybinds.move_right] || this.keys['arrowright']) targetVx += 1;
     
     // Normalize diagonal velocity vectors
     if (targetVx !== 0 && targetVy !== 0) {
@@ -3860,7 +4007,11 @@ export class Game {
     }
 
     // Draw active area effect circles (e.g. fire/steam clouds)
+    const playerX = this.player.x;
+    const playerY = this.player.y;
+
     this.areaEffects.forEach((ae) => {
+      if (Math.hypot(ae.x - playerX, ae.y - playerY) > this.renderDistance) return;
       const rx = ae.x - this.camera.x;
       const ry = ae.y - this.camera.y;
       
@@ -3888,6 +4039,7 @@ export class Game {
 
     // Draw Loot Items on ground
     this.items.forEach((item) => {
+      if (Math.hypot(item.x - playerX, item.y - playerY) > this.renderDistance) return;
       let assetKey = 'item_shard';
       if (item.type === 'hp') assetKey = 'item_hp';
       else if (item.type === 'mp') assetKey = 'item_mp';
@@ -3903,16 +4055,22 @@ export class Game {
 
     // Draw Enemies AI characters
     this.enemies.forEach((enemy) => {
-      if (!enemy.dead) enemy.draw(this.ctx, this.assets);
+      if (enemy.dead) return;
+      if (Math.hypot(enemy.x - playerX, enemy.y - playerY) > this.renderDistance) return;
+      enemy.draw(this.ctx, this.assets);
     });
 
     // Draw Companions
     if (this.companions) {
-      this.companions.forEach((comp) => comp.draw(this.ctx, this.assets));
+      this.companions.forEach((comp) => {
+        if (Math.hypot(comp.x - playerX, comp.y - playerY) > this.renderDistance) return;
+        comp.draw(this.ctx, this.assets);
+      });
     }
 
     // Draw spell projectiles
     this.projectiles.forEach((proj) => {
+      if (Math.hypot(proj.x - playerX, proj.y - playerY) > this.renderDistance) return;
       // Draw ribbon trail
       if (this.showSpellTrails && proj.trail && proj.trail.length > 1) {
         this.ctx.save();
@@ -4878,5 +5036,894 @@ export class Game {
 
     // Always keep companion instances in sync with progression state.
     this.createUnlockedCompanions();
+  }
+
+  // ----------------------------------------------------
+  // STORY MODE, VISUAL BUILDER, PLAYER ACCOUNTS
+  // ----------------------------------------------------
+  
+  // Twitch OAuth implicit grant redirect handler
+  parseTwitchOAuthHash() {
+    if (window.location.hash) {
+      const hash = window.location.hash.substring(1);
+      const params = new URLSearchParams(hash);
+      const accessToken = params.get('access_token');
+      if (accessToken) {
+        console.log('[Twitch OAuth] Access token found in URL hash. Authenticating...');
+        history.replaceState(null, document.title, window.location.pathname + window.location.search);
+        
+        fetch('https://api.twitch.tv/helix/users', {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Client-Id': 'xum8ic091zzcy86ukzj14apzwjatky'
+          }
+        })
+        .then(res => {
+          if (!res.ok) throw new Error('Twitch user profile fetch failed');
+          return res.json();
+        })
+        .then(data => {
+          if (data.data && data.data.length > 0) {
+            const user = data.data[0];
+            const channel = user.login || user.display_name;
+            console.log(`[Twitch OAuth] Welcome, ${channel}! Connecting to chat...`);
+            
+            this.twitchManager.connect(channel);
+            localStorage.setItem('twitch_oauth_token', accessToken);
+            localStorage.setItem('twitch_oauth_user', JSON.stringify(user));
+            
+            if (this.player) {
+              this.particles.spawnText(this.player.x, this.player.y - 60, `LOGGED IN AS ${channel.toUpperCase()}`, {
+                color: '#9146FF', fontSize: 12, fontPixel: true
+              });
+            }
+            
+            const twitchStatusLbl = document.getElementById('twitch-status-lbl');
+            if (twitchStatusLbl) {
+              twitchStatusLbl.innerText = `CONNECTED TO #${channel.toUpperCase()}`;
+              twitchStatusLbl.style.color = '#2ecc71';
+              twitchStatusLbl.style.textShadow = '0 0 5px rgba(46,204,113,0.5)';
+            }
+          }
+        })
+        .catch(err => {
+          console.error('[Twitch OAuth] Error fetching user data:', err);
+        });
+      }
+    }
+  }
+
+  // Player Account Management
+  initPlayerAccountUI() {
+    const btnAccountMenu = document.getElementById('btn-player-account-menu');
+    const btnCloseAccount = document.getElementById('btn-close-player-account');
+    const btnPlayerTwitchLogin = document.getElementById('btn-player-twitch-login');
+    const btnLogout = document.getElementById('btn-player-logout');
+    const btnSyncNow = document.getElementById('btn-player-sync-now');
+    const authStatus = document.getElementById('player-auth-status');
+    const profileStatus = document.getElementById('player-profile-status');
+    
+    if (btnAccountMenu) {
+      btnAccountMenu.addEventListener('click', () => {
+        this.setState('PLAYER_ACCOUNT');
+        this.updatePlayerAccountUI();
+      });
+    }
+    
+    if (btnCloseAccount) {
+      btnCloseAccount.addEventListener('click', () => {
+        this.setState('MENU');
+      });
+    }
+    
+    if (btnPlayerTwitchLogin) {
+      btnPlayerTwitchLogin.addEventListener('click', async () => {
+        if (authStatus) {
+          authStatus.style.color = '#f1c40f';
+          authStatus.innerText = 'CONTACTING POCKETBASE...';
+        }
+        
+        try {
+          const res = await fetch(`${this.pbClient.baseUrl}/api/collections/ag_users/auth-methods`);
+          if (!res.ok) throw new Error('Failed to fetch auth methods');
+          const data = await res.json();
+          const twitchProvider = data.authProviders?.find(p => p.name === 'twitch');
+          
+          if (!twitchProvider) {
+            throw new Error('Twitch OAuth provider is not configured in PocketBase!');
+          }
+          
+          // Store PKCE credentials
+          localStorage.setItem('aetherweaver_pb_oauth_state', twitchProvider.state);
+          localStorage.setItem('aetherweaver_pb_oauth_verifier', twitchProvider.codeVerifier);
+          
+          // Redirect
+          const redirectUri = window.location.origin + window.location.pathname;
+          let authUrl = twitchProvider.authUrl;
+          if (authUrl.includes('redirect_uri=')) {
+            authUrl = authUrl.replace(/redirect_uri=[^&]+/, `redirect_uri=${encodeURIComponent(redirectUri)}`);
+          } else {
+            authUrl += `&redirect_uri=${encodeURIComponent(redirectUri)}`;
+          }
+          
+          window.location.href = authUrl;
+        } catch (err) {
+          console.error('[Player Auth] Twitch OAuth redirect error:', err);
+          if (authStatus) {
+            authStatus.style.color = '#ff4757';
+            authStatus.innerText = `ERROR: ${err.message.toUpperCase()}`;
+          }
+        }
+      });
+    }
+    
+    if (btnLogout) {
+      btnLogout.addEventListener('click', () => {
+        this.pbClient.playerLogout();
+        this.updatePlayerAccountUI();
+      });
+    }
+    
+    if (btnSyncNow) {
+      btnSyncNow.addEventListener('click', async () => {
+        if (profileStatus) {
+          profileStatus.style.color = '#f1c40f';
+          profileStatus.innerText = 'SYNCING TO CLOUD...';
+        }
+        const res = await this.syncPlayerDataToCloud();
+        if (res.success) {
+          if (profileStatus) {
+            profileStatus.style.color = '#2ecc71';
+            profileStatus.innerText = `SYNCED AT ${new Date().toLocaleTimeString()}`;
+          }
+        } else {
+          if (profileStatus) {
+            profileStatus.style.color = '#ff4757';
+            profileStatus.innerText = `SYNC ERROR: ${res.error.toUpperCase()}`;
+          }
+        }
+      });
+    }
+  }
+
+  // Parse Player Twitch OAuth redirect query parameters (code, state)
+  async parsePlayerOAuthRedirect() {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const state = params.get('state');
+    
+    if (code && state) {
+      console.log('[Player OAuth] Found auth code and state. Authenticating...');
+      
+      // Clean query parameters from address bar instantly
+      const cleanUrl = window.location.pathname + window.location.search.replace(/[?&]code=[^&]+/, '').replace(/[?&]state=[^&]+/, '').replace(/^\?$/, '');
+      history.replaceState(null, document.title, window.location.origin + cleanUrl);
+      
+      const storedState = localStorage.getItem('aetherweaver_pb_oauth_state');
+      const storedVerifier = localStorage.getItem('aetherweaver_pb_oauth_verifier');
+      
+      if (state !== storedState) {
+        console.error('[Player OAuth] State check failed (CSRF protection)');
+        return;
+      }
+      
+      // Clean up storage
+      localStorage.removeItem('aetherweaver_pb_oauth_state');
+      localStorage.removeItem('aetherweaver_pb_oauth_verifier');
+      
+      this.setState('PLAYER_ACCOUNT');
+      const authStatus = document.getElementById('player-auth-status');
+      if (authStatus) {
+        authStatus.style.color = '#f1c40f';
+        authStatus.innerText = 'LOGGING IN WITH TWITCH...';
+      }
+      
+      const redirectUrl = window.location.origin + window.location.pathname;
+      const res = await this.pbClient.loginPlayerWithOAuth2('twitch', code, storedVerifier, redirectUrl);
+      if (res.success) {
+        if (authStatus) {
+          authStatus.style.color = '#2ecc71';
+          authStatus.innerText = 'LOGGED IN SUCCESSFULLY!';
+        }
+        await this.loadPlayerDataFromCloud();
+        setTimeout(() => {
+          this.updatePlayerAccountUI();
+        }, 1000);
+      } else {
+        if (authStatus) {
+          authStatus.style.color = '#ff4757';
+          authStatus.innerText = `ERROR: ${res.error.toUpperCase()}`;
+        }
+      }
+    }
+  }
+
+  // Controls Keybinds system initialization
+  initKeybinds() {
+    this.keybinds = {
+      move_up: 'w',
+      move_down: 's',
+      move_left: 'a',
+      move_right: 'd',
+      cast_utility: ' ',
+      cast_ultimate: 'q',
+      cast_extra: 'e',
+      cast_slot6: '1',
+      cast_slot7: '2'
+    };
+    this.detectedLayout = 'QWERTY';
+    this.remappingAction = null;
+
+    const saved = localStorage.getItem('aetherweaver_keybinds');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        this.keybinds = { ...this.keybinds, ...parsed };
+        this.detectedLayout = localStorage.getItem('aetherweaver_layout') || 'QWERTY';
+        return;
+      } catch (e) {
+        console.warn('Failed to parse saved keybinds:', e);
+      }
+    }
+
+    // Try detecting layout map dynamically
+    if (navigator.keyboard && navigator.keyboard.getLayoutMap) {
+      navigator.keyboard.getLayoutMap().then(layoutMap => {
+        if (layoutMap.get('KeyW') === 'z' || layoutMap.get('KeyQ') === 'a') {
+          this.detectedLayout = 'AZERTY';
+          this.keybinds.move_up = 'z';
+          this.keybinds.move_left = 'q';
+          this.keybinds.cast_ultimate = 'a';
+          localStorage.setItem('aetherweaver_layout', 'AZERTY');
+          localStorage.setItem('aetherweaver_keybinds', JSON.stringify(this.keybinds));
+          console.log('[Controls] Keyboard layout auto-detected: AZERTY. Movement keys mapped to ZQSD.');
+        } else {
+          this.detectedLayout = 'QWERTY';
+          localStorage.setItem('aetherweaver_layout', 'QWERTY');
+          localStorage.setItem('aetherweaver_keybinds', JSON.stringify(this.keybinds));
+          console.log('[Controls] Keyboard layout auto-detected: QWERTY.');
+        }
+        const lbl = document.getElementById('lbl-detected-layout');
+        if (lbl) lbl.innerText = this.detectedLayout;
+        this.renderKeybindList();
+      }).catch(err => {
+        console.warn('[Controls] Keyboard API map failed, attempting language fallback:', err);
+        this.fallbackLanguageLayoutCheck();
+      });
+    } else {
+      this.fallbackLanguageLayoutCheck();
+    }
+  }
+
+  fallbackLanguageLayoutCheck() {
+    const lang = navigator.language || '';
+    if (lang.startsWith('fr') || lang.startsWith('be')) {
+      this.detectedLayout = 'AZERTY';
+      this.keybinds.move_up = 'z';
+      this.keybinds.move_left = 'q';
+      this.keybinds.cast_ultimate = 'a';
+      console.log('[Controls] Language check fallback: AZERTY layout chosen.');
+    } else {
+      this.detectedLayout = 'QWERTY';
+      console.log('[Controls] Language check fallback: QWERTY layout chosen.');
+    }
+    localStorage.setItem('aetherweaver_layout', this.detectedLayout);
+    localStorage.setItem('aetherweaver_keybinds', JSON.stringify(this.keybinds));
+  }
+
+  // Render remappable keybind elements list dynamically
+  renderKeybindList() {
+    const listEl = document.getElementById('settings-keybinds-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    const actions = [
+      { id: 'move_up', label: 'MOVE UP' },
+      { id: 'move_down', label: 'MOVE DOWN' },
+      { id: 'move_left', label: 'MOVE LEFT' },
+      { id: 'move_right', label: 'MOVE RIGHT' },
+      { id: 'cast_utility', label: 'CAST DASH' },
+      { id: 'cast_ultimate', label: 'CAST ULTIMATE' },
+      { id: 'cast_extra', label: 'CAST EXTRA' },
+      { id: 'cast_slot6', label: 'CAST SLOT 6' },
+      { id: 'cast_slot7', label: 'CAST SLOT 7' }
+    ];
+
+    const formatKey = (key) => {
+      if (key === ' ') return 'SPACE';
+      if (key === 'arrowup') return 'UP ARROW';
+      if (key === 'arrowdown') return 'DOWN ARROW';
+      if (key === 'arrowleft') return 'LEFT ARROW';
+      if (key === 'arrowright') return 'RIGHT ARROW';
+      return key.toUpperCase();
+    };
+
+    actions.forEach(action => {
+      const row = document.createElement('div');
+      row.className = 'keybind-row';
+      
+      const label = document.createElement('span');
+      label.className = 'keybind-label';
+      label.innerText = action.label;
+
+      const btn = document.createElement('button');
+      btn.className = 'keybind-btn';
+      if (this.remappingAction === action.id) {
+        btn.classList.add('waiting');
+        btn.innerText = '> ??? <';
+      } else {
+        btn.innerText = formatKey(this.keybinds[action.id]);
+      }
+
+      btn.addEventListener('click', () => {
+        this.remappingAction = action.id;
+        this.renderKeybindList();
+      });
+
+      row.appendChild(label);
+      row.appendChild(btn);
+      listEl.appendChild(row);
+    });
+  }
+
+  updatePlayerAccountUI() {
+    const authBox = document.getElementById('player-auth-section');
+    const profileBox = document.getElementById('player-profile-section');
+    
+    if (this.pbClient.isPlayerAuthenticated()) {
+      if (authBox) authBox.classList.add('hidden');
+      if (profileBox) profileBox.classList.remove('hidden');
+      
+      const record = this.pbClient.playerRecord;
+      const progressStr = localStorage.getItem('aetherweaver_save');
+      const progress = progressStr ? JSON.parse(progressStr) : {};
+      
+      const nickEl = document.getElementById('player-profile-nickname');
+      if (nickEl) nickEl.innerText = record.nickname || record.username || 'Weaver';
+      
+      const emailEl = document.getElementById('player-profile-email');
+      if (emailEl) emailEl.innerText = record.email || 'Cloud Account';
+      
+      const lvlEl = document.getElementById('prof-stat-level');
+      if (lvlEl) lvlEl.innerText = record.level || progress.level || this.player?.level || 1;
+      
+      const rebEl = document.getElementById('prof-stat-rebirths');
+      if (rebEl) rebEl.innerText = progress.rebirthCount || this.player?.rebirthCount || 0;
+      
+      const shdEl = document.getElementById('prof-stat-shards');
+      if (shdEl) shdEl.innerText = progress.shards || this.player?.shards || 0;
+      
+      const chpEl = document.getElementById('prof-stat-chapter');
+      if (chpEl) chpEl.innerText = record.chapter_unlocked || progress.chapterUnlocked || this.player?.chapterUnlocked || 1;
+      
+      const hscEl = document.getElementById('prof-stat-highscore');
+      if (hscEl) hscEl.innerText = record.high_score || progress.high_score || 0;
+    } else {
+      if (authBox) authBox.classList.remove('hidden');
+      if (profileBox) profileBox.classList.add('hidden');
+    }
+  }
+
+  async syncPlayerDataToCloud() {
+    if (!this.pbClient.isPlayerAuthenticated()) return { success: false, error: 'Not authenticated' };
+    const data = localStorage.getItem('aetherweaver_save');
+    if (!data) return { success: false, error: 'No local save data' };
+    
+    const progress = JSON.parse(data);
+    const stats = {
+      high_score: progress.high_score || 0,
+      level: this.player?.level || progress.level || 1,
+      wave: this.levelManager?.wave || 1,
+      chapter_unlocked: this.player?.chapterUnlocked || progress.chapterUnlocked || 1,
+      nickname: this.pbClient.playerRecord.nickname || this.pbClient.playerRecord.username || 'Weaver'
+    };
+    
+    const res = await this.pbClient.savePlayerData(progress, stats);
+    if (res.success) {
+      console.log('[PocketBase] Auto-synced data to cloud.');
+    }
+    return res;
+  }
+
+  async loadPlayerDataFromCloud() {
+    if (!this.pbClient.isPlayerAuthenticated() || !this.pbClient.playerRecord) return false;
+    const record = this.pbClient.playerRecord;
+    if (record.save_data) {
+      console.log('[PocketBase] Applying cloud save data...');
+      localStorage.setItem('aetherweaver_save', JSON.stringify(record.save_data));
+      if (this.player) {
+        this.player.loadGameState();
+        this.player.recalculateModifiers(this.abilityTree);
+      }
+      this.updateHUD();
+      return true;
+    }
+    return false;
+  }
+
+  // Visual Level Builder Management
+  initBuilderGrid() {
+    this.builderGrid = [];
+    for (let x = 0; x < 50; x++) {
+      this.builderGrid[x] = new Array(50).fill('.');
+    }
+    for (let x = 0; x < 50; x++) {
+      this.builderGrid[x][0] = '#';
+      this.builderGrid[x][49] = '#';
+    }
+    for (let y = 0; y < 50; y++) {
+      this.builderGrid[0][y] = '#';
+      this.builderGrid[49][y] = '#';
+    }
+    this.builderTheme = 'dungeon';
+    this.builderActiveBrush = '1';
+  }
+
+  drawBuilderGrid() {
+    const canvas = document.getElementById('builder-grid-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const tileSize = 40;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    for (let tx = 0; tx < 50; tx++) {
+      for (let ty = 0; ty < 50; ty++) {
+        const char = this.builderGrid[tx][ty];
+        const rx = tx * tileSize;
+        const ry = ty * tileSize;
+        
+        ctx.fillStyle = '#121320';
+        ctx.fillRect(rx, ry, tileSize, tileSize);
+        ctx.strokeStyle = '#0e0f18';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(rx, ry, tileSize, tileSize);
+        
+        if (char === '#') {
+          ctx.fillStyle = '#2c1111';
+          ctx.fillRect(rx, ry, tileSize, tileSize);
+          ctx.strokeStyle = '#1a0808';
+          ctx.strokeRect(rx, ry, tileSize, tileSize);
+        } else if (char === 'P') {
+          ctx.fillStyle = '#70a1ff';
+          ctx.beginPath();
+          ctx.arc(rx + 20, ry + 20, 10, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.font = '8px monospace';
+          ctx.fillText("P", rx + 17, ry + 23);
+        } else if (char === 'C') {
+          ctx.fillStyle = '#eccc68';
+          ctx.fillRect(rx + 10, ry + 12, 20, 16);
+          ctx.fillStyle = '#fff';
+          ctx.font = '8px monospace';
+          ctx.fillText("C", rx + 18, ry + 22);
+        } else if (char === 'S') {
+          ctx.fillStyle = '#7d5fff';
+          ctx.fillRect(rx + 12, ry + 12, 16, 16);
+          ctx.fillStyle = '#fff';
+          ctx.font = '8px monospace';
+          ctx.fillText("S", rx + 18, ry + 22);
+        } else if (char === 'D') {
+          ctx.fillStyle = '#ff6b6b';
+          ctx.fillRect(rx + 6, ry + 6, 28, 28);
+          ctx.fillStyle = '#fff';
+          ctx.font = '8px monospace';
+          ctx.fillText("D", rx + 18, ry + 22);
+        } else if (char === 'H') {
+          ctx.fillStyle = '#2ed573';
+          ctx.beginPath();
+          ctx.arc(rx + 20, ry + 20, 8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.font = '8px monospace';
+          ctx.fillText("H", rx + 18, ry + 23);
+        } else if (char === 'T') {
+          ctx.fillStyle = '#10ac84';
+          ctx.beginPath();
+          ctx.arc(rx + 20, ry + 20, 12, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.font = '8px monospace';
+          ctx.fillText("T", rx + 18, ry + 23);
+        } else if (char === 'L') {
+          ctx.fillStyle = '#ff9f43';
+          ctx.fillRect(rx + 8, ry + 8, 24, 24);
+          ctx.fillStyle = '#fff';
+          ctx.font = '8px monospace';
+          ctx.fillText("L", rx + 18, ry + 22);
+        } else if (char === 'V') {
+          ctx.fillStyle = '#54a0ff';
+          ctx.beginPath();
+          ctx.arc(rx + 20, ry + 20, 10, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.font = '8px monospace';
+          ctx.fillText("V", rx + 17, ry + 23);
+        } else if (char === 'B') {
+          ctx.fillStyle = '#ff4757';
+          ctx.fillRect(rx + 4, ry + 4, 32, 32);
+          ctx.fillStyle = '#fff';
+          ctx.font = '8px monospace';
+          ctx.fillText("BOSS", rx + 8, ry + 22);
+        } else if (char === 'e') {
+          ctx.fillStyle = '#a4b0be';
+          ctx.beginPath();
+          ctx.arc(rx + 20, ry + 20, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#2ed573';
+          ctx.font = '8px monospace';
+          ctx.fillText("e", rx + 18, ry + 23);
+        } else if (char === 'k') {
+          ctx.fillStyle = '#a4b0be';
+          ctx.beginPath();
+          ctx.arc(rx + 20, ry + 20, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ff4757';
+          ctx.font = '8px monospace';
+          ctx.fillText("k", rx + 18, ry + 23);
+        } else if (char === 'r') {
+          ctx.fillStyle = '#a4b0be';
+          ctx.beginPath();
+          ctx.arc(rx + 20, ry + 20, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#a55eea';
+          ctx.font = '8px monospace';
+          ctx.fillText("r", rx + 18, ry + 23);
+        }
+      }
+    }
+  }
+
+  initLevelBuilderUI() {
+    this.initBuilderGrid();
+    
+    const btnBuilderMenu = document.getElementById('btn-level-builder-menu');
+    const btnExit = document.getElementById('btn-builder-exit');
+    const btnClear = document.getElementById('btn-builder-clear');
+    const btnSave = document.getElementById('btn-builder-save');
+    const btnLoad = document.getElementById('btn-builder-load');
+    const btnExport = document.getElementById('btn-builder-export');
+    const fileImport = document.getElementById('builder-import-file');
+    const btnTest = document.getElementById('btn-builder-test');
+    const themeSelect = document.getElementById('builder-theme-select');
+    const canvas = document.getElementById('builder-grid-canvas');
+    
+    if (btnBuilderMenu) {
+      btnBuilderMenu.classList.toggle('hidden', !this.isLocalDev);
+      btnBuilderMenu.addEventListener('click', () => {
+        this.setState('LEVEL_BUILDER');
+        this.drawBuilderGrid();
+      });
+    }
+    
+    if (btnExit) {
+      btnExit.addEventListener('click', () => {
+        this.setState('MENU');
+      });
+    }
+    
+    if (btnClear) {
+      btnClear.addEventListener('click', () => {
+        if (confirm("Clear the entire layout?")) {
+          this.initBuilderGrid();
+          this.drawBuilderGrid();
+        }
+      });
+    }
+    
+    if (btnSave) {
+      btnSave.addEventListener('click', () => {
+        localStorage.setItem('aetherweaver_builder_save', JSON.stringify({
+          grid: this.builderGrid,
+          theme: this.builderTheme
+        }));
+        alert("Layout saved successfully to Local Slot!");
+      });
+    }
+    
+    if (btnLoad) {
+      btnLoad.addEventListener('click', () => {
+        const saved = localStorage.getItem('aetherweaver_builder_save');
+        if (saved) {
+          const data = JSON.parse(saved);
+          this.builderGrid = data.grid;
+          this.builderTheme = data.theme || 'dungeon';
+          if (themeSelect) themeSelect.value = this.builderTheme;
+          this.drawBuilderGrid();
+          alert("Layout loaded successfully!");
+        } else {
+          alert("No saved layout found in Slot.");
+        }
+      });
+    }
+    
+    if (btnExport) {
+      btnExport.addEventListener('click', () => {
+        const payload = {
+          grid: this.builderGrid,
+          theme: this.builderTheme
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `custom_level_${this.builderTheme}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+    
+    if (fileImport) {
+      fileImport.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const data = JSON.parse(evt.target.result);
+            if (data.grid && Array.isArray(data.grid)) {
+              this.builderGrid = data.grid;
+              this.builderTheme = data.theme || 'dungeon';
+              if (themeSelect) themeSelect.value = this.builderTheme;
+              this.drawBuilderGrid();
+              alert("Layout imported successfully!");
+            } else {
+              alert("Invalid layout format.");
+            }
+          } catch (err) {
+            alert("Error reading JSON file.");
+          }
+        };
+        reader.readAsText(file);
+      });
+    }
+    
+    if (themeSelect) {
+      themeSelect.addEventListener('change', (e) => {
+        this.builderTheme = e.target.value;
+      });
+    }
+    
+    const brushButtons = document.querySelectorAll('.builder-brush-btn');
+    const brushLbl = document.getElementById('builder-active-brush-lbl');
+    brushButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        brushButtons.forEach(b => {
+          b.classList.remove('active');
+          b.style.background = 'transparent';
+          b.style.color = '#aaa';
+        });
+        btn.classList.add('active');
+        btn.style.background = 'rgba(255,255,255,0.05)';
+        btn.style.color = '#fff';
+        
+        this.builderActiveBrush = btn.getAttribute('data-brush');
+        if (brushLbl) brushLbl.innerText = btn.innerText;
+      });
+    });
+    
+    let isDrawing = false;
+    
+    const getTileCoords = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
+      return {
+        tx: Math.floor(x / 40),
+        ty: Math.floor(y / 40)
+      };
+    };
+    
+    const paintTile = (tx, ty) => {
+      if (tx <= 0 || tx >= 49 || ty <= 0 || ty >= 49) return;
+      
+      let char = '.';
+      if (this.builderActiveBrush === '0') char = '.';
+      else if (this.builderActiveBrush === '1') char = '#';
+      else if (this.builderActiveBrush === 'P') {
+        for (let x = 0; x < 50; x++) {
+          for (let y = 0; y < 50; y++) {
+            if (this.builderGrid[x][y] === 'P') this.builderGrid[x][y] = '.';
+          }
+        }
+        char = 'P';
+      }
+      else if (this.builderActiveBrush === 'C') char = 'C';
+      else if (this.builderActiveBrush === 'S') char = 'S';
+      else if (this.builderActiveBrush === 'D') char = 'D';
+      else if (this.builderActiveBrush === 'H') char = 'H';
+      else if (this.builderActiveBrush === 'T') char = 'T';
+      else if (this.builderActiveBrush === 'L') char = 'L';
+      else if (this.builderActiveBrush === 'V') char = 'V';
+      else if (this.builderActiveBrush === 'B') char = 'B';
+      else if (this.builderActiveBrush === 'E_slime') char = 'e';
+      else if (this.builderActiveBrush === 'E_skeleton') char = 'k';
+      else if (this.builderActiveBrush === 'E_horror') char = 'r';
+      else if (this.builderActiveBrush === 'eraser') char = '.';
+      
+      this.builderGrid[tx][ty] = char;
+      this.drawBuilderGrid();
+    };
+    
+    if (canvas) {
+      canvas.addEventListener('mousedown', (e) => {
+        isDrawing = true;
+        const coords = getTileCoords(e);
+        paintTile(coords.tx, coords.ty);
+      });
+      
+      canvas.addEventListener('mousemove', (e) => {
+        if (!isDrawing) return;
+        const coords = getTileCoords(e);
+        paintTile(coords.tx, coords.ty);
+      });
+      
+      window.addEventListener('mouseup', () => {
+        isDrawing = false;
+      });
+    }
+    
+    if (btnTest) {
+      btnTest.addEventListener('click', () => {
+        let spawnExists = false;
+        for (let x = 0; x < 50; x++) {
+          for (let y = 0; y < 50; y++) {
+            if (this.builderGrid[x][y] === 'P') spawnExists = true;
+          }
+        }
+        
+        if (!spawnExists) {
+          alert("Error: You must place a Player Spawn (P) point before testing!");
+          return;
+        }
+        
+        const layout = [];
+        for (let y = 0; y < 50; y++) {
+          let row = '';
+          for (let x = 0; x < 50; x++) {
+            row += this.builderGrid[x][y];
+          }
+          layout.push(row);
+        }
+        
+        this.isStoryMode = false;
+        this.isCustomLevel = true;
+        this.loadedLevelLayout = layout;
+        this.loadedLevelTheme = this.builderTheme;
+        
+        this.startNewGame();
+      });
+    }
+  }
+
+  // Story Mode Management
+  initStoryModeUI() {
+    console.log("[StoryMode] Initializing Story Mode UI event listeners...");
+    const btnOpenStory = document.getElementById('btn-open-story-chapters');
+    const btnCloseStory = document.getElementById('btn-close-story-chapters');
+    
+    if (btnOpenStory) {
+      console.log("[StoryMode] Found btn-open-story-chapters button in DOM, binding click listener.");
+      btnOpenStory.addEventListener('click', () => {
+        console.log("[StoryMode] btn-open-story-chapters clicked!");
+        this.setState('STORY_CHAPTERS');
+        this.renderStoryChapters();
+      });
+    } else {
+      console.warn("[StoryMode] btn-open-story-chapters not found in DOM!");
+    }
+    
+    if (btnCloseStory) {
+      btnCloseStory.addEventListener('click', () => {
+        this.setState('PLAY_MENU');
+      });
+    }
+  }
+
+  renderStoryChapters() {
+    const listEl = document.getElementById('story-chapters-list');
+    if (!listEl) {
+      console.warn("[StoryMode] story-chapters-list element not found in DOM!");
+      return;
+    }
+    listEl.innerHTML = '';
+    
+    const unlockedChapter = this.player?.chapterUnlocked || 1;
+    console.log(`[StoryMode] Rendering story chapters. Player's unlocked chapter: ${unlockedChapter}`);
+    
+    StoryLevels.forEach(level => {
+      const isUnlocked = level.chapter <= unlockedChapter;
+      
+      const card = document.createElement('div');
+      card.className = `chapter-card ${isUnlocked ? 'unlocked' : 'locked'}`;
+      card.style.background = isUnlocked ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.4)';
+      card.style.border = isUnlocked ? '1px solid rgba(181, 126, 255, 0.3)' : '1px solid rgba(255, 255, 255, 0.05)';
+      card.style.padding = '12px';
+      card.style.borderRadius = '4px';
+      card.style.display = 'flex';
+      card.style.justifyContent = 'space-between';
+      card.style.alignItems = 'center';
+      card.style.fontFamily = 'var(--font-pixel)';
+      
+      const info = document.createElement('div');
+      info.style.textAlign = 'left';
+      info.style.flex = '1';
+      info.style.paddingRight = '12px';
+      
+      const title = document.createElement('h3');
+      title.style.margin = '0 0 6px 0';
+      title.style.fontSize = '10px';
+      title.style.color = isUnlocked ? 'var(--color-aether)' : '#666';
+      title.innerText = level.title;
+      
+      const desc = document.createElement('p');
+      desc.style.margin = '0';
+      desc.style.fontSize = '7px';
+      desc.style.color = isUnlocked ? '#aaa' : '#444';
+      desc.style.lineHeight = '1.4';
+      desc.innerText = level.description;
+      
+      info.appendChild(title);
+      info.appendChild(desc);
+      
+      const action = document.createElement('div');
+      
+      if (isUnlocked) {
+        const btn = document.createElement('button');
+        btn.className = 'btn-menu small';
+        btn.style.margin = '0';
+        btn.innerText = 'ENTER';
+        btn.addEventListener('click', () => {
+          this.startStoryChapter(level.chapter);
+        });
+        action.appendChild(btn);
+      } else {
+        const lockedBadge = document.createElement('span');
+        lockedBadge.style.fontSize = '8px';
+        lockedBadge.style.color = '#ff4757';
+        lockedBadge.innerText = 'LOCKED';
+        action.appendChild(lockedBadge);
+      }
+      
+      card.appendChild(info);
+      card.appendChild(action);
+      listEl.appendChild(card);
+    });
+  }
+
+  startStoryChapter(chapterNum) {
+    const level = StoryLevels.find(l => l.chapter === chapterNum);
+    if (!level) return;
+    
+    this.isStoryMode = true;
+    this.isCustomLevel = false;
+    this.storyChapter = chapterNum;
+    this.loadedLevelLayout = level.map;
+    this.loadedLevelTheme = level.theme;
+    
+    this.startNewGame();
+  }
+
+  triggerStoryWin() {
+    console.log(`[STORY] Won chapter ${this.storyChapter}!`);
+    const nextChapter = this.storyChapter + 1;
+    if (nextChapter > this.player.chapterUnlocked) {
+      this.player.chapterUnlocked = Math.min(5, nextChapter);
+    }
+    
+    const rewardAp = this.storyChapter * 5;
+    const rewardShards = this.storyChapter * 100;
+    this.player.ap += rewardAp;
+    this.player.shards += rewardShards;
+    
+    this.player.saveGameState();
+    
+    alert(`CHAPTER COMPLETE!\n\nUnlocked chapter: ${Math.min(5, nextChapter)}\nReward: +${rewardAp} AP, +${rewardShards} Shards!`);
+    
+    this.isStoryMode = false;
+    this.isCustomLevel = false;
+    this.setState('STORY_CHAPTERS');
   }
 }

@@ -133,6 +133,7 @@ export class Player {
     this.ap = 0; // Ability Points for upgrading tree
     this.shards = 0; // Currency collected
     
+    this.chapterUnlocked = 1;
     this.baseHp = 100;
     this.baseMp = 50;
     this.baseSpeed = 160;
@@ -1128,7 +1129,8 @@ export class Player {
       completedCompanion1Tree: this.completedCompanion1Tree,
       completedCompanion1TreeAwarded: this.completedCompanion1TreeAwarded,
       completedCompanion2Tree: this.completedCompanion2Tree,
-      completedCompanion2TreeAwarded: this.completedCompanion2TreeAwarded
+      completedCompanion2TreeAwarded: this.completedCompanion2TreeAwarded,
+      chapterUnlocked: this.chapterUnlocked || 1
     };
 
     for (const key in this.game.abilityTree.nodes) {
@@ -1136,6 +1138,9 @@ export class Player {
     }
 
     localStorage.setItem('aetherweaver_save', JSON.stringify(progress));
+    if (this.game && this.game.syncPlayerDataToCloud) {
+      this.game.syncPlayerDataToCloud();
+    }
   }
 
   loadGameState() {
@@ -1171,6 +1176,7 @@ export class Player {
         this.completedCompanion1TreeAwarded = progress.completedCompanion1TreeAwarded || false;
         this.completedCompanion2Tree = progress.completedCompanion2Tree || false;
         this.completedCompanion2TreeAwarded = progress.completedCompanion2TreeAwarded || false;
+        this.chapterUnlocked = progress.chapterUnlocked || 1;
         if (this.game.levelManager) {
           if (progress.theme) this.game.levelManager.theme = progress.theme;
           if (progress.unlockedSectors) {

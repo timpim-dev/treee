@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/main-CC7_dsEP.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/main-BJ1K_yJE.css">
+  <script type="module" crossorigin src="/assets/main-yw3cLy_1.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/main-D_DSWcHo.css">
 </head>
 <body>
   <!-- Main Game Canvas Container -->
@@ -53,7 +53,7 @@
       <!-- Wave / Timer Status -->
       <div id="hud-wave-status" class="hud-panel text-center">
         <div id="hud-wave-title">WAVE 1</div>
-        <div id="hud-wave-timer" class="pulse-red">00:30</div>
+        <div id="hud-wave-timer">00:30</div>
         <div id="hud-enemies-left">Enemies: 0</div>
       </div>
 
@@ -160,13 +160,14 @@
           <div class="player-preview-box">
             <canvas id="main-menu-player-canvas" width="128" height="128"></canvas>
           </div>
-          <div class="menu-version-indicator" id="menu-version">v0.4.20Beta</div>
+          <div class="menu-version-indicator" id="menu-version">v0.5.3</div>
         </div>
         
         <!-- Right Column: Navigation Buttons -->
         <div class="main-menu-right">
           <div class="menu-buttons vertical-buttons">
             <button id="btn-play-menu" class="btn-menu">PLAY</button>
+            <button id="btn-player-account-menu" class="btn-menu" style="background: linear-gradient(135deg, #0e1d3e, #1c356f); border-color: #3b74e6; text-shadow: 0 0 5px rgba(59, 116, 230, 0.5);">PLAYER ACCOUNT</button>
             <button id="btn-customize-menu" class="btn-menu">CHARACTER CUSTOMIZATION</button>
             <button id="btn-wiki" class="btn-menu">WIKI</button>
             <button id="btn-leaderboard-menu" class="btn-menu">LEADERBOARD</button>
@@ -296,93 +297,130 @@
 
     <!-- settings. SETTINGS PANEL -->
     <div id="panel-settings" class="panel-overlay hidden">
-      <div class="menu-content text-center" style="max-width: 450px;">
+      <div class="menu-content text-center" style="max-width: 460px;">
         <h1>SETTINGS</h1>
-        <div class="menu-buttons">
-          <button id="btn-settings-mute" class="btn-menu" style="margin-bottom: 10px;">MUTE AUDIO</button>
-          <button id="btn-twitch-setup-menu" class="btn-menu" style="margin-bottom: 20px; background: #6441a5; border-color: #9146FF; box-shadow: 4px 4px 0 #7d5fff;">TWITCH INTEGRATION</button>
-          
-          <div class="volume-controls-box">
-            <div class="volume-slider-group">
-              <div class="volume-header">
-                <span class="volume-label">MUSIC VOLUME</span>
-                <span id="lbl-settings-music-val" class="volume-value">35%</span>
+        
+        <!-- Minecraft-style Tab Buttons -->
+        <div class="settings-tab-bar">
+          <button class="settings-tab-btn active" data-tab="gameplay">GAMEPLAY</button>
+          <button class="settings-tab-btn" data-tab="video">VIDEO</button>
+          <button class="settings-tab-btn" data-tab="audio">AUDIO</button>
+          <button class="settings-tab-btn" data-tab="controls">CONTROLS</button>
+        </div>
+
+        <div class="menu-buttons" style="margin-top: 10px;">
+          <!-- Tab content: GAMEPLAY -->
+          <div id="settings-tab-gameplay" class="settings-tab-pane">
+            <div class="settings-toggles-box">
+              <div class="settings-toggles-grid">
+                <div class="setting-toggle-group">
+                  <label class="setting-toggle">
+                    <input type="checkbox" id="chk-settings-shake" checked>
+                    <span class="checkbox-custom"></span>
+                    <span>SCREEN SHAKE</span>
+                  </label>
+                </div>
+                <div class="setting-toggle-group">
+                  <label class="setting-toggle">
+                    <input type="checkbox" id="chk-settings-damage" checked>
+                    <span class="checkbox-custom"></span>
+                    <span>DAMAGE NUMBERS</span>
+                  </label>
+                </div>
+                <div class="setting-toggle-group" style="grid-column: span 2;">
+                  <label class="setting-toggle">
+                    <input type="checkbox" id="chk-settings-healthbars" checked>
+                    <span class="checkbox-custom"></span>
+                    <span>ENEMY HP BARS</span>
+                  </label>
+                </div>
               </div>
-              <input type="range" id="sld-settings-music" min="0" max="100" value="35" class="volume-slider">
+            </div>
+            <button id="btn-twitch-setup-menu" class="btn-menu small" style="background: #6441a5; border-color: #9146FF; box-shadow: 3px 3px 0 #7d5fff; width: 100%; margin-top: 10px;">TWITCH INTEGRATION</button>
+          </div>
+
+          <!-- Tab content: VIDEO -->
+          <div id="settings-tab-video" class="settings-tab-pane hidden">
+            <div class="volume-controls-box" style="padding: 10px;">
+              <div class="volume-slider-group" style="margin-top: 0;">
+                <div class="volume-header">
+                  <span class="volume-label">RENDER DISTANCE</span>
+                  <span id="lbl-settings-render-val" class="volume-value">1200px</span>
+                </div>
+                <input type="range" id="sld-settings-render" min="600" max="2400" step="200" value="1200" class="volume-slider">
+              </div>
             </div>
             
-            <div class="volume-slider-group">
-              <div class="volume-header">
-                <span class="volume-label">SFX VOLUME</span>
-                <span id="lbl-settings-sfx-val" class="volume-value">55%</span>
+            <div class="settings-toggles-box">
+              <div class="settings-toggles-grid">
+                <div class="setting-toggle-group">
+                  <label class="setting-toggle">
+                    <input type="checkbox" id="chk-settings-glow" checked>
+                    <span class="checkbox-custom"></span>
+                    <span>GLOW EFFECTS</span>
+                  </label>
+                </div>
+                <div class="setting-toggle-group">
+                  <label class="setting-toggle">
+                    <input type="checkbox" id="chk-settings-floor" checked>
+                    <span class="checkbox-custom"></span>
+                    <span>FLOOR DETAILS</span>
+                  </label>
+                </div>
+                <div class="setting-toggle-group">
+                  <label class="setting-toggle">
+                    <input type="checkbox" id="chk-settings-particles">
+                    <span class="checkbox-custom"></span>
+                    <span>LOW PARTICLES</span>
+                  </label>
+                </div>
+                <div class="setting-toggle-group">
+                  <label class="setting-toggle">
+                    <input type="checkbox" id="chk-settings-trails" checked>
+                    <span class="checkbox-custom"></span>
+                    <span>SPELL TRAILS</span>
+                  </label>
+                </div>
               </div>
-              <input type="range" id="sld-settings-sfx" min="0" max="100" value="55" class="volume-slider">
-            </div>
-            
-            <div class="volume-slider-group" style="margin-top: 6px;">
-              <div class="volume-header">
-                <span class="volume-label">RENDER DISTANCE</span>
-                <span id="lbl-settings-render-val" class="volume-value">1200px</span>
-              </div>
-              <input type="range" id="sld-settings-render" min="600" max="2400" step="200" value="1200" class="volume-slider">
             </div>
           </div>
 
-          <div class="settings-toggles-box">
-            <div class="settings-toggles-grid">
-              <div class="setting-toggle-group">
-                <label class="setting-toggle">
-                  <input type="checkbox" id="chk-settings-shake" checked>
-                  <span class="checkbox-custom"></span>
-                  <span>SCREEN SHAKE</span>
-                </label>
+          <!-- Tab content: AUDIO -->
+          <div id="settings-tab-audio" class="settings-tab-pane hidden">
+            <button id="btn-settings-mute" class="btn-menu small" style="width: 100%; margin-bottom: 10px;">MUTE AUDIO</button>
+            <div class="volume-controls-box" style="padding: 10px;">
+              <div class="volume-slider-group">
+                <div class="volume-header">
+                  <span class="volume-label">MUSIC VOLUME</span>
+                  <span id="lbl-settings-music-val" class="volume-value">35%</span>
+                </div>
+                <input type="range" id="sld-settings-music" min="0" max="100" value="35" class="volume-slider">
               </div>
-              <div class="setting-toggle-group">
-                <label class="setting-toggle">
-                  <input type="checkbox" id="chk-settings-glow" checked>
-                  <span class="checkbox-custom"></span>
-                  <span>GLOW EFFECTS</span>
-                </label>
-              </div>
-              <div class="setting-toggle-group">
-                <label class="setting-toggle">
-                  <input type="checkbox" id="chk-settings-damage" checked>
-                  <span class="checkbox-custom"></span>
-                  <span>DAMAGE NUMBERS</span>
-                </label>
-              </div>
-              <div class="setting-toggle-group">
-                <label class="setting-toggle">
-                  <input type="checkbox" id="chk-settings-healthbars" checked>
-                  <span class="checkbox-custom"></span>
-                  <span>ENEMY HP BARS</span>
-                </label>
-              </div>
-              <div class="setting-toggle-group">
-                <label class="setting-toggle">
-                  <input type="checkbox" id="chk-settings-floor" checked>
-                  <span class="checkbox-custom"></span>
-                  <span>FLOOR DETAILS</span>
-                </label>
-              </div>
-              <div class="setting-toggle-group">
-                <label class="setting-toggle">
-                  <input type="checkbox" id="chk-settings-particles">
-                  <span class="checkbox-custom"></span>
-                  <span>LOW PARTICLES</span>
-                </label>
-              </div>
-              <div class="setting-toggle-group" style="grid-column: span 2;">
-                <label class="setting-toggle">
-                  <input type="checkbox" id="chk-settings-trails" checked>
-                  <span class="checkbox-custom"></span>
-                  <span>SHOW SPELL TRAILS</span>
-                </label>
+              
+              <div class="volume-slider-group" style="margin-top: 10px;">
+                <div class="volume-header">
+                  <span class="volume-label">SFX VOLUME</span>
+                  <span id="lbl-settings-sfx-val" class="volume-value">55%</span>
+                </div>
+                <input type="range" id="sld-settings-sfx" min="0" max="100" value="55" class="volume-slider">
               </div>
             </div>
           </div>
+
+          <!-- Tab content: CONTROLS -->
+          <div id="settings-tab-controls" class="settings-tab-pane hidden">
+            <div style="font-family: var(--font-pixel); font-size: 7px; color: #888; margin-bottom: 6px; text-align: left;">
+              LAYOUT DETECTED: <span id="lbl-detected-layout" style="color: var(--color-aether);">QWERTY</span>
+            </div>
+            
+            <div class="keybinds-grid" id="settings-keybinds-list">
+              <!-- Keybind rows will be generated dynamically by JavaScript -->
+            </div>
+            
+            <button id="btn-reset-keybinds" class="btn-menu small secondary" style="width: 100%; margin-top: 10px;">RESET TO DEFAULTS</button>
+          </div>
           
-          <button id="btn-close-settings" class="btn-menu secondary" style="margin-top: 20px;">BACK</button>
+          <button id="btn-close-settings" class="btn-menu secondary" style="margin-top: 20px; width: 100%;">BACK</button>
         </div>
       </div>
     </div>
@@ -399,13 +437,21 @@
         </div>
         
         <div class="menu-buttons" style="width: 100%;">
+          <!-- Twitch Login Button (OAuth) -->
+          <div style="margin-bottom: 15px; width: 100%;">
+            <button id="btn-twitch-login-oauth" class="btn-menu" style="background: #9146FF; border-color: #a970ff; box-shadow: 4px 4px 0 #6441a5; color: #fff; margin: 0 auto 10px;">LOG IN WITH TWITCH</button>
+            <div style="font-size: 7px; color: #a970ff; line-height: 1.4;">Automated token connection & chat sync</div>
+          </div>
+
+          <div style="border-top: 1px dashed rgba(255,255,255,0.15); margin: 10px 0; padding-top: 10px; width: 100%;"></div>
+
           <!-- Connection Settings -->
           <div class="devtools-row" style="margin-bottom: 12px; width: 100%;">
-            <label class="devtools-label" for="twitch-channel-input" style="min-width: 130px; font-size: 8px;">CHANNEL NAME</label>
+            <label class="devtools-label" for="twitch-channel-input" style="min-width: 130px; font-size: 8px;">OR ENTER NAME</label>
             <input type="text" id="twitch-channel-input" placeholder="e.g. streamer_name" class="devtools-input" style="padding: 6px 10px; font-size: 10px; flex: 1;">
           </div>
           
-          <button id="btn-twitch-connect" class="btn-menu" style="margin-bottom: 10px;">CONNECT</button>
+          <button id="btn-twitch-connect" class="btn-menu" style="margin-bottom: 10px;">CONNECT MANUAL</button>
           
           <!-- Auto-connect toggle -->
           <div class="setting-toggle-group" style="margin-bottom: 20px; justify-content: center; display: flex;">
@@ -754,14 +800,14 @@
             <button id="btn-start-weaver" class="btn-menu small">START RUNE</button>
           </div>
 
-          <!-- Story Mode (Coming Soon) -->
-          <div class="mode-card disabled-mode" id="mode-card-story">
+          <!-- Story Mode -->
+          <div class="mode-card hidden" id="mode-card-story">
             <div class="mode-preview-box">
               <canvas id="icon-mainmenu-story" width="64" height="64"></canvas>
             </div>
             <h3>STORY MODE</h3>
-            <p>Unravel the mysteries of the Aether Web in a narrative campaign. (Coming Soon!)</p>
-            <button class="btn-menu small secondary" disabled>COMING SOON</button>
+            <p>Unravel the mysteries of the Aether Web in a handcrafted 5-chapter narrative campaign.</p>
+            <button id="btn-open-story-chapters" class="btn-menu small">PLAY STORY</button>
           </div>
 
           <!-- Multiplayer Mode (Coming Soon) -->
@@ -879,6 +925,62 @@
         </div>
       </div>
     </div>
+
+    <!-- PLAYER ACCOUNT / CLOUD SYNC PANEL -->
+    <div id="panel-player-account" class="panel-overlay hidden">
+      <div class="menu-content text-center" style="max-width: 450px;">
+        <h1>PLAYER PROFILE</h1>
+        <p class="menu-decor"></p>
+        
+        <!-- Login / Register Section -->
+        <div id="player-auth-section" class="auth-box">
+          <p style="font-size: 8px; font-family: var(--font-pixel); color: #888; margin-bottom: 15px; line-height: 1.4;">AUTHENTICATE WITH TWITCH TO CLOUD-SYNC YOUR LEVEL, AP, XP, SHARDS, AND REBIRTH PROGRESS.</p>
+          <button id="btn-player-twitch-login" class="btn-menu" style="background: #6441a5; border-color: #9146FF; box-shadow: 4px 4px 0 #7d5fff; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px;">
+            <svg class="twitch-icon" style="width: 14px; height: 14px; fill: #fff;" viewBox="0 0 24 24"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
+            LOG IN WITH TWITCH
+          </button>
+          <div id="player-auth-status" style="font-size: 8px; margin-top: 15px; color: #ff6b6b; font-family: var(--font-pixel); min-height: 10px;"></div>
+        </div>
+
+        <!-- Profile Detail Section (Logged In) -->
+        <div id="player-profile-section" class="profile-box hidden">
+          <div class="profile-header-card" style="background: rgba(181, 126, 255, 0.05); padding: 12px; border: 1px solid rgba(181, 126, 255, 0.2); margin-bottom: 15px; border-radius: 4px;">
+            <div id="player-profile-nickname" style="font-size: 14px; font-family: var(--font-pixel); color: var(--color-aether); text-shadow: 0 0 5px rgba(181, 126, 255, 0.4);">RUNEWEAVER</div>
+            <div id="player-profile-email" style="font-size: 7px; color: #888; margin-top: 4px;">player@email.com</div>
+          </div>
+          
+          <div class="profile-stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: left; font-family: var(--font-pixel); font-size: 8px; color: #dfe7ff; margin-bottom: 15px;">
+            <div style="background: rgba(0,0,0,0.3); padding: 8px; border: 1px solid rgba(255,255,255,0.05); border-radius: 4px;">Level: <span id="prof-stat-level" style="color: #f1c40f;">1</span></div>
+            <div style="background: rgba(0,0,0,0.3); padding: 8px; border: 1px solid rgba(255,255,255,0.05); border-radius: 4px;">Rebirths: <span id="prof-stat-rebirths" style="color: #9b59b6;">0</span></div>
+            <div style="background: rgba(0,0,0,0.3); padding: 8px; border: 1px solid rgba(255,255,255,0.05); border-radius: 4px;">Shards: <span id="prof-stat-shards" style="color: #eccc68;">0</span></div>
+            <div style="background: rgba(0,0,0,0.3); padding: 8px; border: 1px solid rgba(255,255,255,0.05); border-radius: 4px;">Story Chapter: <span id="prof-stat-chapter" style="color: #2ecc71;">1</span></div>
+            <div style="background: rgba(0,0,0,0.3); padding: 8px; border: 1px solid rgba(255,255,255,0.05); border-radius: 4px; grid-column: span 2;">High Score: <span id="prof-stat-highscore" style="color: #7d5fff;">0</span></div>
+          </div>
+          
+          <button id="btn-player-sync-now" class="btn-menu small" style="margin-bottom: 8px; width: 100%; background: linear-gradient(135deg, #16a085, #2ecc71);">MANUAL CLOUD SYNC</button>
+          <button id="btn-player-logout" class="btn-menu small secondary" style="width: 100%;">SIGN OUT</button>
+          <div id="player-profile-status" style="font-size: 8px; margin-top: 10px; color: #2ecc71; font-family: var(--font-pixel);"></div>
+        </div>
+
+        <button id="btn-close-player-account" class="btn-menu secondary" style="margin-top: 15px;">BACK</button>
+      </div>
+    </div>
+
+    <!-- STORY CHAPTERS SELECTOR PANEL -->
+    <div id="panel-story-chapters" class="panel-overlay hidden">
+      <div class="menu-content wide text-center" style="max-width: 600px;">
+        <h1 class="text-glow">STORY CHAPTERS</h1>
+        <p class="shop-intro">Complete chapters to unlock the secrets of the void</p>
+        <div id="story-chapters-list" class="chapters-grid" style="display: flex; flex-direction: column; gap: 12px; max-height: 280px; overflow-y: auto; padding: 10px;">
+          <!-- Populated dynamically -->
+        </div>
+        <div class="menu-buttons" style="margin-top: 20px;">
+          <button id="btn-close-story-chapters" class="btn-menu secondary">BACK</button>
+        </div>
+      </div>
+    </div>
+
+
 
     <!-- Floating Tutorial Guide Overlay -->
     <div id="tutorial-guide" class="hidden">

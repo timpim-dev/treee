@@ -1,13 +1,13 @@
 [
   {
-    "id": "dr_streamers_col",
-    "name": "dr_streamers",
+    "id": "ag_streamers_col",
+    "name": "ag_streamers",
     "type": "auth",
     "system": false,
     "schema": [
       {
         "system": false,
-        "id": "dr_s_twitch_id",
+        "id": "ag_s_twitch_id",
         "name": "twitch_id",
         "type": "text",
         "required": true,
@@ -21,7 +21,7 @@
       },
       {
         "system": false,
-        "id": "dr_s_twitch_name",
+        "id": "ag_s_twitch_name",
         "name": "twitch_name",
         "type": "text",
         "required": true,
@@ -35,7 +35,7 @@
       },
       {
         "system": false,
-        "id": "dr_s_slug",
+        "id": "ag_s_slug",
         "name": "slug",
         "type": "text",
         "required": true,
@@ -49,7 +49,7 @@
       },
       {
         "system": false,
-        "id": "dr_s_settings",
+        "id": "ag_s_settings",
         "name": "settings",
         "type": "json",
         "required": false,
@@ -61,8 +61,8 @@
       }
     ],
     "indexes": [
-      "CREATE UNIQUE INDEX `idx_dr_streamers_twitch_id` ON `dr_streamers` (`twitch_id`)",
-      "CREATE UNIQUE INDEX `idx_dr_streamers_slug` ON `dr_streamers` (`slug`)"
+      "CREATE UNIQUE INDEX `idx_ag_streamers_twitch_id` ON `ag_streamers` (`twitch_id`)",
+      "CREATE UNIQUE INDEX `idx_ag_streamers_slug` ON `ag_streamers` (`slug`)"
     ],
     "listRule": "",
     "viewRule": "",
@@ -82,31 +82,66 @@
     }
   },
   {
-    "id": "dr_leaderboard_c",
-    "name": "dr_leaderboard",
-    "type": "base",
+    "id": "ag_users_auth_",
+    "name": "ag_users",
+    "type": "auth",
     "system": false,
     "schema": [
       {
         "system": false,
-        "id": "dr_l_name",
+        "id": "ag_u_name",
         "name": "name",
         "type": "text",
-        "required": true,
+        "required": false,
         "presentable": true,
         "unique": false,
         "options": {
-          "min": 1,
-          "max": 15,
+          "min": null,
+          "max": 100,
           "pattern": ""
         }
       },
       {
         "system": false,
-        "id": "dr_l_score",
-        "name": "score",
+        "id": "ag_u_avatar",
+        "name": "avatar",
+        "type": "file",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "mimeTypes": [
+            "image/jpeg",
+            "image/png",
+            "image/webp"
+          ],
+          "thumbs": [
+            "64x64",
+            "128x128"
+          ],
+          "maxSelect": 1,
+          "maxSize": 5242880,
+          "protected": false
+        }
+      },
+      {
+        "system": false,
+        "id": "ag_u_save_data",
+        "name": "save_data",
+        "type": "json",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      },
+      {
+        "system": false,
+        "id": "ag_u_high_score",
+        "name": "high_score",
         "type": "number",
-        "required": true,
+        "required": false,
         "presentable": false,
         "unique": false,
         "options": {
@@ -117,7 +152,21 @@
       },
       {
         "system": false,
-        "id": "dr_l_wave",
+        "id": "ag_u_level",
+        "name": "level",
+        "type": "number",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": 1,
+          "max": null,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "ag_u_wave",
         "name": "wave",
         "type": "number",
         "required": false,
@@ -131,7 +180,88 @@
       },
       {
         "system": false,
-        "id": "dr_l_level",
+        "id": "ag_u_chapter",
+        "name": "chapter_unlocked",
+        "type": "number",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": 1,
+          "max": null,
+          "noDecimal": true
+        }
+      }
+    ],
+    "indexes": [],
+    "listRule": "",
+    "viewRule": "",
+    "createRule": "",
+    "updateRule": "id = @request.auth.id",
+    "deleteRule": "id = @request.auth.id",
+    "options": {
+      "allowEmailAuth": true,
+      "allowOAuth2Auth": true,
+      "allowUsernameAuth": true,
+      "exceptEmailDomains": null,
+      "manageRule": null,
+      "minPasswordLength": 8,
+      "onlyEmailDomains": null,
+      "onlyVerified": false,
+      "requireEmail": false
+    }
+  },
+  {
+    "id": "ag_leaderboard_c",
+    "name": "ag_leaderboard",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "ag_l_name",
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "presentable": true,
+        "unique": false,
+        "options": {
+          "min": 1,
+          "max": 15,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "ag_l_score",
+        "name": "score",
+        "type": "number",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": 0,
+          "max": null,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "ag_l_wave",
+        "name": "wave",
+        "type": "number",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": 1,
+          "max": null,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "ag_l_level",
         "name": "level",
         "type": "number",
         "required": false,
@@ -145,7 +275,7 @@
       }
     ],
     "indexes": [
-      "CREATE INDEX `idx_dr_leaderboard_score` ON `dr_leaderboard` (`score` DESC)"
+      "CREATE INDEX `idx_ag_leaderboard_score` ON `ag_leaderboard` (`score` DESC)"
     ],
     "listRule": "",
     "viewRule": "",
