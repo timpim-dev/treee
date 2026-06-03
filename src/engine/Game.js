@@ -5142,12 +5142,33 @@ export class Game {
             authStatus.innerText = 'PLEASE AUTHORIZE IN POPUP WINDOW...';
           }
 
+          // Ensure redirect_uri is populated (fallback if PocketBase returns empty redirect_uri)
+          let authUrl = twitchProvider.authUrl;
+          const defaultRedirectUrl = `${this.pbClient.baseUrl}/api/oauth2-redirect`;
+          try {
+            const urlObj = new URL(authUrl);
+            if (!urlObj.searchParams.get('redirect_uri')) {
+              urlObj.searchParams.set('redirect_uri', defaultRedirectUrl);
+              authUrl = urlObj.toString();
+            }
+          } catch (e) {
+            console.warn('[Player Auth] Failed to parse authUrl, fallback string replacement:', e);
+            if (authUrl.includes('redirect_uri=')) {
+              const parts = authUrl.split('redirect_uri=');
+              if (!parts[1] || parts[1] === '') {
+                authUrl = parts[0] + 'redirect_uri=' + encodeURIComponent(defaultRedirectUrl);
+              }
+            } else {
+              authUrl += (authUrl.includes('?') ? '&' : '?') + 'redirect_uri=' + encodeURIComponent(defaultRedirectUrl);
+            }
+          }
+
           // Open popup window for authentication
           const width = 500;
           const height = 600;
           const left = window.screenX + (window.outerWidth - width) / 2;
           const top = window.screenY + (window.outerHeight - height) / 2;
-          const popup = window.open(twitchProvider.authUrl, 'oauth', `width=${width},height=${height},left=${left},top=${top}`);
+          const popup = window.open(authUrl, 'oauth', `width=${width},height=${height},left=${left},top=${top}`);
           
           if (!popup) {
             throw new Error('Popup blocked! Please allow popups for this site.');
@@ -5166,8 +5187,8 @@ export class Game {
     if (!this._hasRegisteredPlayerOAuthListener) {
       this._hasRegisteredPlayerOAuthListener = true;
       window.addEventListener('message', async (e) => {
-        console.log('[Player OAuth] Message received from origin:', e.origin, 'data:', e.data);
         if (e.origin !== this.pbClient.baseUrl) return;
+        console.log('[Player OAuth] Message received from PocketBase origin:', e.origin, 'data:', e.data);
         
         let data = e.data;
         if (typeof data === 'string') {
