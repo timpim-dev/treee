@@ -39,7 +39,7 @@ export class Game {
     this.showFloorGrid = true;
     this.lowParticleMode = false;
     this.showSpellTrails = true;
-    this.isLocalDev = ['localhost', '127.0.0.1', ''].includes(window.location.hostname);
+    this.isLocalDev = ['localhost', '127.0.0.1'].includes(window.location.hostname) || window.location.protocol === 'file:';
     this.devtoolsVisible = false;
     this.customPresetIdx = 0;
     this.nextThemeOverride = null;
