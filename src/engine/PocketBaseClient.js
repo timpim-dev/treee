@@ -3,7 +3,7 @@
  * Handles streamer and player authentication and cloud persistence
  */
 export class PocketBaseClient {
-  constructor(baseUrl = 'https://pb.timpim.dev') {
+  constructor(baseUrl = 'https://pocketbase.felixx.dev') {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     
     // Streamer Auth Settings
