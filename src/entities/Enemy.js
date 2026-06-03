@@ -29,6 +29,22 @@ export class Enemy {
     this.damage = Math.round(this.damage * damageMultiplier);
 
     this.hp = this.maxHp;
+
+    // Voted element infusion
+    this.infusedElement = this.game.levelManager?.nextWaveElement || null;
+    if (this.infusedElement) {
+      if (this.infusedElement === 'fire') {
+        this.damage = Math.round(this.damage * 1.2);
+        this.name = `Fiery ${this.name}`;
+      } else if (this.infusedElement === 'frost') {
+        this.maxHp = Math.round(this.maxHp * 1.2);
+        this.hp = this.maxHp;
+        this.name = `Frosted ${this.name}`;
+      } else if (this.infusedElement === 'void') {
+        this.speed = Math.round(this.speed * 1.1);
+        this.name = `Void ${this.name}`;
+      }
+    }
     
     // Knockback states
     this.kbX = 0;
@@ -979,6 +995,15 @@ export class Enemy {
     const pdist = Math.hypot(player.x - this.x, player.y - this.y);
     if (pdist < this.radius + player.radius) {
       player.takeDamage(this.damage, this.game);
+      
+      // Apply elemental effect if infused
+      if (this.infusedElement === 'frost') {
+        player.applyDebuff('frost', 3.0);
+      } else if (this.infusedElement === 'void') {
+        player.mp = Math.max(0, player.mp - 15);
+        this.game.particles.spawnText(player.x, player.y - 45, `-15 MANA`, { color: '#a55eea', fontSize: 10, fontPixel: true });
+      }
+
       // bounce enemy back slightly on hit
       const bounceAngle = Math.atan2(this.y - player.y, this.x - player.x);
       this.applyKnockback(Math.cos(bounceAngle) * 120, Math.sin(bounceAngle) * 120);
@@ -1026,14 +1051,17 @@ export class Enemy {
       ctx.filter = 'hue-rotate(40deg) saturate(1.5) sepia(0.3) brightness(1.2)';
     }
 
-    // Status visual overlays
-    if (this.statuses[SPELL_TYPES.FROST] > 0) {
+    // Status visual overlays / Voted element visual overlays
+    if (this.statuses[SPELL_TYPES.FROST] > 0 || this.infusedElement === 'frost') {
       // Ice coloring filter
       ctx.shadowBlur = 8;
       ctx.shadowColor = '#10ac84';
-    } else if (this.statuses[SPELL_TYPES.FIRE] > 0) {
+    } else if (this.statuses[SPELL_TYPES.FIRE] > 0 || this.infusedElement === 'fire') {
       ctx.shadowBlur = 8;
       ctx.shadowColor = '#ff4757';
+    } else if (this.infusedElement === 'void') {
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = '#a55eea';
     }
 
     if (isFacingLeft) {

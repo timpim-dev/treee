@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/main-CEuf7OdO.js"></script>
+  <script type="module" crossorigin src="/assets/main-DAhGfU52.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/main-BJ1K_yJE.css">
 </head>
 <body>
@@ -160,7 +160,7 @@
           <div class="player-preview-box">
             <canvas id="main-menu-player-canvas" width="128" height="128"></canvas>
           </div>
-          <div class="menu-version-indicator" id="menu-version">v0.4.12</div>
+          <div class="menu-version-indicator" id="menu-version">v0.4.20Beta</div>
         </div>
         
         <!-- Right Column: Navigation Buttons -->
@@ -299,7 +299,8 @@
       <div class="menu-content text-center" style="max-width: 450px;">
         <h1>SETTINGS</h1>
         <div class="menu-buttons">
-          <button id="btn-settings-mute" class="btn-menu" style="margin-bottom: 20px;">MUTE AUDIO</button>
+          <button id="btn-settings-mute" class="btn-menu" style="margin-bottom: 10px;">MUTE AUDIO</button>
+          <button id="btn-twitch-setup-menu" class="btn-menu" style="margin-bottom: 20px; background: #6441a5; border-color: #9146FF; box-shadow: 4px 4px 0 #7d5fff;">TWITCH INTEGRATION</button>
           
           <div class="volume-controls-box">
             <div class="volume-slider-group">
@@ -382,6 +383,64 @@
           </div>
           
           <button id="btn-close-settings" class="btn-menu secondary" style="margin-top: 20px;">BACK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TWITCH SETUP PANEL -->
+    <div id="panel-twitch" class="panel-overlay hidden">
+      <div class="menu-content text-center" style="max-width: 450px;">
+        <h1>TWITCH SETUP</h1>
+        <div class="menu-decor"></div>
+        
+        <!-- Status Indicator -->
+        <div style="margin-bottom: 20px; font-size: 10px; font-family: var(--font-pixel);">
+          STATUS: <span id="twitch-status-lbl" style="color: #ff6b6b; text-shadow: 0 0 5px rgba(255,107,107,0.5);">DISCONNECTED</span>
+        </div>
+        
+        <div class="menu-buttons" style="width: 100%;">
+          <!-- Connection Settings -->
+          <div class="devtools-row" style="margin-bottom: 12px; width: 100%;">
+            <label class="devtools-label" for="twitch-channel-input" style="min-width: 130px; font-size: 8px;">CHANNEL NAME</label>
+            <input type="text" id="twitch-channel-input" placeholder="e.g. streamer_name" class="devtools-input" style="padding: 6px 10px; font-size: 10px; flex: 1;">
+          </div>
+          
+          <button id="btn-twitch-connect" class="btn-menu" style="margin-bottom: 10px;">CONNECT</button>
+          
+          <!-- Auto-connect toggle -->
+          <div class="setting-toggle-group" style="margin-bottom: 20px; justify-content: center; display: flex;">
+            <label class="setting-toggle" style="font-size: 9px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="chk-twitch-autoconnect" checked>
+              <span class="checkbox-custom"></span>
+              <span>AUTO-CONNECT ON LOAD</span>
+            </label>
+          </div>
+
+          <div style="border-top: 1px dashed rgba(255,255,255,0.15); margin: 15px 0; padding-top: 15px; width: 100%;">
+            <h3 style="font-size: 10px; color: #7d5fff; margin-bottom: 12px; font-family: var(--font-pixel);">STREAMER AUTH (POCKETBASE)</h3>
+            
+            <!-- PocketBase Streamer login inputs -->
+            <div id="pb-login-section" style="width: 100%;">
+              <div class="devtools-row" style="margin-bottom: 8px; width: 100%;">
+                <label class="devtools-label" for="pb-username" style="min-width: 90px; font-size: 8px;">IDENTITY</label>
+                <input type="text" id="pb-username" placeholder="Username/Email" class="devtools-input" style="padding: 6px 10px; font-size: 10px; flex: 1;">
+              </div>
+              <div class="devtools-row" style="margin-bottom: 12px; width: 100%;">
+                <label class="devtools-label" for="pb-password" style="min-width: 90px; font-size: 8px;">PASSWORD</label>
+                <input type="password" id="pb-password" placeholder="••••••••" class="devtools-input" style="padding: 6px 10px; font-size: 10px; flex: 1;">
+              </div>
+              <button id="btn-pb-login" class="btn-menu small" style="margin-bottom: 8px; width: 100%;">LOGIN TO PERSIST SETTINGS</button>
+            </div>
+            
+            <div id="pb-logged-in-section" class="hidden" style="width: 100%;">
+              <div style="font-size: 8px; margin-bottom: 10px; color: var(--text-secondary);">Logged in as <strong id="pb-logged-in-username">Streamer</strong></div>
+              <button id="btn-pb-save-settings" class="btn-menu small" style="margin-bottom: 8px; width: 100%;">SAVE SETTINGS TO CLOUD</button>
+              <button id="btn-pb-logout" class="btn-menu small secondary" style="width: 100%;">LOGOUT</button>
+            </div>
+            <div id="pb-status-msg" style="font-size: 8px; margin-top: 8px; color: #f1c40f;"></div>
+          </div>
+          
+          <button id="btn-close-twitch" class="btn-menu secondary" style="margin-top: 10px;">BACK</button>
         </div>
       </div>
     </div>
@@ -750,14 +809,49 @@
         <h1 class="glitch-title" data-text="CREDITS">CREDITS</h1>
         <p class="menu-decor"></p>
         
-        <div style="font-family: var(--font-pixel); font-size: 10px; line-height: 2.2; color: #fff; text-align: center; margin: 25px 0;">
-          <p>CODED BY FELIXX</p>
-          <br>
-          <p>MUSIC LICENSED UNDER CC BY 3.0</p>
-          <p>"BEACH" BY AARON KROGH</p>
-          <p>"BOSS", "CAVE", "DESERT", "LAVALAND" BY TERREL O'BRIEN</p>
-          <p>"FOREST" BY DAN TILDEN</p>
-          <p>"VILLAGE" BY JOEL DAY</p>
+        <div style="font-family: var(--font-pixel); font-size: 10px; line-height: 2.2; color: #fff; text-align: center; margin: 25px 0; max-height: 400px; overflow-y: auto;">
+          
+          <div style="margin-bottom: 30px;">
+            <p style="color: #ff6b6b; font-size: 12px; margin-bottom: 10px;">━━━ DEVELOPMENT ━━━</p>
+            <p>GAME DESIGN & PROGRAMMING</p>
+            <p style="color: #4ecdc4; font-size: 14px;">FELIXX</p>
+          </div>
+
+          <div style="margin-bottom: 30px;">
+            <p style="color: #ff6b6b; font-size: 12px; margin-bottom: 10px;">━━━ MUSIC ━━━</p>
+            <p style="font-size: 9px; color: #aaa; margin-bottom: 8px;">LICENSED UNDER CC BY 3.0</p>
+            <p>"BEACH" - AARON KROGH</p>
+            <p>"BOSS" - TERREL O'BRIEN</p>
+            <p>"BUTCHER" - ATTRIBUTION NEEDED</p>
+            <p>"CAVE" - TERREL O'BRIEN</p>
+            <p>"COWLEVEL" - ATTRIBUTION NEEDED</p>
+            <p>"DEATHANGEL" - ATTRIBUTION NEEDED</p>
+            <p>"DESERT" - TERREL O'BRIEN</p>
+            <p>"FOREST" - DAN TILDEN</p>
+            <p>"FREEZINGLAND" - ATTRIBUTION NEEDED</p>
+            <p>"ICEWALK" - ATTRIBUTION NEEDED</p>
+            <p>"LAVALAND" - TERREL O'BRIEN</p>
+            <p>"NECROMANCER" - ATTRIBUTION NEEDED</p>
+            <p>"SHAMAN" - ATTRIBUTION NEEDED</p>
+            <p>"SKELETON COMMANDER" - ATTRIBUTION NEEDED</p>
+            <p>"TEMPLE" - ATTRIBUTION NEEDED</p>
+            <p>"VILLAGE" - JOEL DAY</p>
+          </div>
+
+          <div style="margin-bottom: 30px;">
+            <p style="color: #ff6b6b; font-size: 12px; margin-bottom: 10px;">━━━ SPECIAL THANKS ━━━</p>
+            <p style="color: #4ecdc4;">MOOSEREF</p>
+            <p style="font-size: 9px; color: #aaa;">FOR LIVE STREAMING THE BETA & GIVING AWESOME FEEDBACK</p>
+            <br>
+            <p>ALL PLAYERS & TESTERS</p>
+            <p>OPEN SOURCE COMMUNITY</p>
+            <p>CREATIVE COMMONS ARTISTS</p>
+          </div>
+
+          <div style="margin-top: 30px;">
+            <p style="color: #95e1d3; font-size: 11px;">THANK YOU FOR PLAYING!</p>
+          </div>
+          
         </div>
         
         <div class="menu-buttons" style="margin-top: 20px;">

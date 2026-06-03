@@ -211,6 +211,11 @@ export class Player {
       damage: 0
     };
 
+    // Debuff durations
+    this.debuffs = {
+      frost: 0
+    };
+
     // Companion Orbiting Wisp variables
     this.wispAngle = 0;
     this.wispShootTimer = 0;
@@ -494,6 +499,11 @@ export class Player {
       multiplier += 0.4; // +40% speed boost sliding on ice
     }
 
+    // Frost debuff slow down
+    if (this.debuffs && this.debuffs.frost > 0) {
+      multiplier *= 0.5; // 50% slow
+    }
+
     // Check if player is standing in a frost_slow or void singularity zone
     if (this.game && this.game.areaEffects) {
       for (const ae of this.game.areaEffects) {
@@ -610,6 +620,12 @@ export class Player {
       this.game.gameOver();
     }
     this.game.updateHUD();
+  }
+
+  applyDebuff(type, duration) {
+    if (this.debuffs && type in this.debuffs) {
+      this.debuffs[type] = Math.max(this.debuffs[type], duration);
+    }
   }
 
   castSpell(slotName, angle) {
@@ -803,6 +819,14 @@ export class Player {
       if (this.buffs[key] > 0) {
         this.buffs[key] -= dt;
         if (this.buffs[key] < 0) this.buffs[key] = 0;
+      }
+    }
+
+    // Debuffs ticks down
+    for (const key in this.debuffs) {
+      if (this.debuffs[key] > 0) {
+        this.debuffs[key] -= dt;
+        if (this.debuffs[key] < 0) this.debuffs[key] = 0;
       }
     }
 

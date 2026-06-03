@@ -10,6 +10,8 @@ import { Player, RELICS_CATALOG, EQUIPMENT_CATALOG } from '../entities/Player.js
 import { Enemy } from '../entities/Enemy.js';
 import { Companion } from '../entities/Companion.js';
 import { SPELL_TYPES, SpellBook, processCombo } from './Spells.js';
+import { TwitchManager } from './TwitchManager.js';
+import { PocketBaseClient } from './PocketBaseClient.js';
 
 export class Game {
   constructor() {
@@ -24,6 +26,10 @@ export class Game {
     this.audio = new AudioManager();
     this.abilityTree = new AbilityTree(this);
     this.levelManager = new LevelManager(this);
+    
+    // PocketBase & Twitch Manager setup
+    this.pbClient = new PocketBaseClient();
+    this.twitchManager = new TwitchManager(this);
     
     // Initialize settings fields with default values
     this.enableScreenShake = true;
@@ -116,6 +122,31 @@ export class Game {
     this.initTreeListeners();
     
     this.drawHTMLIcons();
+    this.initTwitchUIListeners();
+
+    // Check for Twitch URL parameter ?channel=username
+    const urlParams = new URLSearchParams(window.location.search);
+    const channelParam = urlParams.get('channel');
+    if (channelParam) {
+      console.log(`[Twitch] Auto-connecting to channel from URL parameter: ${channelParam}`);
+      this.twitchManager.connect(channelParam);
+      this.pbClient.getStreamerBySlug(channelParam).then(res => {
+        if (res.success && res.record && res.record.settings) {
+          console.log(`[PocketBase] Loaded remote settings for streamer: ${res.record.twitch_name}`);
+          const settings = res.record.settings;
+          if (settings.commands) {
+            for (const [key, val] of Object.entries(settings.commands)) {
+              if (this.twitchManager.commands[key]) {
+                this.twitchManager.commands[key].enabled = val.enabled !== false;
+                if (val.cooldown !== undefined) this.twitchManager.commands[key].cooldown = val.cooldown;
+              }
+            }
+          }
+        }
+      }).catch(e => {
+        console.warn('[PocketBase] Failed to fetch remote settings for channel parameter:', e);
+      });
+    }
 
     // Start rendering loops
     window.addEventListener('resize', () => {
@@ -960,6 +991,158 @@ export class Game {
         this.mapPanX = mx - zoomRatio * (mx - this.mapPanX);
         this.mapPanY = my - zoomRatio * (my - this.mapPanY);
         this.drawWorldmap();
+      });
+    }
+  }
+
+  initTwitchUIListeners() {
+    const btnTwitchSetupMenu = document.getElementById('btn-twitch-setup-menu');
+    const btnCloseTwitch = document.getElementById('btn-close-twitch');
+    const btnTwitchConnect = document.getElementById('btn-twitch-connect');
+    const chkTwitchAutoconnect = document.getElementById('chk-twitch-autoconnect');
+    const inputTwitchChannel = document.getElementById('twitch-channel-input');
+    const twitchStatusLbl = document.getElementById('twitch-status-lbl');
+    
+    // PocketBase elements
+    const pbUsername = document.getElementById('pb-username');
+    const pbPassword = document.getElementById('pb-password');
+    const btnPbLogin = document.getElementById('btn-pb-login');
+    const btnPbSaveSettings = document.getElementById('btn-pb-save-settings');
+    const btnPbLogout = document.getElementById('btn-pb-logout');
+    const pbLoggedInSection = document.getElementById('pb-logged-in-section');
+    const pbLoginSection = document.getElementById('pb-login-section');
+    const pbLoggedInUsername = document.getElementById('pb-logged-in-username');
+    const pbStatusMsg = document.getElementById('pb-status-msg');
+
+    const updateTwitchUI = () => {
+      if (this.twitchManager.connected) {
+        twitchStatusLbl.innerText = `CONNECTED TO #${this.twitchManager.channel.toUpperCase()}`;
+        twitchStatusLbl.style.color = '#2ecc71';
+        twitchStatusLbl.style.textShadow = '0 0 5px rgba(46,204,113,0.5)';
+        btnTwitchConnect.innerText = "DISCONNECT";
+      } else {
+        twitchStatusLbl.innerText = "DISCONNECTED";
+        twitchStatusLbl.style.color = '#ff6b6b';
+        twitchStatusLbl.style.textShadow = '0 0 5px rgba(255,107,107,0.5)';
+        btnTwitchConnect.innerText = "CONNECT";
+      }
+
+      if (this.twitchManager.channel) {
+        inputTwitchChannel.value = this.twitchManager.channel;
+      }
+
+      // PocketBase status
+      if (this.pbClient.isAuthenticated()) {
+        pbLoginSection.classList.add('hidden');
+        pbLoggedInSection.classList.remove('hidden');
+        pbLoggedInUsername.innerText = this.pbClient.record.username || this.pbClient.record.email || 'Streamer';
+      } else {
+        pbLoginSection.classList.remove('hidden');
+        pbLoggedInSection.classList.add('hidden');
+      }
+    };
+
+    if (btnTwitchSetupMenu) {
+      btnTwitchSetupMenu.addEventListener('click', () => {
+        this.setState('TWITCH');
+        updateTwitchUI();
+      });
+    }
+
+    if (btnCloseTwitch) {
+      btnCloseTwitch.addEventListener('click', () => {
+        this.setState('SETTINGS');
+      });
+    }
+
+    if (btnTwitchConnect) {
+      btnTwitchConnect.addEventListener('click', () => {
+        if (this.twitchManager.connected) {
+          this.twitchManager.disconnect();
+          this.twitchManager.saveSettings();
+          updateTwitchUI();
+        } else {
+          const chan = inputTwitchChannel.value.trim();
+          if (chan) {
+            this.twitchManager.connect(chan);
+            setTimeout(() => {
+              this.twitchManager.saveSettings();
+              updateTwitchUI();
+            }, 500);
+          }
+        }
+      });
+    }
+
+    if (chkTwitchAutoconnect) {
+      chkTwitchAutoconnect.addEventListener('change', () => {
+        this.twitchManager.saveSettings();
+      });
+    }
+
+    // PB login button
+    if (btnPbLogin) {
+      btnPbLogin.addEventListener('click', async () => {
+        const username = pbUsername.value.trim();
+        const password = pbPassword.value;
+        if (!username || !password) {
+          pbStatusMsg.innerText = "Please fill in all credentials.";
+          return;
+        }
+        
+        pbStatusMsg.innerText = "Connecting...";
+        const res = await this.pbClient.login(username, password);
+        if (res.success) {
+          pbStatusMsg.innerText = "Logged in successfully!";
+          if (res.record.settings) {
+            const settings = res.record.settings;
+            if (settings.commands) {
+              for (const [key, val] of Object.entries(settings.commands)) {
+                if (this.twitchManager.commands[key]) {
+                  this.twitchManager.commands[key].enabled = val.enabled !== false;
+                  if (val.cooldown !== undefined) this.twitchManager.commands[key].cooldown = val.cooldown;
+                }
+              }
+            }
+            if (res.record.twitch_name) {
+              inputTwitchChannel.value = res.record.twitch_name;
+              this.twitchManager.channel = res.record.twitch_name;
+            }
+          }
+          this.twitchManager.saveSettings();
+          updateTwitchUI();
+        } else {
+          pbStatusMsg.innerText = `Error: ${res.error}`;
+        }
+      });
+    }
+
+    // PB logout button
+    if (btnPbLogout) {
+      btnPbLogout.addEventListener('click', () => {
+        this.pbClient.logout();
+        pbStatusMsg.innerText = "Logged out.";
+        updateTwitchUI();
+      });
+    }
+
+    // PB save settings button
+    if (btnPbSaveSettings) {
+      btnPbSaveSettings.addEventListener('click', async () => {
+        pbStatusMsg.innerText = "Saving settings...";
+        const commandConfig = {};
+        for (const [key, val] of Object.entries(this.twitchManager.commands)) {
+          commandConfig[key] = { enabled: val.enabled, cooldown: val.cooldown };
+        }
+        const settings = {
+          commands: commandConfig
+        };
+        const res = await this.pbClient.saveSettings(settings);
+        if (res.success) {
+          pbStatusMsg.innerText = "Settings saved to cloud!";
+        } else {
+          pbStatusMsg.innerText = `Error: ${res.error}`;
+        }
       });
     }
   }
@@ -2238,6 +2421,23 @@ export class Game {
     
     if (this.audio) this.audio.playStateChange();
     
+    if (newState === 'SHOP') {
+      if (this.twitchManager && this.twitchManager.connected) {
+        this.twitchManager.startVote(['fire', 'frost', 'void'], 15, (result) => {
+          console.log(`[Twitch Vote] Result: ${result.winner} with ${result.votes[result.winner] || 0} votes`);
+          if (result.winner) {
+            this.levelManager.nextWaveElement = result.winner;
+            this.particles.spawnText(this.player.x, this.player.y - 80, `CHAT CHOSE ${result.winner.toUpperCase()} FOR NEXT WAVE!`, {
+              color: result.winner === 'fire' ? '#ff4757' : result.winner === 'frost' ? '#10ac84' : '#a55eea',
+              fontSize: 12,
+              fontPixel: true,
+              life: 3.5
+            });
+          }
+        });
+      }
+    }
+
     if (newState === 'MENU') {
       if (this.isTutorial) {
         this.endTutorial();
@@ -2271,6 +2471,7 @@ export class Game {
       newState === 'SHOP'          ? 'panel-shop' :
       newState === 'INVENTORY'     ? 'panel-inventory' :
       newState === 'SETTINGS'      ? 'panel-settings' :
+      newState === 'TWITCH'        ? 'panel-twitch' :
       newState === 'WORLD_MAP'     ? 'panel-worldmap' :
       newState === 'LEADERBOARD'   ? 'panel-leaderboard' : ''
     );
@@ -2342,7 +2543,7 @@ export class Game {
   }
 
   showPanel(panelId) {
-    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-worldmap', 'panel-play-menu', 'panel-customize', 'panel-credits', 'panel-contact', 'panel-settings'];
+    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-worldmap', 'panel-play-menu', 'panel-customize', 'panel-credits', 'panel-contact', 'panel-settings', 'panel-twitch'];
     overlays.forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
@@ -2880,6 +3081,10 @@ export class Game {
   // ENTITY UPDATES
   // ----------------------------------------------------
   update(dt) {
+    // Update Twitch Manager
+    if (this.twitchManager) {
+      this.twitchManager.update(dt);
+    }
     // Check Chrono Shift speed dilation (Slows enemies/projectiles by 80%)
     let enemyDt = dt;
     if (this.timeDilationTimer > 0) {
@@ -3786,6 +3991,11 @@ export class Game {
         : 60;
       this.ctx.fillText(`FPS: ${avgFps}`, 10, 25);
       this.ctx.restore();
+    }
+
+    // Draw Twitch Chat & voting overlays
+    if (this.twitchManager) {
+      this.twitchManager.drawOverlay(this.ctx, this.canvas.width, this.canvas.height);
     }
   }
 

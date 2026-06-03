@@ -24,6 +24,7 @@ export class LevelManager {
     this.enemiesSpawnedThisWave = 0;
     this.spawnTimer = 0;
     this.spawnInterval = 2.0; // Spawns every 2 seconds
+    this.nextWaveElement = null;
     
     // Arena obstacles
     this.obstacles = [];
@@ -1582,6 +1583,7 @@ export class LevelManager {
     // Check wave end conditions (Time is up AND no enemies left)
     if (this.waveTimer === 0 && this.game.enemies.length === 0) {
       this.waveInProgress = false;
+      this.nextWaveElement = null; // Reset element chosen by chat for the next wave
       
       // Grant bonus Aether Shards for survival
       const shardBonus = 5 + this.wave * 2;
