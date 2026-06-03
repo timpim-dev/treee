@@ -5166,10 +5166,19 @@ export class Game {
     if (!this._hasRegisteredPlayerOAuthListener) {
       this._hasRegisteredPlayerOAuthListener = true;
       window.addEventListener('message', async (e) => {
+        console.log('[Player OAuth] Message received from origin:', e.origin, 'data:', e.data);
         if (e.origin !== this.pbClient.baseUrl) return;
         
-        const data = e.data;
-        if (data && data.code && data.state && data.provider === 'twitch') {
+        let data = e.data;
+        if (typeof data === 'string') {
+          try {
+            data = JSON.parse(data);
+          } catch (err) {
+            console.warn('[Player OAuth] Message data is not a valid JSON string:', err);
+          }
+        }
+        
+        if (data && data.code && data.state) {
           const storedState = localStorage.getItem('aetherweaver_pb_oauth_state');
           const storedVerifier = localStorage.getItem('aetherweaver_pb_oauth_verifier');
           
