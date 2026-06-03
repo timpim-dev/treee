@@ -2762,26 +2762,41 @@ export class Game {
     fetch('/api/leaderboard')
       .then((res) => res.json())
       .then((data) => {
-        const body = document.getElementById('leaderboard-body');
-        body.innerHTML = '';
-        data.forEach((entry, idx) => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td>#${idx + 1}</td>
-            <td class="text-highlight">${entry.name}</td>
-            <td class="text-glow">${entry.score}</td>
-            <td>W${entry.wave}</td>
-            <td>Lvl ${entry.level}</td>
-          `;
-          body.appendChild(row);
-        });
+        this.renderLeaderboardRows(data);
       })
       .catch((e) => {
-        console.warn("Could not fetch leaderboard data, displaying fallback local values: ", e);
-        // Fallback local display
-        const body = document.getElementById('leaderboard-body');
-        body.innerHTML = '<tr><td colspan="5" class="text-center">Backend leaderboard offline. Play local mode!</td></tr>';
+        console.warn("Could not fetch local leaderboard data, trying PocketBase...", e);
+        fetch(`${this.pbClient.baseUrl}/api/collections/dr_leaderboard/records?sort=-score&limit=10`)
+          .then((res) => {
+            if (!res.ok) throw new Error("PocketBase fetch failed");
+            return res.json();
+          })
+          .then((data) => {
+            const items = data.items || [];
+            this.renderLeaderboardRows(items);
+          })
+          .catch((pbErr) => {
+            console.warn("PocketBase leaderboard error: ", pbErr);
+            const body = document.getElementById('leaderboard-body');
+            body.innerHTML = '<tr><td colspan="5" class="text-center">Leaderboard offline. Play local mode!</td></tr>';
+          });
       });
+  }
+
+  renderLeaderboardRows(data) {
+    const body = document.getElementById('leaderboard-body');
+    body.innerHTML = '';
+    data.forEach((entry, idx) => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>#${idx + 1}</td>
+        <td class="text-highlight">${entry.name}</td>
+        <td class="text-glow">${entry.score}</td>
+        <td>W${entry.wave}</td>
+        <td>Lvl ${entry.level}</td>
+      `;
+      body.appendChild(row);
+    });
   }
 
   submitHighScore() {
@@ -2793,7 +2808,7 @@ export class Game {
     }
 
     const payload = {
-      name: name,
+      name: name.substring(0, 15),
       score: this.score,
       wave: this.levelManager.wave,
       level: this.player.level
@@ -2802,13 +2817,17 @@ export class Game {
     const statusEl = document.getElementById('submit-status');
     statusEl.innerText = "Submitting score to archives...";
     statusEl.classList.remove('hidden');
+    statusEl.style.color = '#fff';
     
     fetch('/api/leaderboard', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error("Local API failed");
+        return res.json();
+      })
       .then(() => {
         statusEl.innerText = "Highscore recorded! Legend saved.";
         document.getElementById('leaderboard-submission-box').classList.add('hidden');
@@ -2817,9 +2836,30 @@ export class Game {
         }, 1500);
       })
       .catch((err) => {
-        console.warn("API submission error: ", err);
-        statusEl.innerText = "Error submitting score. Leaderboard backend is local-only.";
-        statusEl.style.color = '#ff4757';
+        console.warn("Local API submission error, trying PocketBase...", err);
+        fetch(`${this.pbClient.baseUrl}/api/collections/dr_leaderboard/records`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error("PocketBase submit failed");
+            return res.json();
+          })
+          .then(() => {
+            statusEl.innerText = "Highscore recorded on cloud! Legend saved.";
+            document.getElementById('leaderboard-submission-box').classList.add('hidden');
+            setTimeout(() => {
+              this.setState('LEADERBOARD');
+            }, 1500);
+          })
+          .catch((pbErr) => {
+            console.warn("PocketBase submission error: ", pbErr);
+            statusEl.innerText = "Error submitting score. Leaderboards are offline.";
+            statusEl.style.color = '#ff4757';
+          });
       });
   }
 
