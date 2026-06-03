@@ -5137,21 +5137,73 @@ export class Game {
           localStorage.setItem('aetherweaver_pb_oauth_state', twitchProvider.state);
           localStorage.setItem('aetherweaver_pb_oauth_verifier', twitchProvider.codeVerifier);
           
-          // Redirect
-          const redirectUri = window.location.origin + window.location.pathname;
-          let authUrl = twitchProvider.authUrl;
-          if (authUrl.includes('redirect_uri=')) {
-            authUrl = authUrl.replace(/redirect_uri=[^&]+/, `redirect_uri=${encodeURIComponent(redirectUri)}`);
-          } else {
-            authUrl += `&redirect_uri=${encodeURIComponent(redirectUri)}`;
+          if (authStatus) {
+            authStatus.style.color = '#f1c40f';
+            authStatus.innerText = 'PLEASE AUTHORIZE IN POPUP WINDOW...';
           }
+
+          // Open popup window for authentication
+          const width = 500;
+          const height = 600;
+          const left = window.screenX + (window.outerWidth - width) / 2;
+          const top = window.screenY + (window.outerHeight - height) / 2;
+          const popup = window.open(twitchProvider.authUrl, 'oauth', `width=${width},height=${height},left=${left},top=${top}`);
           
-          window.location.href = authUrl;
+          if (!popup) {
+            throw new Error('Popup blocked! Please allow popups for this site.');
+          }
         } catch (err) {
-          console.error('[Player Auth] Twitch OAuth redirect error:', err);
+          console.error('[Player Auth] Twitch OAuth popup error:', err);
           if (authStatus) {
             authStatus.style.color = '#ff4757';
             authStatus.innerText = `ERROR: ${err.message.toUpperCase()}`;
+          }
+        }
+      });
+    }
+
+    // Message listener for popup authentication callback
+    if (!this._hasRegisteredPlayerOAuthListener) {
+      this._hasRegisteredPlayerOAuthListener = true;
+      window.addEventListener('message', async (e) => {
+        if (e.origin !== this.pbClient.baseUrl) return;
+        
+        const data = e.data;
+        if (data && data.code && data.state && data.provider === 'twitch') {
+          const storedState = localStorage.getItem('aetherweaver_pb_oauth_state');
+          const storedVerifier = localStorage.getItem('aetherweaver_pb_oauth_verifier');
+          
+          if (data.state !== storedState) {
+            console.error('[Player OAuth] State check failed (CSRF protection)');
+            return;
+          }
+          
+          localStorage.removeItem('aetherweaver_pb_oauth_state');
+          localStorage.removeItem('aetherweaver_pb_oauth_verifier');
+          
+          this.setState('PLAYER_ACCOUNT');
+          const authStatus = document.getElementById('player-auth-status');
+          if (authStatus) {
+            authStatus.style.color = '#f1c40f';
+            authStatus.innerText = 'LOGGING IN WITH TWITCH...';
+          }
+          
+          const defaultRedirectUrl = `${this.pbClient.baseUrl}/api/oauth2-redirect`;
+          const res = await this.pbClient.loginPlayerWithOAuth2('twitch', data.code, storedVerifier, defaultRedirectUrl);
+          if (res.success) {
+            if (authStatus) {
+              authStatus.style.color = '#2ecc71';
+              authStatus.innerText = 'LOGGED IN SUCCESSFULLY!';
+            }
+            await this.loadPlayerDataFromCloud();
+            setTimeout(() => {
+              this.updatePlayerAccountUI();
+            }, 1000);
+          } else {
+            if (authStatus) {
+              authStatus.style.color = '#ff4757';
+              authStatus.innerText = `ERROR: ${res.error.toUpperCase()}`;
+            }
           }
         }
       });
