@@ -3112,7 +3112,7 @@ export class Game {
     // Wave countdown timer formatting
     const waveStatusEl = document.getElementById('hud-wave-status');
     if (waveStatusEl) {
-      waveStatusEl.classList.toggle('hidden', this.isStoryMode);
+      waveStatusEl.classList.toggle('hidden', !!(this.isStoryMode || this.isTutorial));
     }
 
     document.getElementById('hud-wave-title').innerText = `WAVE ${this.levelManager.wave}`;
