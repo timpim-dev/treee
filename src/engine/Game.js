@@ -685,27 +685,45 @@ export class Game {
         document.getElementById('customize-preset-name').innerText = presets[this.customPresetIdx].name;
       });
     }
-    const btnWiki = document.getElementById('btn-wiki');
-    if (btnWiki) {
-      btnWiki.addEventListener('click', () => {
-        window.open('./wiki/', '_blank');
+    const btnCommunityHub = document.getElementById('btn-community-hub');
+    if (btnCommunityHub) {
+      btnCommunityHub.addEventListener('click', () => {
+        this.setState('COMMUNITY_HUB');
       });
     }
-    const btnStreamersMenu = document.getElementById('btn-streamers-menu');
-    if (btnStreamersMenu) {
-      btnStreamersMenu.addEventListener('click', () => {
+    const btnCommunityBack = document.getElementById('btn-community-back');
+    if (btnCommunityBack) {
+      btnCommunityBack.addEventListener('click', () => {
+        this.setState('MENU');
+      });
+    }
+    const btnCommunityLeaderboard = document.getElementById('btn-community-leaderboard');
+    if (btnCommunityLeaderboard) {
+      btnCommunityLeaderboard.addEventListener('click', () => {
+        this.setState('LEADERBOARD');
+      });
+    }
+    const btnCommunityStreamers = document.getElementById('btn-community-streamers');
+    if (btnCommunityStreamers) {
+      btnCommunityStreamers.addEventListener('click', () => {
         window.open('./streamers/', '_blank');
       });
     }
-    const btnCreditsMenu = document.getElementById('btn-credits-menu');
-    if (btnCreditsMenu) {
-      btnCreditsMenu.addEventListener('click', () => {
+    const btnCommunityWiki = document.getElementById('btn-community-wiki');
+    if (btnCommunityWiki) {
+      btnCommunityWiki.addEventListener('click', () => {
+        window.open('./wiki/', '_blank');
+      });
+    }
+    const btnCommunityCredits = document.getElementById('btn-community-credits');
+    if (btnCommunityCredits) {
+      btnCommunityCredits.addEventListener('click', () => {
         this.setState('CREDITS');
       });
     }
-    const btnContactMenu = document.getElementById('btn-contact-menu');
-    if (btnContactMenu) {
-      btnContactMenu.addEventListener('click', () => {
+    const btnCommunityContact = document.getElementById('btn-community-contact');
+    if (btnCommunityContact) {
+      btnCommunityContact.addEventListener('click', () => {
         this.setState('CONTACT');
       });
     }
@@ -773,25 +791,19 @@ export class Game {
     const btnCreditsClose = document.getElementById('btn-credits-close');
     if (btnCreditsClose) {
       btnCreditsClose.addEventListener('click', () => {
-        this.setState('MENU');
+        this.setState(this.menuPrevState || 'MENU');
       });
     }
     const btnCloseLeaderboard = document.getElementById('btn-close-leaderboard');
     if (btnCloseLeaderboard) {
       btnCloseLeaderboard.addEventListener('click', () => {
-        this.setState('MENU');
-      });
-    }
-    const btnLeaderboardMenu = document.getElementById('btn-leaderboard-menu');
-    if (btnLeaderboardMenu) {
-      btnLeaderboardMenu.addEventListener('click', () => {
-        this.setState('LEADERBOARD');
+        this.setState(this.menuPrevState || 'MENU');
       });
     }
     const btnContactClose = document.getElementById('btn-contact-close');
     if (btnContactClose) {
       btnContactClose.addEventListener('click', () => {
-        this.setState('MENU');
+        this.setState(this.menuPrevState || 'MENU');
       });
     }
     // Tutorial Finish button listener
@@ -2580,7 +2592,12 @@ export class Game {
 
   setState(newState) {
     console.log(`[State] Changing state to: ${newState}`);
+    const prevState = this.state;
     this.state = newState;
+    
+    if (newState === 'LEADERBOARD' || newState === 'CREDITS' || newState === 'CONTACT') {
+      this.menuPrevState = (prevState === 'COMMUNITY_HUB') ? 'COMMUNITY_HUB' : 'MENU';
+    }
     
     if (this.audio) this.audio.playStateChange();
     
@@ -2639,7 +2656,8 @@ export class Game {
       newState === 'LEVEL_BUILDER' ? 'panel-level-builder' :
       newState === 'STORY_CHAPTERS'? 'panel-story-chapters' :
       newState === 'PLAYER_ACCOUNT'? 'panel-player-account' :
-      newState === 'LEADERBOARD'   ? 'panel-leaderboard' : ''
+      newState === 'LEADERBOARD'   ? 'panel-leaderboard' :
+      newState === 'COMMUNITY_HUB' ? 'panel-community-hub' : ''
     );
 
     if (newState === 'INVENTORY') {
@@ -2709,7 +2727,7 @@ export class Game {
   }
 
   showPanel(panelId) {
-    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-worldmap', 'panel-play-menu', 'panel-customize', 'panel-credits', 'panel-contact', 'panel-settings', 'panel-twitch', 'panel-level-builder', 'panel-story-chapters', 'panel-player-account'];
+    const overlays = ['panel-main-menu', 'panel-ability-tree', 'panel-game-over', 'panel-leaderboard', 'panel-pause', 'panel-shop', 'panel-inventory', 'panel-worldmap', 'panel-play-menu', 'panel-customize', 'panel-credits', 'panel-contact', 'panel-settings', 'panel-twitch', 'panel-level-builder', 'panel-story-chapters', 'panel-player-account', 'panel-community-hub'];
     overlays.forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
@@ -4259,7 +4277,7 @@ export class Game {
     const bw = 240;
     const bh = 10;
     const bx = (this.canvas.width - bw) / 2;
-    const by = 48; // offset below wave timer
+    const by = 120; // offset below wave timer and top HUD row
     
     this.ctx.save();
     

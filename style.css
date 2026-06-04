@@ -459,6 +459,8 @@ body {
   box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.7);
   max-width: 500px;
   width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -470,6 +472,7 @@ body {
   max-width: 800px;
   width: 95%;
   max-height: 85vh;
+  overflow-y: auto;
 }
 
 .scrolling-content {
@@ -2744,5 +2747,61 @@ tr:hover td {
   0% { opacity: 0.6; }
   100% { opacity: 1.0; }
 }
+
+/* Responsive HUD and Menu layouts for small viewports */
+@media (max-width: 900px) {
+  .hud-layer {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+    height: auto;
+    overflow-y: visible;
+    pointer-events: none;
+  }
+  .hud-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+    justify-content: center !important;
+  }
+  #hud-player-stats {
+    order: 1;
+  }
+  #hud-wave-status {
+    order: 2;
+    width: 100% !important;
+  }
+  #hud-resources {
+    order: 3;
+    width: 100% !important;
+    justify-content: center !important;
+  }
+  #hud-inventory {
+    order: 4;
+    width: 100% !important;
+  }
+  #hud-spell-hotbar {
+    order: 5;
+    width: 100% !important;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  #hud-minimap-container {
+    display: none !important; /* Hide minimap on small screens */
+  }
+}
+
+@media (max-width: 600px) {
+  .menu-content {
+    padding: 20px 25px !important;
+  }
+  .glitch-title {
+    font-size: 18px !important;
+  }
+}
+
 
 

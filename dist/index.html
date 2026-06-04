@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/main-aQ90Pv4X.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/main-D_DSWcHo.css">
+  <script type="module" crossorigin src="/assets/main-87dwFe0T.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/main-CaHna30S.css">
 </head>
 <body>
   <!-- Main Game Canvas Container -->
@@ -169,11 +169,7 @@
             <button id="btn-play-menu" class="btn-menu">PLAY</button>
             <button id="btn-player-account-menu" class="btn-menu" style="background: linear-gradient(135deg, #0e1d3e, #1c356f); border-color: #3b74e6; text-shadow: 0 0 5px rgba(59, 116, 230, 0.5);">PLAYER ACCOUNT</button>
             <button id="btn-customize-menu" class="btn-menu">CHARACTER CUSTOMIZATION</button>
-            <button id="btn-wiki" class="btn-menu">WIKI</button>
-            <button id="btn-leaderboard-menu" class="btn-menu">LEADERBOARD</button>
-            <button id="btn-streamers-menu" class="btn-menu" style="background: linear-gradient(135deg, #2b1154, #6441a5); border-color: #9146FF; text-shadow: 0 0 5px rgba(145, 70, 255, 0.5); color: #fff;">STREAMERS & USERS</button>
-            <button id="btn-credits-menu" class="btn-menu">CREDITS</button>
-            <button id="btn-contact-menu" class="btn-menu">CONTACT</button>
+            <button id="btn-community-hub" class="btn-menu" style="background: linear-gradient(135deg, #2b1154, #6441a5); border-color: #9146FF; text-shadow: 0 0 5px rgba(145, 70, 255, 0.5); color: #fff;">COMMUNITY HUB</button>
             <button id="btn-settings-menu" class="btn-menu">SETTINGS</button>
           </div>
         </div>
@@ -935,6 +931,23 @@
       </div>
     </div>
 
+    <!-- 12. COMMUNITY HUB PANEL -->
+    <div id="panel-community-hub" class="panel-overlay hidden">
+      <div class="menu-content text-center" style="max-width: 450px;">
+        <h1 class="glitch-title" data-text="COMMUNITY HUB">COMMUNITY HUB</h1>
+        <p class="menu-decor"></p>
+        
+        <div class="menu-buttons">
+          <button id="btn-community-leaderboard" class="btn-menu">🏆 GLOBAL LEADERBOARD</button>
+          <button id="btn-community-streamers" class="btn-menu" style="background: linear-gradient(135deg, #2b1154, #6441a5); border-color: #9146FF; text-shadow: 0 0 5px rgba(145, 70, 255, 0.5); color: #fff;">🎬 STREAMERS &amp; USERS</button>
+          <button id="btn-community-wiki" class="btn-menu">📚 WIKI &amp; ARCHIVES</button>
+          <button id="btn-community-credits" class="btn-menu">❤️ CREDITS</button>
+          <button id="btn-community-contact" class="btn-menu">✉️ CONTACT &amp; BUGS</button>
+          <button id="btn-community-back" class="btn-menu secondary" style="margin-top: 15px;">BACK</button>
+        </div>
+      </div>
+    </div>
+
     <!-- PLAYER ACCOUNT / CLOUD SYNC PANEL -->
     <div id="panel-player-account" class="panel-overlay hidden">
       <div class="menu-content text-center" style="max-width: 450px;">
@@ -1015,6 +1028,17 @@
       <span id="hud-bottom-xp-text">XP: 0 / 50</span>
     </div>
 
+  </div>
+
+  <!-- Mobile device unsupported warning overlay -->
+  <div id="mobile-warning-overlay" class="panel-overlay hidden" style="z-index: 9999; background: #070913; text-align: center; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;">
+    <div class="menu-content" style="max-width: 420px; border-color: #ff4757; box-shadow: 8px 8px 0 rgba(255, 71, 87, 0.2);">
+      <h2 style="color: #ff4757; font-size: 12px; margin-bottom: 15px; font-family: var(--font-pixel); line-height: 1.4;">⚠️ MOBILE SYSTEM DETECTED</h2>
+      <p style="font-family: var(--font-pixel); font-size: 8px; line-height: 1.8; color: #fff; margin-bottom: 25px; text-align: center;">
+        AETHERWEAVER IS NOT SUPPORTED ON MOBILE SCREENS. CONTROLS REQUIRE A PHYSICAL KEYBOARD AND MOUSE.
+      </p>
+      <button id="btn-mobile-bypass" class="btn-menu danger" style="font-size: 8px; width: 100%;">PROCEED ANYWAY</button>
+    </div>
   </div>
 
   <!-- Entry Script -->
