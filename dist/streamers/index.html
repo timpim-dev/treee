@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aetherweaver Directory: Streamers & Players</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --color-bg: #06070d;
+      --color-panel: rgba(13, 15, 30, 0.7);
+      --color-border: rgba(145, 70, 255, 0.25);
+      --color-border-glow: rgba(145, 70, 255, 0.5);
+      --color-primary: #9146FF;
+      --color-primary-hover: #a970ff;
+      --color-accent: #2ecc71;
+      --color-text: #dfe7ff;
+      --color-text-muted: #889ecb;
+      --font-pixel: 'Press Start 2P', monospace;
+      --font-outfit: 'Outfit', sans-serif;
+      --font-orbitron: 'Orbitron', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--color-bg);
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(90, 40, 180, 0.1) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(40, 90, 180, 0.08) 0%, transparent 40%);
+      color: var(--color-text);
+      font-family: var(--font-outfit);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090a10;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--color-primary);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--color-primary-hover);
+    }
+
+    /* Container */
+    .container {
+      width: 100%;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      flex: 1;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+      position: relative;
+    }
+
+    .nav-links {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+
+    .btn-nav {
+      font-family: var(--font-pixel);
+      font-size: 8px;
+      color: var(--color-text-muted);
+      text-decoration: none;
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-nav:hover {
+      color: var(--color-primary-hover);
+      border-color: var(--color-border);
+      background: rgba(145, 70, 255, 0.05);
+      box-shadow: 0 0 10px rgba(145, 70, 255, 0.15);
+    }
+
+    h1 {
+      font-family: var(--font-pixel);
+      font-size: 24px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: #fff;
+      text-shadow: 0 0 15px rgba(145, 70, 255, 0.6);
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--color-text-muted);
+      letter-spacing: 1px;
+      font-family: var(--font-orbitron);
+    }
+
+    /* Tabs & Controls Layout */
+    .controls-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 4px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .tab-btn {
+      font-family: var(--font-pixel);
+      font-size: 8px;
+      background: transparent;
+      border: none;
+      color: var(--color-text-muted);
+      padding: 10px 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn.active {
+      background: var(--color-primary);
+      color: #fff;
+      box-shadow: 0 0 10px rgba(145, 70, 255, 0.4);
+    }
+
+    .search-box {
+      position: relative;
+      flex: 1;
+      max-width: 320px;
+      min-width: 200px;
+    }
+
+    .search-input {
+      width: 100%;
+      background: rgba(10, 11, 20, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 10px 16px;
+      padding-left: 36px;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 13px;
+      font-family: var(--font-outfit);
+      transition: all 0.2s ease;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--color-primary);
+      box-shadow: 0 0 8px rgba(145, 70, 255, 0.25);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      fill: var(--color-text-muted);
+      pointer-events: none;
+    }
+
+    /* Content Area */
+    .content-panel {
+      background: var(--color-panel);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* Loading Spinner */
+    .loader-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 50px 0;
+    }
+
+    .spinner {
+      border: 4px solid rgba(145, 70, 255, 0.1);
+      border-top: 4px solid var(--color-primary);
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 15px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .loader-text {
+      font-family: var(--font-pixel);
+      font-size: 8px;
+      color: var(--color-text-muted);
+    }
+
+    /* Error Message */
+    .error-box {
+      border: 1px solid #ff4757;
+      background: rgba(255, 71, 87, 0.05);
+      color: #ff4757;
+      padding: 16px;
+      border-radius: 8px;
+      font-family: var(--font-pixel);
+      font-size: 8px;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    /* Empty Message */
+    .empty-box {
+      text-align: center;
+      padding: 40px 0;
+      color: var(--color-text-muted);
+      font-size: 14px;
+      font-family: var(--font-orbitron);
+    }
+
+    /* Streamer Grid & Cards */
+    .streamers-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .streamer-card {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .streamer-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: var(--color-primary);
+      opacity: 0.7;
+    }
+
+    .streamer-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--color-border-glow);
+      box-shadow: 0 8px 24px rgba(145, 70, 255, 0.15);
+    }
+
+    .streamer-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 15px;
+    }
+
+    .streamer-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 2px solid var(--color-primary);
+      background: #111;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: var(--color-primary-hover);
+      font-size: 16px;
+      font-family: var(--font-orbitron);
+    }
+
+    .streamer-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .streamer-name {
+      font-family: var(--font-orbitron);
+      font-weight: 700;
+      font-size: 16px;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .streamer-slug {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      margin-top: 2px;
+      font-family: monospace;
+    }
+
+    .streamer-badge {
+      font-family: var(--font-pixel);
+      font-size: 6px;
+      padding: 4px 6px;
+      background: rgba(145, 70, 255, 0.15);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      color: #d8b4fe;
+      display: inline-block;
+      margin-bottom: 12px;
+      align-self: flex-start;
+    }
+
+    .streamer-actions {
+      margin-top: auto;
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-card {
+      flex: 1;
+      text-align: center;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-family: var(--font-pixel);
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-play {
+      background: linear-gradient(135deg, var(--color-primary), #6441a5);
+      border: 1px solid var(--color-primary-hover);
+      color: #fff;
+      box-shadow: 0 4px 10px rgba(145, 70, 255, 0.2);
+    }
+
+    .btn-play:hover {
+      background: linear-gradient(135deg, var(--color-primary-hover), #7d5fff);
+      box-shadow: 0 4px 15px rgba(145, 70, 255, 0.4);
+    }
+
+    .btn-watch {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--color-text);
+    }
+
+    .btn-watch:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Player Leaderboard Table */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    th {
+      font-family: var(--font-pixel);
+      font-size: 8px;
+      color: var(--color-primary-hover);
+      padding: 15px;
+      border-bottom: 2px solid var(--color-border);
+      letter-spacing: 1px;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 15px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 13px;
+      font-family: var(--font-orbitron);
+    }
+
+    tr:hover td {
+      background: rgba(145, 70, 255, 0.03);
+      color: #fff;
+    }
+
+    .rank-cell {
+      font-family: var(--font-pixel);
+      font-size: 9px;
+      color: var(--color-text-muted);
+      width: 60px;
+    }
+
+    .rank-cell.top-1 { color: #f1c40f; text-shadow: 0 0 8px rgba(241, 196, 15, 0.5); }
+    .rank-cell.top-2 { color: #bdc3c7; text-shadow: 0 0 8px rgba(189, 195, 199, 0.5); }
+    .rank-cell.top-3 { color: #e67e22; text-shadow: 0 0 8px rgba(230, 126, 34, 0.5); }
+
+    .player-name-cell {
+      font-family: var(--font-orbitron);
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .player-badge {
+      font-family: var(--font-pixel);
+      font-size: 5px;
+      padding: 2px 4px;
+      border-radius: 3px;
+      background: rgba(46, 204, 113, 0.15);
+      border: 1px solid var(--color-accent);
+      color: #8afbaf;
+    }
+
+    .num-cell {
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .score-cell {
+      color: #eccc68;
+      text-shadow: 0 0 8px rgba(236, 204, 104, 0.3);
+      font-weight: 800;
+    }
+
+    .date-cell {
+      color: var(--color-text-muted);
+      font-size: 11px;
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 40px 0;
+      font-family: var(--font-pixel);
+      font-size: 6px;
+      color: var(--color-text-muted);
+      letter-spacing: 1px;
+    }
+
+    footer a {
+      color: var(--color-primary-hover);
+      text-decoration: none;
+      margin-left: 5px;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    
+    <!-- Nav bar -->
+    <div class="nav-links">
+      <a href="../" class="btn-nav">🡄 BACK TO GAME</a>
+      <a href="../wiki/" class="btn-nav">WIKI & ARCHIVES</a>
+    </div>
+
+    <!-- Header -->
+    <header>
+      <h1>Aetherweaver Directory</h1>
+      <div class="subtitle">REGISTERED TWITCH STREAMERS & GLOBAL PLAYER CLOUD DATA</div>
+    </header>
+
+    <!-- Controls -->
+    <div class="controls-row">
+      <div class="tabs">
+        <button id="tab-streamers" class="tab-btn active" onclick="switchTab('streamers')">STREAMERS</button>
+        <button id="tab-players" class="tab-btn" onclick="switchTab('players')">PLAYERS</button>
+      </div>
+      <div class="search-box">
+        <svg class="search-icon" viewBox="0 0 24 24">
+          <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+        </svg>
+        <input type="text" id="search-input" class="search-input" placeholder="Search streamers..." oninput="handleSearch()">
+      </div>
+    </div>
+
+    <!-- Main Content Panel -->
+    <div class="content-panel">
+      
+      <!-- Loader -->
+      <div id="loader" class="loader-box">
+        <div class="spinner"></div>
+        <div class="loader-text">READING POCKETBASE DATA...</div>
+      </div>
+
+      <!-- Error -->
+      <div id="error-message" class="error-box hidden">
+        FAILED TO CONNECT TO LEADERBOARD DATABASE.<br>PLEASE REFRESH OR CONTACT THE WIZARD.
+      </div>
+
+      <!-- Streamers List -->
+      <div id="panel-streamers-content" class="hidden">
+        <div id="streamers-list" class="streamers-grid">
+          <!-- Populated via Javascript -->
+        </div>
+      </div>
+
+      <!-- Players List -->
+      <div id="panel-players-content" class="hidden">
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 8%">Rank</th>
+                <th style="width: 32%">Runeweaver</th>
+                <th style="width: 20%">High Score</th>
+                <th style="width: 15%">Level</th>
+                <th style="width: 10%">Wave</th>
+                <th style="width: 15%">Last Sync</th>
+              </tr>
+            </thead>
+            <tbody id="players-table-body">
+              <!-- Populated via Javascript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Empty Result -->
+      <div id="empty-message" class="empty-box hidden">
+        NO RECORDS FOUND MATCHING YOUR FILTER.
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    AETHERWEAVER RUNIC DIRECTORY — POWERED BY <a href="https://pocketbase.io" target="_blank">POCKETBASE</a>
+  </footer>
+
+  <script>
+    const POCKETBASE_URL = 'https://pocketbase.felixx.dev';
+    
+    let currentTab = 'streamers';
+    let allStreamers = [];
+    let allPlayers = [];
+
+    // Fetch data when DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchData();
+    });
+
+    async function fetchData() {
+      showLoader(true);
+      showError(null);
+      
+      try {
+        // Fetch both concurrently
+        const [streamersRes, playersRes] = await Promise.all([
+          fetch(`${POCKETBASE_URL}/api/collections/ag_streamers/records?sort=-created&limit=100`).then(r => r.ok ? r.json() : null),
+          fetch(`${POCKETBASE_URL}/api/collections/ag_users/records?sort=-high_score&limit=100`).then(r => r.ok ? r.json() : null)
+        ]);
+
+        if (streamersRes) {
+          allStreamers = streamersRes.items || [];
+        } else {
+          console.warn('ag_streamers endpoint returned error, using fallback');
+        }
+
+        if (playersRes) {
+          allPlayers = playersRes.items || [];
+        } else {
+          console.warn('ag_users endpoint returned error, using fallback');
+        }
+
+        renderStreamers(allStreamers);
+        renderPlayers(allPlayers);
+
+        showLoader(false);
+        switchTab('streamers'); // Show default
+      } catch (err) {
+        console.error('Failed to load database content:', err);
+        showLoader(false);
+        showError(err.message);
+      }
+    }
+
+    function renderStreamers(items) {
+      const container = document.getElementById('streamers-list');
+      container.innerHTML = '';
+
+      if (items.length === 0) {
+        container.innerHTML = '<div style="grid-column: span 3; text-align: center; color: var(--color-text-muted); font-size: 13px; padding: 20px 0;">No registered streamers yet. Be the first!</div>';
+        return;
+      }
+
+      items.forEach(streamer => {
+        const char = streamer.twitch_name.substring(0, 2).toUpperCase();
+        const card = document.createElement('div');
+        card.className = 'streamer-card';
+        card.setAttribute('data-name', streamer.twitch_name.toLowerCase());
+        card.setAttribute('data-slug', streamer.slug.toLowerCase());
+
+        card.innerHTML = `
+          <div class="streamer-badge">TWITCH HOST</div>
+          <div class="streamer-header">
+            <div class="streamer-avatar">${char}</div>
+            <div class="streamer-info">
+              <div class="streamer-name">${escapeHTML(streamer.twitch_name)}</div>
+              <div class="streamer-slug">Slug: ${escapeHTML(streamer.slug)}</div>
+            </div>
+          </div>
+          <div class="streamer-actions">
+            <a href="../?channel=${encodeURIComponent(streamer.slug)}" class="btn-card btn-play">🕹️ PLAY</a>
+            <a href="https://twitch.tv/${encodeURIComponent(streamer.twitch_name)}" target="_blank" class="btn-card btn-watch">📺 WATCH</a>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function renderPlayers(items) {
+      const tbody = document.getElementById('players-table-body');
+      tbody.innerHTML = '';
+
+      if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--color-text-muted); padding: 30px;">No registered players found.</td></tr>';
+        return;
+      }
+
+      items.forEach((player, idx) => {
+        const name = player.nickname || player.username || 'Runeweaver';
+        const rank = idx + 1;
+        
+        let rankClass = '';
+        if (rank === 1) rankClass = 'top-1';
+        else if (rank === 2) rankClass = 'top-2';
+        else if (rank === 3) rankClass = 'top-3';
+
+        const lastSyncDate = player.updated ? new Date(player.updated).toLocaleDateString() : 'N/A';
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-name', name.toLowerCase());
+
+        tr.innerHTML = `
+          <td class="rank-cell ${rankClass}">#${rank}</td>
+          <td>
+            <div class="player-name-cell">
+              ${escapeHTML(name)}
+              ${player.high_score > 1000 ? '<span class="player-badge">ARCHMAGE</span>' : ''}
+            </div>
+          </td>
+          <td class="score-cell">${(player.high_score || 0).toLocaleString()}</td>
+          <td class="num-cell">${player.level || 1}</td>
+          <td class="num-cell">${player.wave || 1}</td>
+          <td class="date-cell">${lastSyncDate}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      
+      // Update Buttons
+      document.getElementById('tab-streamers').classList.toggle('active', tab === 'streamers');
+      document.getElementById('tab-players').classList.toggle('active', tab === 'players');
+
+      // Update Content Panels
+      document.getElementById('panel-streamers-content').classList.toggle('hidden', tab !== 'streamers');
+      document.getElementById('panel-players-content').classList.toggle('hidden', tab !== 'players');
+
+      // Update Search Placeholder
+      const searchInput = document.getElementById('search-input');
+      searchInput.placeholder = tab === 'streamers' ? 'Search streamers...' : 'Search players...';
+      searchInput.value = ''; // Reset search on switch
+      
+      handleSearch();
+    }
+
+    function handleSearch() {
+      const query = document.getElementById('search-input').value.toLowerCase().trim();
+      let hasVisible = false;
+
+      if (currentTab === 'streamers') {
+        const cards = document.querySelectorAll('.streamer-card');
+        cards.forEach(card => {
+          const name = card.getAttribute('data-name');
+          const slug = card.getAttribute('data-slug');
+          const match = name.includes(query) || slug.includes(query);
+          card.classList.toggle('hidden', !match);
+          if (match) hasVisible = true;
+        });
+      } else {
+        const rows = document.querySelectorAll('#players-table-body tr');
+        rows.forEach(row => {
+          const name = row.getAttribute('data-name');
+          const match = name.includes(query);
+          row.classList.toggle('hidden', !match);
+          if (match) hasVisible = true;
+        });
+      }
+
+      // Show empty message if nothing matches
+      document.getElementById('empty-message').classList.toggle('hidden', hasVisible || query === '');
+    }
+
+    function showLoader(visible) {
+      document.getElementById('loader').classList.toggle('hidden', !visible);
+    }
+
+    function showError(msg) {
+      const errBox = document.getElementById('error-message');
+      if (msg) {
+        errBox.innerText = `DATABASE ERROR: ${msg.toUpperCase()}`;
+        errBox.classList.remove('hidden');
+        document.getElementById('panel-streamers-content').classList.add('hidden');
+        document.getElementById('panel-players-content').classList.add('hidden');
+      } else {
+        errBox.classList.add('hidden');
+      }
+    }
+
+    function escapeHTML(str) {
+      if (!str) return '';
+      return str.replace(/[&<>'"]/g, 
+        tag => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          "'": '&#39;',
+          '"': '&quot;'
+        }[tag] || tag)
+      );
+    }
+  </script>
+</body>
+</html>

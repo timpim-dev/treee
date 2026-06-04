@@ -691,6 +691,12 @@ export class Game {
         window.open('./wiki/', '_blank');
       });
     }
+    const btnStreamersMenu = document.getElementById('btn-streamers-menu');
+    if (btnStreamersMenu) {
+      btnStreamersMenu.addEventListener('click', () => {
+        window.open('./streamers/', '_blank');
+      });
+    }
     const btnCreditsMenu = document.getElementById('btn-credits-menu');
     if (btnCreditsMenu) {
       btnCreditsMenu.addEventListener('click', () => {
@@ -5164,24 +5170,19 @@ export class Game {
             authStatus.innerText = 'PLEASE AUTHORIZE IN POPUP WINDOW...';
           }
 
-          // Ensure redirect_uri is populated (fallback if PocketBase returns empty redirect_uri)
+          // Ensure redirect_uri points back to our own frontend (Single Page Application flow)
           let authUrl = twitchProvider.authUrl;
-          const defaultRedirectUrl = `${this.pbClient.baseUrl}/api/oauth2-redirect`;
+          const redirectUri = window.location.origin + window.location.pathname;
           try {
             const urlObj = new URL(authUrl);
-            if (!urlObj.searchParams.get('redirect_uri')) {
-              urlObj.searchParams.set('redirect_uri', defaultRedirectUrl);
-              authUrl = urlObj.toString();
-            }
+            urlObj.searchParams.set('redirect_uri', redirectUri);
+            authUrl = urlObj.toString();
           } catch (e) {
             console.warn('[Player Auth] Failed to parse authUrl, fallback string replacement:', e);
             if (authUrl.includes('redirect_uri=')) {
-              const parts = authUrl.split('redirect_uri=');
-              if (!parts[1] || parts[1] === '') {
-                authUrl = parts[0] + 'redirect_uri=' + encodeURIComponent(defaultRedirectUrl);
-              }
+              authUrl = authUrl.replace(/redirect_uri=[^&]*/, 'redirect_uri=' + encodeURIComponent(redirectUri));
             } else {
-              authUrl += (authUrl.includes('?') ? '&' : '?') + 'redirect_uri=' + encodeURIComponent(defaultRedirectUrl);
+              authUrl += (authUrl.includes('?') ? '&' : '?') + 'redirect_uri=' + encodeURIComponent(redirectUri);
             }
           }
 
@@ -5209,8 +5210,10 @@ export class Game {
     if (!this._hasRegisteredPlayerOAuthListener) {
       this._hasRegisteredPlayerOAuthListener = true;
       window.addEventListener('message', async (e) => {
-        if (e.origin !== this.pbClient.baseUrl) return;
-        console.log('[Player OAuth] Message received from PocketBase origin:', e.origin, 'data:', e.data);
+        console.log('[Player OAuth] message listener received origin:', e.origin, 'data:', e.data);
+        // Accept messages from the PocketBase backend OR our own frontend origin (for SPA redirects)
+        if (e.origin !== this.pbClient.baseUrl && e.origin !== window.location.origin) return;
+        console.log('[Player OAuth] Message received from valid origin:', e.origin, 'data:', e.data);
         
         let data = e.data;
         if (typeof data === 'string') {
@@ -5240,8 +5243,8 @@ export class Game {
             authStatus.innerText = 'LOGGING IN WITH TWITCH...';
           }
           
-          const defaultRedirectUrl = `${this.pbClient.baseUrl}/api/oauth2-redirect`;
-          const res = await this.pbClient.loginPlayerWithOAuth2('twitch', data.code, storedVerifier, defaultRedirectUrl);
+          const exchangeRedirectUrl = data.redirectUrl || `${this.pbClient.baseUrl}/api/oauth2-redirect`;
+          const res = await this.pbClient.loginPlayerWithOAuth2('twitch', data.code, storedVerifier, exchangeRedirectUrl);
           if (res.success) {
             if (authStatus) {
               authStatus.style.color = '#2ecc71';
