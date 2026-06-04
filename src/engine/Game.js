@@ -40,6 +40,7 @@ export class Game {
     this.showFloorGrid = true;
     this.lowParticleMode = false;
     this.showSpellTrails = true;
+    this.isStoryMode = false;
     this.isLocalDev = ['localhost', '127.0.0.1'].includes(window.location.hostname);
     this.devtoolsVisible = false;
     this.customPresetIdx = 0;
@@ -733,6 +734,7 @@ export class Game {
     if (btnStartWeaver) {
       btnStartWeaver.addEventListener('click', () => {
         this.isTutorial = false;
+        this.isStoryMode = false;
         document.getElementById('tutorial-guide').classList.add('hidden');
         this.startNewGame();
       });
@@ -4609,6 +4611,7 @@ export class Game {
 
   startTutorial() {
     this.isTutorial = true;
+    this.isStoryMode = false;
     this.tutorialStep = 1;
     this.tutorialMovedDistance = 0;
     this.tutorialDummy = null;

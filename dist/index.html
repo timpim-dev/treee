@@ -2,6 +2,45 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function() {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      const state = params.get('state');
+      if (window.opener && code && state) {
+        // Post credentials back to opener window
+        window.opener.postMessage({
+          code: code,
+          state: state,
+          redirectUrl: window.location.origin + window.location.pathname
+        }, window.location.origin);
+        
+        // Render simple loading UI
+        document.documentElement.innerHTML = `
+          <head>
+            <title>Authorizing...</title>
+            <script type="module" crossorigin src="/assets/main-B5VeNhQA.js"></script>
+            <link rel="stylesheet" crossorigin href="/assets/main-CaHna30S.css">
+          </head>
+          <body style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #0c0d14; color: #dfe7ff; font-family: sans-serif; text-align: center; padding: 20px; box-sizing: border-box; margin: 0;">
+            <div style="border: 4px solid #9146FF; border-top: 4px solid transparent; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px;"></div>
+            <h2 style="color: #9146FF; font-family: monospace; font-size: 16px; margin: 0 0 10px; letter-spacing: 2px;">AUTHORIZING</h2>
+            <p style="color: #888; font-size: 12px; margin: 0;">Connecting Aetherweaver to your account. Please wait...</p>
+            <style>
+              @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+            </style>
+          </body>
+        `;
+        
+        setTimeout(() => {
+          window.close();
+        }, 500);
+        
+        // Stop any further script parsing/execution in this popup
+        window.stop();
+      }
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Aetherweaver: Rune Odyssey</title>
   <meta name="description" content="A dynamic pixel-art roguelite action game with a massive ability tree, active spell synergies, and elemental reaction systems.">
@@ -9,8 +48,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/main-Bv_4nEYH.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/main-CaHna30S.css">
 </head>
 <body>
   <!-- Main Game Canvas Container -->
@@ -160,7 +197,7 @@
           <div class="player-preview-box">
             <canvas id="main-menu-player-canvas" width="128" height="128"></canvas>
           </div>
-          <div class="menu-version-indicator" id="menu-version">v0.5.3Beta</div>
+          <div class="menu-version-indicator" id="menu-version">v0.5.4Beta</div>
         </div>
         
         <!-- Right Column: Navigation Buttons -->
