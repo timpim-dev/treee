@@ -2544,7 +2544,7 @@ export class Game {
     
     this.setState('PLAYING');
     if (this.twitchManager && this.twitchManager.connected) {
-      this.twitchManager.sendMessage(`🎮 [Aetherweaver] A new run has started! Wave 1 is active! Help or hinder the streamer in chat using commands: !heal, !spawn, !curse, !buff, !meteor, !gg`);
+      this.twitchManager.sendMessage(`[Aetherweaver] A new run has started! Wave 1 is active! Help or hinder the streamer in chat using commands: !heal, !spawn, !curse, !buff, !meteor, !gg`);
     }
   }
 
@@ -2566,7 +2566,7 @@ export class Game {
     this.player.saveGameState();
 
     if (this.twitchManager && this.twitchManager.connected) {
-      this.twitchManager.sendMessage(`💀 [Aetherweaver] Run ended! Streamer was defeated on Wave ${this.levelManager.wave} with a final score of ${this.score}. Type !gg to console the wizard!`);
+      this.twitchManager.sendMessage(`[Aetherweaver] Run ended! Streamer was defeated on Wave ${this.levelManager.wave} with a final score of ${this.score}. Type !gg to console the wizard!`);
     }
 
     // Reset submission panel

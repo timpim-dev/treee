@@ -246,7 +246,7 @@ export class TwitchManager {
     this.voteTimer = durationSeconds;
     this.voteCallback = callback;
     this.addFeedMessage('SYSTEM', 'vote', `VOTE STARTED! Type !vote ${options.join('/')}`, '#7d5fff');
-    this.sendMessage(`🗳️ [Aetherweaver] VOTE STARTED! Options: ${options.map(o => o.toUpperCase()).join(', ')}. Type "!vote <option>" in chat to participate! Time limit: ${durationSeconds} seconds.`);
+    this.sendMessage(`[Aetherweaver] VOTE STARTED! Options: ${options.map(o => o.toUpperCase()).join(', ')}. Type "!vote <option>" in chat to participate! Time limit: ${durationSeconds} seconds.`);
   }
 
   /**
@@ -267,7 +267,7 @@ export class TwitchManager {
 
     const result = { winner, votes: { ...this.votes }, totalVoters: this.voterSet.size };
     this.addFeedMessage('SYSTEM', 'vote', `${winner ? winner.toUpperCase() + ' wins!' : 'No votes'} (${result.totalVoters} voters)`, '#7d5fff');
-    this.sendMessage(`🏆 [Aetherweaver] Vote finished! Option "${winner ? winner.toUpperCase() : 'NONE'}" won with ${maxVotes} votes (${result.totalVoters} total voters).`);
+    this.sendMessage(`[Aetherweaver] Vote finished! Option "${winner ? winner.toUpperCase() : 'NONE'}" won with ${maxVotes} votes (${result.totalVoters} total voters).`);
 
     if (this.voteCallback) {
       this.voteCallback(result);
@@ -386,7 +386,7 @@ export class TwitchManager {
             size: 3 + Math.random() * 4,
           });
         }
-        game.particles.spawnText(mx, my - 20, `☄ ${cmd.username}'s METEOR!`, {
+        game.particles.spawnText(mx, my - 20, `* ${cmd.username}'s METEOR!`, {
           color: '#f39c12', fontSize: 14, fontPixel: true
         });
         if (game.audio) game.audio.playExplosion();
