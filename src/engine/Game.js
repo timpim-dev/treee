@@ -1187,7 +1187,7 @@ export class Game {
     const btnTwitchLoginOauth = document.getElementById('btn-twitch-login-oauth');
     if (btnTwitchLoginOauth) {
       btnTwitchLoginOauth.addEventListener('click', () => {
-        const clientID = 'fyb4qowkadr2y7xkofitv73ygnawt5'; // standard Twitch client id
+        const clientID = '1zu1g6sz69tae512pzy7dp57uowmvk'; // public Twitch client id
         const redirectUri = encodeURIComponent(window.location.origin + window.location.pathname);
         const twitchAuthUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientID}&redirect_uri=${redirectUri}&response_type=token&scope=chat:read+chat:edit`;
         window.location.href = twitchAuthUrl;
