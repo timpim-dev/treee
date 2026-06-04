@@ -125,6 +125,7 @@ export class Game {
     
     this.drawHTMLIcons();
     this.initTwitchUIListeners();
+    this.updateTwitchStatus();
 
     // Check for Twitch URL parameter ?channel=username
     const urlParams = new URLSearchParams(window.location.search);
@@ -136,14 +137,25 @@ export class Game {
         if (res.success && res.record && res.record.settings) {
           console.log(`[PocketBase] Loaded remote settings for streamer: ${res.record.twitch_name}`);
           const settings = res.record.settings;
+          
+          if (settings.chatFontSize !== undefined) this.twitchManager.chatFontSize = settings.chatFontSize;
+          if (settings.voteDuration !== undefined) this.twitchManager.voteDuration = settings.voteDuration;
+          if (settings.msgWaveStart !== undefined) this.twitchManager.msgWaveStart = settings.msgWaveStart;
+          if (settings.msgVoteStart !== undefined) this.twitchManager.msgVoteStart = settings.msgVoteStart;
+          if (settings.msgVoteEnd !== undefined) this.twitchManager.msgVoteEnd = settings.msgVoteEnd;
+          
           if (settings.commands) {
             for (const [key, val] of Object.entries(settings.commands)) {
               if (this.twitchManager.commands[key]) {
                 this.twitchManager.commands[key].enabled = val.enabled !== false;
                 if (val.cooldown !== undefined) this.twitchManager.commands[key].cooldown = val.cooldown;
+                if (val.bits !== undefined) this.twitchManager.commands[key].bits = val.bits;
+                if (val.points !== undefined) this.twitchManager.commands[key].points = val.points;
               }
             }
           }
+          this.twitchManager.saveSettings();
+          this.updateTwitchStatus();
         }
       }).catch(e => {
         console.warn('[PocketBase] Failed to fetch remote settings for channel parameter:', e);
@@ -857,7 +869,7 @@ export class Game {
           }
         );
         if (this.twitchManager && this.twitchManager.connected) {
-          this.twitchManager.sendMessage(`🔮 [Aetherweaver] Streamer has achieved Rebirth ${this.player.rebirthCount}! Aether reborn! Permanent bonuses unlocked!`);
+          this.twitchManager.sendMessage(`[Aetherweaver] Streamer has achieved Rebirth ${this.player.rebirthCount}! Aether reborn! Permanent bonuses unlocked!`);
         }
       }
     });
@@ -961,11 +973,15 @@ export class Game {
     });
 
     document.getElementById('btn-start-next-wave').addEventListener('click', () => {
-      this.levelManager.wave++;
-      this.levelManager.startNextWave();
-      this.setState('PLAYING');
-      if (this.twitchManager && this.twitchManager.connected) {
-        this.twitchManager.sendMessage(`🎮 [Aetherweaver] Wave ${this.levelManager.wave} has started! Spawn monsters with !spawn, curse the wizard with !curse, or trigger a !meteor!`);
+      if (this.twitchManager && this.twitchManager.connected && this.twitchManager.voteActive) {
+        this.waitingForVoteToStartNextWave = true;
+        const waitingMsg = document.getElementById('twitch-vote-waiting-msg');
+        if (waitingMsg) {
+          waitingMsg.style.display = 'block';
+          waitingMsg.innerText = `Waiting for Twitch vote to finish... (${Math.ceil(this.twitchManager.voteTimer)}s remaining)`;
+        }
+      } else {
+        this.startNextWaveFromShop();
       }
     });
 
@@ -1146,32 +1162,86 @@ export class Game {
     const pbLoggedInUsername = document.getElementById('pb-logged-in-username');
     const pbStatusMsg = document.getElementById('pb-status-msg');
 
+    const populateTwitchSettingsUI = () => {
+      const chkAnnounce = document.getElementById('chk-twitch-announcements');
+      if (chkAnnounce) chkAnnounce.checked = this.twitchManager.enableAnnouncements;
+
+      const chatSizeInput = document.getElementById('twitch-chat-size');
+      if (chatSizeInput) chatSizeInput.value = this.twitchManager.chatFontSize || 10;
+
+      const voteDurInput = document.getElementById('twitch-vote-duration');
+      if (voteDurInput) voteDurInput.value = this.twitchManager.voteDuration || 20;
+
+      const msgWaveInput = document.getElementById('twitch-msg-wave');
+      if (msgWaveInput) msgWaveInput.value = this.twitchManager.msgWaveStart || '';
+
+      const msgVoteInput = document.getElementById('twitch-msg-vote');
+      if (msgVoteInput) msgVoteInput.value = this.twitchManager.msgVoteStart || '';
+
+      const msgWinnerInput = document.getElementById('twitch-msg-winner');
+      if (msgWinnerInput) msgWinnerInput.value = this.twitchManager.msgVoteEnd || '';
+
+      // Populate commands list
+      const listContainer = document.getElementById('twitch-commands-list');
+      if (listContainer) {
+        listContainer.innerHTML = '';
+        for (const [cmdName, cmdDef] of Object.entries(this.twitchManager.commands)) {
+          const row = document.createElement('div');
+          row.className = 'devtools-row';
+          row.style.margin = '4px 0';
+          row.style.fontSize = '8px';
+          row.style.display = 'flex';
+          row.style.alignItems = 'center';
+          row.style.justifyContent = 'space-between';
+          row.style.borderBottom = '1px dashed rgba(255,255,255,0.05)';
+          row.style.paddingBottom = '4px';
+
+          row.innerHTML = `
+            <span style="width: 80px; font-family: var(--font-mono); color: #fff;">!${cmdName}</span>
+            <label class="setting-toggle" style="width: 50px; display: flex; justify-content: center; margin: 0; cursor: pointer;">
+              <input type="checkbox" class="cmd-enabled" data-cmd="${cmdName}" ${cmdDef.enabled ? 'checked' : ''}>
+              <span class="checkbox-custom"></span>
+            </label>
+            <input type="number" class="cmd-cooldown devtools-input" data-cmd="${cmdName}" min="0" max="600" value="${cmdDef.cooldown}" style="width: 60px; text-align: center; margin: 0 5px; padding: 4px; font-size: 8px;">
+            <input type="number" class="cmd-bits devtools-input" data-cmd="${cmdName}" min="0" max="100000" value="${cmdDef.bits || 0}" style="width: 60px; text-align: center; margin: 0 5px; padding: 4px; font-size: 8px;">
+            <input type="number" class="cmd-points devtools-input" data-cmd="${cmdName}" min="0" max="1000000" value="${cmdDef.points || 0}" style="width: 70px; text-align: center; margin-left: 5px; padding: 4px; font-size: 8px;">
+          `;
+          listContainer.appendChild(row);
+        }
+      }
+    };
+
     const updateTwitchUI = () => {
       if (this.twitchManager.connected) {
         twitchStatusLbl.innerText = `CONNECTED TO #${this.twitchManager.channel.toUpperCase()}`;
         twitchStatusLbl.style.color = '#2ecc71';
         twitchStatusLbl.style.textShadow = '0 0 5px rgba(46,204,113,0.5)';
-        btnTwitchConnect.innerText = "DISCONNECT";
+        if (btnTwitchConnect) btnTwitchConnect.innerText = "DISCONNECT";
       } else {
         twitchStatusLbl.innerText = "DISCONNECTED";
         twitchStatusLbl.style.color = '#ff6b6b';
         twitchStatusLbl.style.textShadow = '0 0 5px rgba(255,107,107,0.5)';
-        btnTwitchConnect.innerText = "CONNECT";
+        if (btnTwitchConnect) btnTwitchConnect.innerText = "CONNECT";
       }
 
       if (this.twitchManager.channel) {
-        inputTwitchChannel.value = this.twitchManager.channel;
+        if (inputTwitchChannel) inputTwitchChannel.value = this.twitchManager.channel;
       }
 
       // PocketBase status
+      const pbSection = document.getElementById('pb-login-section')?.parentElement;
       if (this.pbClient.isAuthenticated()) {
-        pbLoginSection.classList.add('hidden');
-        pbLoggedInSection.classList.remove('hidden');
-        pbLoggedInUsername.innerText = this.pbClient.record.username || this.pbClient.record.email || 'Streamer';
+        if (pbSection) pbSection.style.display = 'block';
+        if (pbLoginSection) pbLoginSection.classList.add('hidden');
+        if (pbLoggedInSection) pbLoggedInSection.classList.remove('hidden');
+        if (pbLoggedInUsername) pbLoggedInUsername.innerText = this.pbClient.record.username || this.pbClient.record.email || 'Streamer';
       } else {
-        pbLoginSection.classList.remove('hidden');
-        pbLoggedInSection.classList.add('hidden');
+        if (pbSection) pbSection.style.display = 'none';
+        if (pbLoginSection) pbLoginSection.classList.add('hidden');
+        if (pbLoggedInSection) pbLoggedInSection.classList.add('hidden');
       }
+
+      populateTwitchSettingsUI();
     };
 
     // Hide manual connection elements and streamer auth settings to enforce "just make it a log in with twitch button"
@@ -1180,8 +1250,6 @@ export class Game {
     if (btnTwitchConnect) btnTwitchConnect.style.display = 'none';
     const autoconnectRow = document.getElementById('chk-twitch-autoconnect')?.parentElement?.parentElement;
     if (autoconnectRow) autoconnectRow.style.display = 'none';
-    const pbSection = document.getElementById('pb-login-section')?.parentElement;
-    if (pbSection) pbSection.style.display = 'none';
 
     // Hook up the Login with Twitch OAuth button
     const btnTwitchLoginOauth = document.getElementById('btn-twitch-login-oauth');
@@ -1189,17 +1257,76 @@ export class Game {
       btnTwitchLoginOauth.addEventListener('click', () => {
         const clientID = '1zu1g6sz69tae512pzy7dp57uowmvk'; // public Twitch client id
         const redirectUri = encodeURIComponent(window.location.origin + window.location.pathname);
-        const twitchAuthUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientID}&redirect_uri=${redirectUri}&response_type=token&scope=chat:read+chat:edit`;
+        const twitchAuthUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientID}&redirect_uri=${redirectUri}&response_type=token&scope=chat:read+chat:edit+user:read:email`;
         window.location.href = twitchAuthUrl;
       });
     }
 
     const chkTwitchAnnouncements = document.getElementById('chk-twitch-announcements');
     if (chkTwitchAnnouncements) {
-      chkTwitchAnnouncements.checked = this.twitchManager.enableAnnouncements;
       chkTwitchAnnouncements.addEventListener('change', (e) => {
         this.twitchManager.enableAnnouncements = e.target.checked;
-        this.twitchManager.saveSettings();
+        this.saveTwitchManagerSettings();
+      });
+    }
+
+    const chatSizeInput = document.getElementById('twitch-chat-size');
+    if (chatSizeInput) {
+      chatSizeInput.addEventListener('input', (e) => {
+        this.twitchManager.chatFontSize = parseInt(e.target.value) || 10;
+        this.saveTwitchManagerSettings();
+      });
+    }
+
+    const voteDurInput = document.getElementById('twitch-vote-duration');
+    if (voteDurInput) {
+      voteDurInput.addEventListener('input', (e) => {
+        this.twitchManager.voteDuration = parseInt(e.target.value) || 20;
+        this.saveTwitchManagerSettings();
+      });
+    }
+
+    const msgWaveInput = document.getElementById('twitch-msg-wave');
+    if (msgWaveInput) {
+      msgWaveInput.addEventListener('input', (e) => {
+        this.twitchManager.msgWaveStart = e.target.value;
+        this.saveTwitchManagerSettings();
+      });
+    }
+
+    const msgVoteInput = document.getElementById('twitch-msg-vote');
+    if (msgVoteInput) {
+      msgVoteInput.addEventListener('input', (e) => {
+        this.twitchManager.msgVoteStart = e.target.value;
+        this.saveTwitchManagerSettings();
+      });
+    }
+
+    const msgWinnerInput = document.getElementById('twitch-msg-winner');
+    if (msgWinnerInput) {
+      msgWinnerInput.addEventListener('input', (e) => {
+        this.twitchManager.msgVoteEnd = e.target.value;
+        this.saveTwitchManagerSettings();
+      });
+    }
+
+    const listContainer = document.getElementById('twitch-commands-list');
+    if (listContainer) {
+      listContainer.addEventListener('change', (e) => {
+        const target = e.target;
+        const cmdName = target.getAttribute('data-cmd');
+        if (!cmdName) return;
+
+        if (target.classList.contains('cmd-enabled')) {
+          this.twitchManager.commands[cmdName].enabled = target.checked;
+        } else if (target.classList.contains('cmd-cooldown')) {
+          this.twitchManager.commands[cmdName].cooldown = parseInt(target.value) || 0;
+        } else if (target.classList.contains('cmd-bits')) {
+          this.twitchManager.commands[cmdName].bits = parseInt(target.value) || 0;
+        } else if (target.classList.contains('cmd-points')) {
+          this.twitchManager.commands[cmdName].points = parseInt(target.value) || 0;
+        }
+        this.saveTwitchManagerSettings();
       });
     }
 
@@ -1216,94 +1343,15 @@ export class Game {
       });
     }
 
-    if (btnTwitchConnect) {
-      btnTwitchConnect.addEventListener('click', () => {
-        if (this.twitchManager.connected) {
-          this.twitchManager.disconnect();
-          this.twitchManager.saveSettings();
-          updateTwitchUI();
-        } else {
-          const chan = inputTwitchChannel.value.trim();
-          if (chan) {
-            this.twitchManager.connect(chan);
-            setTimeout(() => {
-              this.twitchManager.saveSettings();
-              updateTwitchUI();
-            }, 500);
-          }
-        }
-      });
-    }
-
-    if (chkTwitchAutoconnect) {
-      chkTwitchAutoconnect.addEventListener('change', () => {
-        this.twitchManager.saveSettings();
-      });
-    }
-
-    // PB login button
-    if (btnPbLogin) {
-      btnPbLogin.addEventListener('click', async () => {
-        const username = pbUsername.value.trim();
-        const password = pbPassword.value;
-        if (!username || !password) {
-          pbStatusMsg.innerText = "Please fill in all credentials.";
-          return;
-        }
-        
-        pbStatusMsg.innerText = "Connecting...";
-        const res = await this.pbClient.login(username, password);
-        if (res.success) {
-          pbStatusMsg.innerText = "Logged in successfully!";
-          if (res.record.settings) {
-            const settings = res.record.settings;
-            if (settings.commands) {
-              for (const [key, val] of Object.entries(settings.commands)) {
-                if (this.twitchManager.commands[key]) {
-                  this.twitchManager.commands[key].enabled = val.enabled !== false;
-                  if (val.cooldown !== undefined) this.twitchManager.commands[key].cooldown = val.cooldown;
-                }
-              }
-            }
-            if (res.record.twitch_name) {
-              inputTwitchChannel.value = res.record.twitch_name;
-              this.twitchManager.channel = res.record.twitch_name;
-            }
-          }
-          this.twitchManager.saveSettings();
-          updateTwitchUI();
-        } else {
-          pbStatusMsg.innerText = `Error: ${res.error}`;
-        }
-      });
-    }
-
-    // PB logout button
     if (btnPbLogout) {
       btnPbLogout.addEventListener('click', () => {
         this.pbClient.logout();
-        pbStatusMsg.innerText = "Logged out.";
+        localStorage.removeItem('twitch_oauth_token');
+        localStorage.removeItem('twitch_oauth_user');
+        this.twitchManager.disconnect();
+        if (pbStatusMsg) pbStatusMsg.innerText = "Logged out.";
         updateTwitchUI();
-      });
-    }
-
-    // PB save settings button
-    if (btnPbSaveSettings) {
-      btnPbSaveSettings.addEventListener('click', async () => {
-        pbStatusMsg.innerText = "Saving settings...";
-        const commandConfig = {};
-        for (const [key, val] of Object.entries(this.twitchManager.commands)) {
-          commandConfig[key] = { enabled: val.enabled, cooldown: val.cooldown };
-        }
-        const settings = {
-          commands: commandConfig
-        };
-        const res = await this.pbClient.saveSettings(settings);
-        if (res.success) {
-          pbStatusMsg.innerText = "Settings saved to cloud!";
-        } else {
-          pbStatusMsg.innerText = `Error: ${res.error}`;
-        }
+        this.updateTwitchStatus();
       });
     }
   }
@@ -2604,17 +2652,44 @@ export class Game {
     if (this.audio) this.audio.playStateChange();
     
     if (newState === 'SHOP') {
-      if (this.twitchManager && this.twitchManager.connected) {
-        this.twitchManager.startVote(['fire', 'frost', 'void'], 15, (result) => {
+      if (this.twitchManager && this.twitchManager.connected && !this.isTutorial) {
+        const currentSx = Math.max(0, Math.min(this.levelManager.maxSectorCols - 1, Math.floor(this.player.x / 2000)));
+        const currentSy = Math.max(0, Math.min(this.levelManager.maxSectorRows - 1, Math.floor(this.player.y / 2000)));
+        const currentTheme = this.levelManager.sectorThemes[`${currentSx},${currentSy}`] || 'dungeon';
+        
+        const allThemes = ['dungeon', 'gardens', 'underground', 'pool', 'volcanic', 'void_rift'];
+        const otherThemes = allThemes.filter(t => t !== currentTheme);
+        const shuffle = otherThemes.sort(() => 0.5 - Math.random());
+        const voteOptions = shuffle.slice(0, 3);
+        const duration = this.twitchManager.voteDuration || 20;
+        
+        this.waitingForVoteToStartNextWave = false;
+        
+        this.twitchManager.startVote(voteOptions, duration, (result) => {
           console.log(`[Twitch Vote] Result: ${result.winner} with ${result.votes[result.winner] || 0} votes`);
           if (result.winner) {
-            this.levelManager.nextWaveElement = result.winner;
-            this.particles.spawnText(this.player.x, this.player.y - 80, `CHAT CHOSE ${result.winner.toUpperCase()} FOR NEXT WAVE!`, {
-              color: result.winner === 'fire' ? '#ff4757' : result.winner === 'frost' ? '#10ac84' : '#a55eea',
-              fontSize: 12,
+            const sx = Math.max(0, Math.min(this.levelManager.maxSectorCols - 1, Math.floor(this.player.x / 2000)));
+            const sy = Math.max(0, Math.min(this.levelManager.maxSectorRows - 1, Math.floor(this.player.y / 2000)));
+            this.levelManager.sectorThemes[`${sx},${sy}`] = result.winner;
+            this.levelManager.theme = result.winner;
+            
+            const colors = { dungeon: '#95a5a6', gardens: '#2ecc71', underground: '#e67e22', pool: '#3498db', volcanic: '#e74c3c', void_rift: '#a55eea' };
+            this.particles.spawnText(this.player.x, this.player.y - 80, `CHAT CHOSE ${result.winner.toUpperCase()} THEME!`, {
+              color: colors[result.winner] || '#fff',
+              fontSize: 11,
               fontPixel: true,
               life: 3.5
             });
+          }
+          
+          const waitingMsg = document.getElementById('twitch-vote-waiting-msg');
+          const statusLbl = document.getElementById('shop-twitch-vote-status');
+          if (waitingMsg) waitingMsg.style.display = 'none';
+          if (statusLbl) statusLbl.style.display = 'none';
+          
+          if (this.waitingForVoteToStartNextWave) {
+            this.waitingForVoteToStartNextWave = false;
+            this.startNextWaveFromShop();
           }
         });
       }
@@ -3259,6 +3334,28 @@ export class Game {
     if (dt > 0.1) dt = 0.1;
     this.frameIndex += dt;
 
+    if (this.twitchManager) {
+      this.twitchManager.update(dt);
+    }
+
+    if (this.state === 'SHOP') {
+      const statusLbl = document.getElementById('shop-twitch-vote-status');
+      const waitingMsg = document.getElementById('twitch-vote-waiting-msg');
+      if (this.twitchManager && this.twitchManager.connected && this.twitchManager.voteActive) {
+        if (statusLbl) {
+          statusLbl.style.display = 'block';
+          statusLbl.innerText = `TWITCH VOTE ACTIVE... (${Math.ceil(this.twitchManager.voteTimer)}s remaining)`;
+        }
+        if (this.waitingForVoteToStartNextWave && waitingMsg) {
+          waitingMsg.style.display = 'block';
+          waitingMsg.innerText = `Waiting for Twitch vote to finish... (${Math.ceil(this.twitchManager.voteTimer)}s remaining)`;
+        }
+      } else {
+        if (statusLbl) statusLbl.style.display = 'none';
+        if (waitingMsg) waitingMsg.style.display = 'none';
+      }
+    }
+
     // Enforce tutorial guide visibility every frame — 
     // the guide can ONLY be visible when isTutorial is true
     const tutorialGuide = document.getElementById('tutorial-guide');
@@ -3316,10 +3413,6 @@ export class Game {
   // ENTITY UPDATES
   // ----------------------------------------------------
   update(dt) {
-    // Update Twitch Manager
-    if (this.twitchManager) {
-      this.twitchManager.update(dt);
-    }
     // Check Chrono Shift speed dilation (Slows enemies/projectiles by 80%)
     let enemyDt = dt;
     if (this.timeDilationTimer > 0) {
@@ -5117,10 +5210,14 @@ export class Game {
             const channel = user.login || user.display_name;
             console.log(`[Twitch OAuth] Welcome, ${channel}! Connecting to chat...`);
             
-            this.twitchManager.connect(channel);
             localStorage.setItem('twitch_oauth_token', accessToken);
             localStorage.setItem('twitch_oauth_user', JSON.stringify(user));
             
+            this.registerStreamerIfNeeded(user).then(() => {
+              this.twitchManager.connect(channel);
+              this.updateTwitchStatus();
+            });
+
             if (this.player) {
               this.particles.spawnText(this.player.x, this.player.y - 60, `LOGGED IN AS ${channel.toUpperCase()}`, {
                 color: '#9146FF', fontSize: 12, fontPixel: true
@@ -5138,6 +5235,143 @@ export class Game {
         .catch(err => {
           console.error('[Twitch OAuth] Error fetching user data:', err);
         });
+      }
+    }
+  }
+
+  async registerStreamerIfNeeded(user) {
+    const username = user.login;
+    const twitchId = user.id;
+    const displayName = user.display_name || username;
+    const slug = username.toLowerCase();
+    const email = user.email || `${slug}@twitch.tv`;
+    const password = twitchId + "AetherweaverSecretSalt123!";
+
+    console.log(`[Streamer Register] Checking if streamer exists for Twitch ID: ${twitchId}`);
+    try {
+      const checkRes = await fetch(
+        `${this.pbClient.baseUrl}/api/collections/ag_streamers/records?filter=(twitch_id='${twitchId}')`
+      );
+      if (!checkRes.ok) throw new Error('Failed to query ag_streamers');
+      
+      const checkData = await checkRes.json();
+      let record = null;
+      
+      if (checkData.items && checkData.items.length > 0) {
+        record = checkData.items[0];
+        console.log(`[Streamer Register] Streamer already registered: ${record.twitch_name}`);
+      } else {
+        console.log(`[Streamer Register] Registering new streamer: ${displayName}`);
+        const createRes = await fetch(`${this.pbClient.baseUrl}/api/collections/ag_streamers/records`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: slug,
+            email,
+            password,
+            passwordConfirm: password,
+            twitch_id: twitchId,
+            twitch_name: displayName,
+            slug,
+            settings: {
+              commands: {}
+            }
+          })
+        });
+        
+        if (!createRes.ok) {
+          const errData = await createRes.json();
+          console.error('[Streamer Register] Registration failed:', errData);
+          throw new Error(errData.message || 'Registration failed');
+        }
+        
+        record = await createRes.json();
+        console.log(`[Streamer Register] Streamer registered successfully: ${record.twitch_name}`);
+      }
+
+      console.log(`[Streamer Register] Logging in to PocketBase...`);
+      const loginRes = await this.pbClient.login(slug, password);
+      if (loginRes.success) {
+        console.log(`[Streamer Register] Logged in successfully to PocketBase!`);
+        if (loginRes.record && loginRes.record.settings) {
+          const dbSettings = loginRes.record.settings;
+          
+          if (dbSettings.chatFontSize !== undefined) this.twitchManager.chatFontSize = dbSettings.chatFontSize;
+          if (dbSettings.voteDuration !== undefined) this.twitchManager.voteDuration = dbSettings.voteDuration;
+          if (dbSettings.msgWaveStart !== undefined) this.twitchManager.msgWaveStart = dbSettings.msgWaveStart;
+          if (dbSettings.msgVoteStart !== undefined) this.twitchManager.msgVoteStart = dbSettings.msgVoteStart;
+          if (dbSettings.msgVoteEnd !== undefined) this.twitchManager.msgVoteEnd = dbSettings.msgVoteEnd;
+          
+          if (dbSettings.commands) {
+            for (const [key, val] of Object.entries(dbSettings.commands)) {
+              if (this.twitchManager.commands[key]) {
+                this.twitchManager.commands[key].enabled = val.enabled !== false;
+                if (val.cooldown !== undefined) this.twitchManager.commands[key].cooldown = val.cooldown;
+                if (val.bits !== undefined) this.twitchManager.commands[key].bits = val.bits;
+                if (val.points !== undefined) this.twitchManager.commands[key].points = val.points;
+              }
+            }
+          }
+          this.twitchManager.saveSettings();
+        }
+      } else {
+        console.warn(`[Streamer Register] Login failed: ${loginRes.error}`);
+      }
+    } catch (err) {
+      console.error('[Streamer Register] Error in registration/login flow:', err);
+    }
+  }
+
+  saveTwitchManagerSettings() {
+    this.twitchManager.saveSettings();
+    if (this.pbClient.isAuthenticated()) {
+      const commandConfig = {};
+      for (const [key, val] of Object.entries(this.twitchManager.commands)) {
+        commandConfig[key] = {
+          enabled: val.enabled,
+          cooldown: val.cooldown,
+          bits: val.bits || 0,
+          points: val.points || 0
+        };
+      }
+      const settings = {
+        chatFontSize: this.twitchManager.chatFontSize,
+        voteDuration: this.twitchManager.voteDuration,
+        msgWaveStart: this.twitchManager.msgWaveStart,
+        msgVoteStart: this.twitchManager.msgVoteStart,
+        msgVoteEnd: this.twitchManager.msgVoteEnd,
+        commands: commandConfig
+      };
+      this.pbClient.saveSettings(settings);
+    }
+  }
+
+  startNextWaveFromShop() {
+    this.levelManager.wave++;
+    this.levelManager.startNextWave();
+    this.setState('PLAYING');
+    if (this.twitchManager && this.twitchManager.connected) {
+      this.twitchManager.sendMessage(`[Aetherweaver] Wave ${this.levelManager.wave} has started! Spawn monsters with !spawn, curse the wizard with !curse, or trigger a !meteor!`);
+    }
+  }
+
+  updateTwitchStatus() {
+    const badge = document.getElementById('hud-twitch-status-badge');
+    const container = document.getElementById('hud-twitch-notification');
+    const chatOverlay = document.getElementById('hud-twitch-chat');
+    
+    if (badge && container) {
+      if (this.twitchManager && this.twitchManager.connected) {
+        container.style.display = 'block';
+        badge.innerText = `TWITCH: #${this.twitchManager.channel.toUpperCase()}`;
+        badge.style.borderColor = '#9146FF';
+        badge.style.color = '#a970ff';
+        badge.style.background = 'rgba(145, 70, 255, 0.15)';
+        if (chatOverlay) chatOverlay.classList.remove('hidden');
+      } else {
+        container.style.display = 'none';
+        badge.innerText = 'TWITCH: OFF';
+        if (chatOverlay) chatOverlay.classList.add('hidden');
       }
     }
   }

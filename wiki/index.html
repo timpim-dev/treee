@@ -509,6 +509,7 @@
           <li><button class="nav-item-btn" data-category="combos">Elemental Synergies</button></li>
           <li><button class="nav-item-btn" data-category="satchel">Satchel & Gear</button></li>
           <li><button class="nav-item-btn" data-category="bosses">Boss Anomalies</button></li>
+          <li><button class="nav-item-btn" data-category="twitch">Twitch Integration</button></li>
         </ul>
       </div>
     </aside>
@@ -955,6 +956,112 @@
             <li><strong>Tracking Void Spheres</strong>: Launches slow, homing purple orbs that track the player's movements.</li>
             <li><strong>Gravity Singularity (Phase 2)</strong>: Below 50% HP, he summons crushing gravity singularities under the player's feet that pull all surrounding entities toward them.</li>
             <li><strong>Loot Drop</strong>: Drops ultimate rarity void gear, highly potent runes, and a golden key.</li>
+          </ul>
+      </section>
+
+      <!-- 11. TWITCH INTEGRATION -->
+      <section class="wiki-section" id="sec-twitch">
+        <h1 class="sec-title">TWITCH INTEGRATION</h1>
+        <p class="sec-intro">Connect your stream directly to Aetherweaver! Viewers can participate in real-time by spawning monsters, curing or buffing the player, and voting on themes between waves.</p>
+        
+        <div class="wiki-card" style="border-color: #9146FF;">
+          <h3 class="wiki-card-title">Setup &amp; Authentication</h3>
+          <p class="wiki-card-subtitle">Connect your channel in a few simple clicks</p>
+          <p style="margin-bottom: 12px;">By authorizing Aetherweaver with your Twitch Account, the game automatically listens to chat commands, acts as a bot to announce events, and registers you in the global streamers directory.</p>
+          <ul>
+            <li><strong>Login with Twitch</strong>: Click the Twitch Integration button inside settings, authorize, and you will be connected.</li>
+            <li><strong>Auto-register Streamer</strong>: Logging in with Twitch automatically creates your profile in the directory so viewers can find you.</li>
+            <li><strong>Customizable Overlay</strong>: Toggle chat messages on screen and customize font size to fit your streaming canvas layout.</li>
+          </ul>
+        <div class="wiki-card" style="border-color: #9146FF; margin-top: 20px;">
+          <h3 class="wiki-card-title">Streamer Customization Features</h3>
+          <p class="wiki-card-subtitle">Tune the integration specifically to your channel</p>
+          <p style="margin-bottom: 12px;">When logged in, streamers can configure everything in real-time from the Twitch Integration settings panel in-game:</p>
+          <ul>
+            <li><strong>Toggle Commands</strong>: Individually enable or disable commands that viewers can execute.</li>
+            <li><strong>Custom Cooldowns</strong>: Set minimum delays (seconds) between executions to control command pacing.</li>
+            <li><strong>Bits &amp; Channel Points Costs</strong>: Enforce extra validation by setting Bits costs or Twitch Channel Points requirements for execution.</li>
+            <li><strong>Custom Chatbot Announcements</strong>: Customize wave start, vote start, and vote end announcements. You can use dynamic variables like <code>{wave}</code>, <code>{options}</code>, <code>{winner}</code>, <code>{votes}</code>, <code>{total}</code>, and <code>{duration}</code>.</li>
+            <li><strong>Voting Duration</strong>: Set how long viewers have to vote on the next wave's environmental theme (default: 20 seconds).</li>
+          </ul>
+        </div>
+        
+        <div class="wiki-card" style="border-color: #9146FF; margin-top: 20px;">
+          <h3 class="wiki-card-title">Viewer Chat Commands</h3>
+          <p class="wiki-card-subtitle">Commands that viewers can run in Twitch Chat</p>
+          <p style="margin-bottom: 12px;">Viewers type these commands in chat to interact with the game. Costs and cooldowns are fully customizable:</p>
+          <table class="wiki-table" style="width: 100%; border: 1px solid rgba(255,255,255,0.1); margin-top: 10px;">
+            <thead>
+              <tr style="background: rgba(0,0,0,0.3);">
+                <th style="padding: 8px; font-size: 7px; color: #a970ff; text-align: left;">Command</th>
+                <th style="padding: 8px; font-size: 7px; color: #a970ff; text-align: left;">Description</th>
+                <th style="padding: 8px; font-size: 7px; color: #a970ff; text-align: left;">Default Cooldown</th>
+                <th style="padding: 8px; font-size: 7px; color: #a970ff; text-align: left;">Bits</th>
+                <th style="padding: 8px; font-size: 7px; color: #a970ff; text-align: left;">Points</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="padding: 8px; font-family: var(--font-mono); font-size: 9px; color: #fff;">!spawn [type]</td>
+                <td style="padding: 8px; font-size: 8px;">Spawns an enemy near the player (types: slime, skeleton, horror).</td>
+                <td style="padding: 8px; font-size: 8px;">10s</td>
+                <td style="padding: 8px; font-size: 8px;">0</td>
+                <td style="padding: 8px; font-size: 8px;">0</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; font-family: var(--font-mono); font-size: 9px; color: #fff;">!heal</td>
+                <td style="padding: 8px; font-size: 8px;">Restores up to 10 HP to the player.</td>
+                <td style="padding: 8px; font-size: 8px;">30s</td>
+                <td style="padding: 8px; font-size: 8px;">0</td>
+                <td style="padding: 8px; font-size: 8px;">0</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; font-family: var(--font-mono); font-size: 9px; color: #fff;">!curse</td>
+                <td style="padding: 8px; font-size: 8px;">Curses the wizard, spawning 3 mini slimes directly on top of them.</td>
+                <td style="padding: 8px; font-size: 8px;">20s</td>
+                <td style="padding: 8px; font-size: 8px;">0</td>
+                <td style="padding: 8px; font-size: 8px;">0</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; font-family: var(--font-mono); font-size: 9px; color: #fff;">!buff</td>
+                <td style="padding: 8px; font-size: 8px;">Grants a random positive effect (haste, damage, or mana restoration).</td>
+                <td style="padding: 8px; font-size: 8px;">45s</td>
+                <td style="padding: 8px; font-size: 8px;">0</td>
+                <td style="padding: 8px; font-size: 8px;">0</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; font-family: var(--font-mono); font-size: 9px; color: #fff;">!meteor</td>
+                <td style="padding: 8px; font-size: 8px;">Summons a fiery meteor that deals heavy area damage to all nearby enemies.</td>
+                <td style="padding: 8px; font-size: 8px;">60s</td>
+                <td style="padding: 8px; font-size: 8px;">0</td>
+                <td style="padding: 8px; font-size: 8px;">0</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; font-family: var(--font-mono); font-size: 9px; color: #fff;">!backrooms</td>
+                <td style="padding: 8px; font-size: 8px;">Triggers a 5% chance to teleport the player into the liminal Backrooms secret level.</td>
+                <td style="padding: 8px; font-size: 8px;">120s</td>
+                <td style="padding: 8px; font-size: 8px;">0</td>
+                <td style="padding: 8px; font-size: 8px;">0</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; font-family: var(--font-mono); font-size: 9px; color: #fff;">!gg</td>
+                <td style="padding: 8px; font-size: 8px;">Displays a friendly GG particle on the player's screen.</td>
+                <td style="padding: 8px; font-size: 8px;">3s</td>
+                <td style="padding: 8px; font-size: 8px;">0</td>
+                <td style="padding: 8px; font-size: 8px;">0</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="wiki-card" style="border-color: #9146FF; margin-top: 20px;">
+          <h3 class="wiki-card-title">Inter-wave Sector Voting</h3>
+          <p class="wiki-card-subtitle">Let viewers decide the theme of the next wave</p>
+          <p style="margin-bottom: 12px;">When a wave ends, the next wave is paused while a Twitch vote begins. Viewers vote by typing <strong>!vote &lt;theme&gt;</strong> (e.g. !vote gardens, !vote volcanic, etc.) in chat. The next wave starts immediately after the countdown finishes, transitioning to the winning theme.</p>
+          <ul>
+            <li><strong>Streamer Notice</strong>: When a vote starts, a visual countdown appears on the streamer's screen, giving viewers ample time to vote.</li>
+            <li><strong>Configurable Timer</strong>: The streamer can customize the vote duration in the Twitch Integration settings panel.</li>
+            <li><strong>Disabled in Tutorial</strong>: Twitch features are completely disabled inside the Tutorial trial level.</li>
           </ul>
         </div>
       </section>
@@ -1532,7 +1639,7 @@
       });
     });
 
-    // 2. Search filtering
+     // 2. Search filtering
     const searchInput = document.getElementById('wiki-search');
     searchInput.addEventListener('input', (e) => {
       const term = e.target.value.toLowerCase();
@@ -1540,27 +1647,85 @@
     });
 
     function filterCards(term) {
-      const cards = document.querySelectorAll('.wiki-card, tr');
+      const cards = document.querySelectorAll('.wiki-card, tbody tr, .wiki-banner-card');
+      const sections = document.querySelectorAll('.wiki-section');
       
-      // If search has text, show the sections containing results, or filter globally
       if (term === '') {
-        // Show cards based on active section
-        cards.forEach(card => {
-          card.style.display = '';
+        cards.forEach(card => card.style.display = '');
+        document.querySelectorAll('table, .wiki-box').forEach(el => el.style.display = '');
+        
+        const activeTab = document.querySelector('.nav-item-btn.active');
+        const targetCat = activeTab ? activeTab.getAttribute('data-category') : 'overview';
+        sections.forEach(sec => {
+          if (sec.id === `sec-${targetCat}`) {
+            sec.classList.add('active');
+          } else {
+            sec.classList.remove('active');
+          }
         });
         return;
       }
       
-      // Force sections containing matches to become visible, or hide individual card anomalies
+      // Hide all sections first
+      sections.forEach(sec => sec.classList.remove('active'));
+      
+      // Reset displays of containers
+      document.querySelectorAll('table, .wiki-box').forEach(el => el.style.display = '');
+
+      // Keep track of which sections contain matching elements
+      const activeSections = new Set();
+
+      // Check section titles/intros first
+      sections.forEach(sec => {
+        const titleEl = sec.querySelector('.sec-title');
+        const introEl = sec.querySelector('.sec-intro');
+        const titleText = titleEl ? titleEl.textContent.toLowerCase() : '';
+        const introText = introEl ? introEl.textContent.toLowerCase() : '';
+        
+        if (titleText.includes(term) || introText.includes(term)) {
+          activeSections.add(sec);
+          sec.querySelectorAll('.wiki-card, tbody tr, .wiki-banner-card').forEach(card => {
+            card.style.display = '';
+          });
+        }
+      });
+
+      // Check individual cards/rows
       cards.forEach(card => {
+        const sec = card.closest('.wiki-section');
+        if (sec && activeSections.has(sec)) {
+          card.style.display = '';
+          return;
+        }
+
         const text = card.textContent.toLowerCase();
         if (text.includes(term)) {
           card.style.display = '';
-          // Ensure parent section is visible
-          const sec = card.closest('.wiki-section');
-          if (sec) sec.classList.add('active');
+          if (sec) {
+            activeSections.add(sec);
+          }
         } else {
           card.style.display = 'none';
+        }
+      });
+
+      // Show sections containing matches
+      activeSections.forEach(sec => {
+        sec.classList.add('active');
+      });
+
+      // Hide empty tables
+      const tables = document.querySelectorAll('table');
+      tables.forEach(table => {
+        const bodyRows = table.querySelectorAll('tbody tr');
+        if (bodyRows.length > 0) {
+          const hasVisibleRows = Array.from(bodyRows).some(row => row.style.display !== 'none');
+          const box = table.closest('.wiki-box');
+          if (box) {
+            box.style.display = hasVisibleRows ? '' : 'none';
+          } else {
+            table.style.display = hasVisibleRows ? '' : 'none';
+          }
         }
       });
     }

@@ -45,8 +45,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/main-BMshgB0h.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/main-CaHna30S.css">
+  <script type="module" crossorigin src="/assets/main-DCOTlk2T.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/main-CxIiFwob.css">
 </head>
 <body>
   <!-- Main Game Canvas Container -->
@@ -107,6 +107,12 @@
           <button id="btn-open-tree-hud" class="btn-pulse-glow">
             <canvas class="inline-icon" id="icon-ap-hud" width="12" height="12" draggable="false"></canvas> Tree (<span id="hud-ap-value">0</span> AP)
           </button>
+        </div>
+        <!-- Twitch Status Indicator -->
+        <div class="resource-item" id="hud-twitch-notification" style="margin-left: 10px; display: none;">
+          <div id="hud-twitch-status-badge" style="font-family: var(--font-pixel); font-size: 7px; color: #a970ff; background: rgba(145, 70, 255, 0.15); border: 2px solid #9146FF; padding: 4px 8px; border-radius: 0; box-shadow: 2px 2px 0 rgba(0,0,0,0.6);" title="Connected to Twitch Chat">
+            TWITCH: OFF
+          </div>
         </div>
         <div class="resource-item" id="hud-devtools-notification">
           <button id="btn-devtools-toggle" class="btn-pulse-glow hidden" style="padding: 4px 8px; font-size: 9px; line-height: 1;" title="Toggle Devtools (F3)">DEV</button>
@@ -181,6 +187,9 @@
 
       <!-- Combo Alert Overlay -->
       <div id="combo-alert-container"></div>
+
+      <!-- Twitch Chat Overlay (HTML) -->
+      <div id="hud-twitch-chat" class="hidden"></div>
     </div>
 
     <!-- UI Overlay Panels -->
@@ -196,7 +205,7 @@
           <div class="player-preview-box">
             <canvas id="main-menu-player-canvas" width="128" height="128"></canvas>
           </div>
-          <div class="menu-version-indicator" id="menu-version">v0.5.5Beta</div>
+          <div class="menu-version-indicator" id="menu-version">v0.5.6Beta</div>
         </div>
         
         <!-- Right Column: Navigation Buttons -->
@@ -460,12 +469,12 @@
 
     <!-- TWITCH SETUP PANEL -->
     <div id="panel-twitch" class="panel-overlay hidden">
-      <div class="menu-content text-center" style="max-width: 450px;">
-        <h1>TWITCH SETUP</h1>
+      <div class="menu-content text-center" style="max-width: 650px; max-height: 90vh; overflow-y: auto;">
+        <h1>TWITCH INTEGRATION</h1>
         <div class="menu-decor"></div>
         
         <!-- Status Indicator -->
-        <div style="margin-bottom: 20px; font-size: 10px; font-family: var(--font-pixel);">
+        <div style="margin-bottom: 15px; font-size: 10px; font-family: var(--font-pixel);">
           STATUS: <span id="twitch-status-lbl" style="color: #ff6b6b; text-shadow: 0 0 5px rgba(255,107,107,0.5);">DISCONNECTED</span>
         </div>
         
@@ -473,8 +482,9 @@
           <!-- Twitch Login Button (OAuth) -->
           <div style="margin-bottom: 15px; width: 100%;">
             <button id="btn-twitch-login-oauth" class="btn-menu" style="background: #9146FF; border-color: #a970ff; box-shadow: 4px 4px 0 #6441a5; color: #fff; margin: 0 auto 10px;">LOG IN WITH TWITCH</button>
-            <div style="font-size: 7px; color: #a970ff; line-height: 1.4; margin-bottom: 10px;">Automated token connection & chat sync</div>
-            <!-- Bot Announcements Toggle -->
+            <div style="font-size: 7px; color: #a970ff; line-height: 1.4; margin-bottom: 10px;">Automated token connection &amp; chat sync</div>
+            
+            <!-- Bot Announcements Toggle & Chat Settings -->
             <div class="setting-toggle-group" style="justify-content: center; display: flex; margin-bottom: 10px;">
               <label class="setting-toggle" style="font-size: 9px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
                 <input type="checkbox" id="chk-twitch-announcements" checked>
@@ -486,21 +496,50 @@
 
           <div style="border-top: 1px dashed rgba(255,255,255,0.15); margin: 10px 0; padding-top: 10px; width: 100%;"></div>
 
-          <!-- Connection Settings -->
-          <div class="devtools-row" style="margin-bottom: 12px; width: 100%;">
-            <label class="devtools-label" for="twitch-channel-input" style="min-width: 130px; font-size: 8px;">OR ENTER NAME</label>
-            <input type="text" id="twitch-channel-input" placeholder="e.g. streamer_name" class="devtools-input" style="padding: 6px 10px; font-size: 10px; flex: 1;">
+          <!-- Customizable Fields (Font size, Vote duration) -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; text-align: left;">
+            <div class="devtools-row" style="margin: 0; width: 100%;">
+              <label class="devtools-label" for="twitch-chat-size" style="min-width: 120px; font-size: 8px;">CHAT FONT SIZE</label>
+              <input type="number" id="twitch-chat-size" min="8" max="24" value="10" class="devtools-input" style="padding: 6px 10px; font-size: 10px; flex: 1;">
+            </div>
+            <div class="devtools-row" style="margin: 0; width: 100%;">
+              <label class="devtools-label" for="twitch-vote-duration" style="min-width: 120px; font-size: 8px;">VOTE TIMER (S)</label>
+              <input type="number" id="twitch-vote-duration" min="5" max="120" value="20" class="devtools-input" style="padding: 6px 10px; font-size: 10px; flex: 1;">
+            </div>
           </div>
-          
-          <button id="btn-twitch-connect" class="btn-menu" style="margin-bottom: 10px;">CONNECT MANUAL</button>
-          
-          <!-- Auto-connect toggle -->
-          <div class="setting-toggle-group" style="margin-bottom: 20px; justify-content: center; display: flex;">
-            <label class="setting-toggle" style="font-size: 9px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-              <input type="checkbox" id="chk-twitch-autoconnect" checked>
-              <span class="checkbox-custom"></span>
-              <span>AUTO-CONNECT ON LOAD</span>
-            </label>
+
+          <!-- Customizable Announcement Messages -->
+          <div style="border-top: 1px dashed rgba(255,255,255,0.15); margin: 10px 0; padding-top: 10px; text-align: left; width: 100%;">
+            <div style="font-size: 8px; font-family: var(--font-pixel); margin-bottom: 10px; color: #a970ff;">CUSTOM ANNOUNCEMENT TEMPLATES</div>
+            <div class="devtools-row" style="margin-bottom: 8px; width: 100%;">
+              <label class="devtools-label" for="twitch-msg-wave" style="min-width: 120px; font-size: 7px;">WAVE START MSG</label>
+              <input type="text" id="twitch-msg-wave" class="devtools-input" style="padding: 6px 10px; font-size: 8px; flex: 1;">
+            </div>
+            <div class="devtools-row" style="margin-bottom: 8px; width: 100%;">
+              <label class="devtools-label" for="twitch-msg-vote" style="min-width: 120px; font-size: 7px;">VOTE START MSG</label>
+              <input type="text" id="twitch-msg-vote" class="devtools-input" style="padding: 6px 10px; font-size: 8px; flex: 1;">
+            </div>
+            <div class="devtools-row" style="margin-bottom: 8px; width: 100%;">
+              <label class="devtools-label" for="twitch-msg-winner" style="min-width: 120px; font-size: 7px;">VOTE END MSG</label>
+              <input type="text" id="twitch-msg-winner" class="devtools-input" style="padding: 6px 10px; font-size: 8px; flex: 1;">
+            </div>
+          </div>
+
+          <!-- Customizable Commands List Grid -->
+          <div style="border-top: 1px dashed rgba(255,255,255,0.15); margin: 15px 0; padding-top: 15px; text-align: left; width: 100%;">
+            <div style="font-size: 8px; font-family: var(--font-pixel); margin-bottom: 8px; color: #a970ff;">COMMAND CONFIGURATIONS</div>
+            <div style="max-height: 200px; overflow-y: auto; padding-right: 5px; border: 2px dashed rgba(125,95,255,0.2); background: rgba(10, 11, 22, 0.4); padding: 8px;">
+              <div class="devtools-row" style="border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 4px; margin-bottom: 8px; font-size: 7px; color: var(--text-secondary);">
+                <span style="width: 80px; text-align: left;">COMMAND</span>
+                <span style="width: 50px; text-align: center;">ENABLE</span>
+                <span style="width: 60px; text-align: center; margin: 0 5px;">COOLDOWN (S)</span>
+                <span style="width: 60px; text-align: center; margin: 0 5px;">BITS COST</span>
+                <span style="width: 70px; text-align: center; margin-left: 5px;">POINTS COST</span>
+              </div>
+              <div id="twitch-commands-list">
+                <!-- Injected dynamically by initTwitchUIListeners -->
+              </div>
+            </div>
           </div>
 
           <div style="border-top: 1px dashed rgba(255,255,255,0.15); margin: 15px 0; padding-top: 15px; width: 100%;">
@@ -653,6 +692,12 @@
 
         <div class="menu-buttons" style="margin-top: 25px; width: auto;">
           <button id="btn-start-next-wave" class="btn-menu">START NEXT WAVE</button>
+          <div id="shop-twitch-vote-status" style="display: none; margin-top: 12px; font-family: var(--font-pixel); font-size: 8px; color: #a970ff; text-shadow: 0 0 5px rgba(169, 112, 255, 0.5);">
+            TWITCH VOTE ACTIVE...
+          </div>
+          <div id="twitch-vote-waiting-msg" style="display: none; margin-top: 8px; font-family: var(--font-pixel); font-size: 8px; color: #ff4757;">
+            Waiting for Twitch vote to finish...
+          </div>
         </div>
       </div>
     </div>
@@ -996,6 +1041,9 @@
           <button id="btn-player-twitch-login" class="btn-menu" style="background: #6441a5; border-color: #9146FF; box-shadow: 4px 4px 0 #7d5fff; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px;">
             <svg class="twitch-icon" style="width: 14px; height: 14px; fill: #fff;" viewBox="0 0 24 24"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
             LOG IN WITH TWITCH
+          </button>
+          <button id="btn-player-google-login" class="btn-menu" disabled style="background: #333; border-color: #555; box-shadow: 4px 4px 0 #111; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; margin-top: 10px; opacity: 0.6; cursor: not-allowed;">
+            SIGN IN WITH GOOGLE (COMING SOON)
           </button>
           <div id="player-auth-status" style="font-size: 8px; margin-top: 15px; color: #ff6b6b; font-family: var(--font-pixel); min-height: 10px;"></div>
         </div>

@@ -1259,22 +1259,41 @@ export class LevelManager {
 
     const key = (c, r) => c * this.navRows + r;
 
-    // A* open set as a simple array (maze is only 10×10 = 100 nodes, fast enough)
-    const open   = new Map(); // key → { c, r, g, f, parent }
+    // Use sorted array for open set (descending f so pop() is lowest f)
+    const open = [];
+    const openMap = new Map(); // key -> node
     const closed = new Set();
 
     const heuristic = (c, r) => Math.abs(c - gc.c) + Math.abs(r - gc.r);
 
     const startNode = { c: sc.c, r: sc.r, g: 0, f: heuristic(sc.c, sc.r), parent: null };
-    open.set(key(sc.c, sc.r), startNode);
+    open.push(startNode);
+    openMap.set(key(sc.c, sc.r), startNode);
 
-    while (open.size > 0) {
-      // Pick node with lowest f
-      let best = null;
-      for (const node of open.values()) {
-        if (!best || node.f < best.f) best = node;
+    const insertSorted = (node) => {
+      let low = 0;
+      let high = open.length;
+      while (low < high) {
+        const mid = (low + high) >>> 1;
+        if (open[mid].f > node.f) {
+          low = mid + 1;
+        } else {
+          high = mid;
+        }
       }
-      open.delete(key(best.c, best.r));
+      open.splice(low, 0, node);
+    };
+
+    let iterations = 0;
+
+    while (open.length > 0) {
+      iterations++;
+      if (iterations > 300) {
+        break; // Prevent extreme lag for long or unreachable paths
+      }
+
+      const best = open.pop();
+      openMap.delete(key(best.c, best.r));
       closed.add(key(best.c, best.r));
 
       if (best.c === gc.c && best.r === gc.r) {
@@ -1312,15 +1331,31 @@ export class LevelManager {
         if (nc < 0 || nr < 0 || nc >= this.navCols || nr >= this.navRows) continue;
         const nk = key(nc, nr);
         if (closed.has(nk)) continue;
+        
         const g = best.g + 1;
         const f = g + heuristic(nc, nr);
-        if (!open.has(nk) || open.get(nk).g > g) {
-          open.set(nk, { c: nc, r: nr, g, f, parent: best });
+        
+        if (!openMap.has(nk)) {
+          const neighbor = { c: nc, r: nr, g, f, parent: best };
+          insertSorted(neighbor);
+          openMap.set(nk, neighbor);
+        } else {
+          const existing = openMap.get(nk);
+          if (existing.g > g) {
+            const idx = open.indexOf(existing);
+            if (idx > -1) {
+              open.splice(idx, 1);
+            }
+            existing.g = g;
+            existing.f = f;
+            existing.parent = best;
+            insertSorted(existing);
+          }
         }
       }
     }
 
-    // No path found (shouldn't happen in connected maze)
+    // No path found or iteration limit reached
     return [];
   }
 

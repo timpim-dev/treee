@@ -21,6 +21,7 @@ export class TwitchManager {
     // Chat feed (for HUD display)
     this.chatFeed = []; // { username, command, text, color, time }
     this.maxFeedSize = 6;
+    this.chatFontSize = 10;
 
     // Voting system
     this.voteActive = false;
@@ -29,17 +30,23 @@ export class TwitchManager {
     this.voteTimer = 0;
     this.voteOptions = [];
     this.voteCallback = null;
+    this.voteDuration = 20;
+
+    // Custom announcement templates (no emojis!)
+    this.msgWaveStart = '[Aetherweaver] Wave {wave} has started! Spawn monsters with !spawn, curse the wizard with !curse, or trigger a !meteor!';
+    this.msgVoteStart = '[Aetherweaver] VOTE STARTED! Options: {options}. Type "!vote <option>" in chat to participate! Time limit: {duration} seconds.';
+    this.msgVoteEnd = '[Aetherweaver] Vote finished! Option "{winner}" won with {votes} votes ({total} total voters).';
 
     // Command definitions with cooldowns (seconds)
     this.commands = {
-      'spawn':     { cooldown: 10, enabled: true, desc: 'Spawn an enemy' },
-      'heal':      { cooldown: 30, enabled: true, desc: 'Heal the player' },
-      'curse':     { cooldown: 20, enabled: true, desc: 'Spawn mini slimes' },
-      'buff':      { cooldown: 45, enabled: true, desc: 'Random buff' },
-      'meteor':    { cooldown: 60, enabled: true, desc: 'Meteor event' },
-      'vote':      { cooldown: 0,  enabled: true, desc: 'Vote on events' },
-      'gg':        { cooldown: 3,  enabled: true, desc: 'GG celebration', perUser: true },
-      'backrooms': { cooldown: 120, enabled: true, desc: 'Backrooms chance' },
+      'spawn':     { cooldown: 10, enabled: true, desc: 'Spawn an enemy', bits: 0, points: 0 },
+      'heal':      { cooldown: 30, enabled: true, desc: 'Heal the player', bits: 0, points: 0 },
+      'curse':     { cooldown: 20, enabled: true, desc: 'Spawn mini slimes', bits: 0, points: 0 },
+      'buff':      { cooldown: 45, enabled: true, desc: 'Random buff', bits: 0, points: 0 },
+      'meteor':    { cooldown: 60, enabled: true, desc: 'Meteor event', bits: 0, points: 0 },
+      'vote':      { cooldown: 0,  enabled: true, desc: 'Vote on events', bits: 0, points: 0 },
+      'gg':        { cooldown: 3,  enabled: true, desc: 'GG celebration', perUser: true, bits: 0, points: 0 },
+      'backrooms': { cooldown: 120, enabled: true, desc: 'Backrooms chance', bits: 0, points: 0 },
     };
 
     this.enableAnnouncements = true;
@@ -173,6 +180,7 @@ export class TwitchManager {
    * Process a chat message for commands
    */
   handleChatMessage(username, message) {
+    if (this.game.isTutorial) return;
     // Must start with !
     if (!message.startsWith('!')) return;
 
@@ -238,6 +246,7 @@ export class TwitchManager {
    * Start a vote with given options and duration
    */
   startVote(options, durationSeconds, callback) {
+    if (this.game.isTutorial) return;
     this.voteActive = true;
     this.voteOptions = options;
     this.votes = {};
@@ -246,7 +255,12 @@ export class TwitchManager {
     this.voteTimer = durationSeconds;
     this.voteCallback = callback;
     this.addFeedMessage('SYSTEM', 'vote', `VOTE STARTED! Type !vote ${options.join('/')}`, '#7d5fff');
-    this.sendMessage(`[Aetherweaver] VOTE STARTED! Options: ${options.map(o => o.toUpperCase()).join(', ')}. Type "!vote <option>" in chat to participate! Time limit: ${durationSeconds} seconds.`);
+    
+    const optionsStr = options.map(o => o.toUpperCase()).join(', ');
+    const msg = this.msgVoteStart
+      .replace('{options}', optionsStr)
+      .replace('{duration}', Math.ceil(durationSeconds));
+    this.sendMessage(msg);
   }
 
   /**
@@ -267,7 +281,12 @@ export class TwitchManager {
 
     const result = { winner, votes: { ...this.votes }, totalVoters: this.voterSet.size };
     this.addFeedMessage('SYSTEM', 'vote', `${winner ? winner.toUpperCase() + ' wins!' : 'No votes'} (${result.totalVoters} voters)`, '#7d5fff');
-    this.sendMessage(`[Aetherweaver] Vote finished! Option "${winner ? winner.toUpperCase() : 'NONE'}" won with ${maxVotes} votes (${result.totalVoters} total voters).`);
+    
+    const msg = this.msgVoteEnd
+      .replace('{winner}', winner ? winner.toUpperCase() : 'NONE')
+      .replace('{votes}', maxVotes)
+      .replace('{total}', result.totalVoters);
+    this.sendMessage(msg);
 
     if (this.voteCallback) {
       this.voteCallback(result);
@@ -290,7 +309,15 @@ export class TwitchManager {
 
     // Fade old feed messages
     const now = Date.now();
+    const oldLength = this.chatFeed.length;
     this.chatFeed = this.chatFeed.filter(msg => now - msg.time < 8000);
+
+    if (this.chatFeed.length > 0) {
+      this.updateHTMLChat();
+    } else if (oldLength > 0) {
+      const chatContainer = document.getElementById('hud-twitch-chat');
+      if (chatContainer) chatContainer.innerHTML = '';
+    }
 
     // Process one command per frame from queue
     if (this.commandQueue.length > 0) {
@@ -436,64 +463,55 @@ export class TwitchManager {
     if (this.chatFeed.length > this.maxFeedSize) {
       this.chatFeed.shift();
     }
+    this.updateHTMLChat();
   }
 
   /**
-   * Draw the in-game chat overlay (called from Game.draw)
+   * Render/update the HTML-based chat overlay
    */
-  drawOverlay(ctx, canvasWidth, canvasHeight) {
-    if (!this.connected && this.chatFeed.length === 0) return;
+  updateHTMLChat() {
+    const chatContainer = document.getElementById('hud-twitch-chat');
+    if (!chatContainer) return;
 
+    chatContainer.innerHTML = '';
     const now = Date.now();
-    const x = 12;
-    let y = canvasHeight - 30;
 
-    // Connection status indicator
-    ctx.save();
-    ctx.font = '9px "Press Start 2P", monospace';
-
-    // Draw chat feed (bottom-left, fading)
-    for (let i = this.chatFeed.length - 1; i >= 0; i--) {
+    for (let i = 0; i < this.chatFeed.length; i++) {
       const msg = this.chatFeed[i];
       const age = now - msg.time;
       const alpha = age > 6000 ? Math.max(0, 1 - (age - 6000) / 2000) : 1;
       if (alpha <= 0) continue;
 
-      ctx.globalAlpha = alpha * 0.85;
+      const msgEl = document.createElement('div');
+      msgEl.className = 'twitch-chat-msg';
+      msgEl.style.fontSize = `${this.chatFontSize}px`;
+      msgEl.style.opacity = alpha;
 
-      // Background
-      const textWidth = ctx.measureText(`${msg.username}: ${msg.text}`).width;
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(x - 4, y - 10, textWidth + 16, 14);
+      const userSpan = document.createElement('span');
+      userSpan.style.color = msg.color || '#fff';
+      userSpan.style.fontWeight = 'bold';
+      userSpan.innerText = msg.username;
 
-      // Username
-      ctx.fillStyle = msg.color;
-      ctx.fillText(msg.username, x, y);
-      const nameWidth = ctx.measureText(msg.username + ': ').width;
+      const textSpan = document.createElement('span');
+      textSpan.innerText = `: ${msg.text}`;
+      textSpan.style.color = '#dfe7ff';
 
-      // Message
-      ctx.fillStyle = '#dfe7ff';
-      ctx.fillText(`: ${msg.text}`, x + nameWidth - ctx.measureText(': ').width, y);
-
-      y -= 16;
+      msgEl.appendChild(userSpan);
+      msgEl.appendChild(textSpan);
+      chatContainer.appendChild(msgEl);
     }
+  }
 
-    // Connection badge (top-right corner)
-    ctx.globalAlpha = 0.7;
-    const badgeText = this.connected ? `⬤ TWITCH #${this.channel}` : '○ TWITCH OFF';
-    const badgeColor = this.connected ? '#9146FF' : '#555';
-    const bw = ctx.measureText(badgeText).width + 16;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillRect(canvasWidth - bw - 8, 8, bw + 4, 16);
-    ctx.fillStyle = badgeColor;
-    ctx.fillText(badgeText, canvasWidth - bw - 4, 20);
-
+  /**
+   * Draw the in-game canvas-based vote bar overlay (called from Game.draw)
+   */
+  drawOverlay(ctx, canvasWidth, canvasHeight) {
     // Vote bar (if active)
     if (this.voteActive && this.voteOptions.length > 0) {
+      ctx.save();
       this.drawVoteBar(ctx, canvasWidth);
+      ctx.restore();
     }
-
-    ctx.restore();
   }
 
   /**
@@ -521,7 +539,7 @@ export class TwitchManager {
 
     // Vote bars
     const totalVotes = Object.values(this.votes).reduce((a, b) => a + b, 0) || 1;
-    const optColors = { fire: '#e74c3c', frost: '#3498db', void: '#8e44ad', lightning: '#f1c40f' };
+    const optColors = { fire: '#e74c3c', frost: '#3498db', void: '#8e44ad', lightning: '#f1c40f', dungeon: '#95a5a6', gardens: '#2ecc71', underground: '#e67e22', pool: '#3498db', volcanic: '#e74c3c', void_rift: '#9b59b6' };
     let ox = barX;
     const segW = barW / this.voteOptions.length;
 
@@ -556,11 +574,18 @@ export class TwitchManager {
         const data = JSON.parse(saved);
         if (data.channel) this.channel = data.channel;
         if (data.enableAnnouncements !== undefined) this.enableAnnouncements = data.enableAnnouncements;
+        if (data.chatFontSize !== undefined) this.chatFontSize = data.chatFontSize;
+        if (data.voteDuration !== undefined) this.voteDuration = data.voteDuration;
+        if (data.msgWaveStart !== undefined) this.msgWaveStart = data.msgWaveStart;
+        if (data.msgVoteStart !== undefined) this.msgVoteStart = data.msgVoteStart;
+        if (data.msgVoteEnd !== undefined) this.msgVoteEnd = data.msgVoteEnd;
         if (data.commands) {
           for (const [key, val] of Object.entries(data.commands)) {
             if (this.commands[key]) {
               this.commands[key].enabled = val.enabled !== false;
               if (val.cooldown !== undefined) this.commands[key].cooldown = val.cooldown;
+              if (val.bits !== undefined) this.commands[key].bits = val.bits;
+              if (val.points !== undefined) this.commands[key].points = val.points;
             }
           }
         }
@@ -580,10 +605,20 @@ export class TwitchManager {
         channel: this.channel,
         autoConnect: this.connected,
         enableAnnouncements: this.enableAnnouncements,
+        chatFontSize: this.chatFontSize,
+        voteDuration: this.voteDuration,
+        msgWaveStart: this.msgWaveStart,
+        msgVoteStart: this.msgVoteStart,
+        msgVoteEnd: this.msgVoteEnd,
         commands: {}
       };
       for (const [key, val] of Object.entries(this.commands)) {
-        data.commands[key] = { enabled: val.enabled, cooldown: val.cooldown };
+        data.commands[key] = {
+          enabled: val.enabled,
+          cooldown: val.cooldown,
+          bits: val.bits || 0,
+          points: val.points || 0
+        };
       }
       localStorage.setItem('twitch_settings', JSON.stringify(data));
     } catch (e) {
