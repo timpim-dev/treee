@@ -5210,21 +5210,20 @@ export class Game {
     if (!this._hasRegisteredPlayerOAuthListener) {
       this._hasRegisteredPlayerOAuthListener = true;
       window.addEventListener('message', async (e) => {
-        console.log('[Player OAuth] message listener received origin:', e.origin, 'data:', e.data);
         // Accept messages from the PocketBase backend OR our own frontend origin (for SPA redirects)
         if (e.origin !== this.pbClient.baseUrl && e.origin !== window.location.origin) return;
-        console.log('[Player OAuth] Message received from valid origin:', e.origin, 'data:', e.data);
         
         let data = e.data;
         if (typeof data === 'string') {
           try {
             data = JSON.parse(data);
           } catch (err) {
-            console.warn('[Player OAuth] Message data is not a valid JSON string:', err);
+            return;
           }
         }
         
         if (data && data.code && data.state) {
+          console.log('[Player OAuth] Valid credentials message received from origin:', e.origin, 'data:', data);
           const storedState = localStorage.getItem('aetherweaver_pb_oauth_state');
           const storedVerifier = localStorage.getItem('aetherweaver_pb_oauth_verifier');
           
