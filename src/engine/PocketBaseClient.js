@@ -161,7 +161,8 @@ export class PocketBaseClient {
           high_score: 0,
           level: 1,
           wave: 1,
-          chapter_unlocked: 1
+          chapter_unlocked: 1,
+          plan: 'free'
         })
       });
 
@@ -187,7 +188,14 @@ export class PocketBaseClient {
           provider,
           code,
           codeVerifier,
-          redirectUrl
+          redirectUrl,
+          createData: {
+            plan: 'free',
+            high_score: 0,
+            level: 1,
+            wave: 1,
+            chapter_unlocked: 1
+          }
         })
       });
 

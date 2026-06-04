@@ -191,6 +191,23 @@
           "max": null,
           "noDecimal": true
         }
+      },
+      {
+        "system": false,
+        "id": "ag_u_plan",
+        "name": "plan",
+        "type": "select",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "free",
+            "pro",
+            "team"
+          ]
+        }
       }
     ],
     "indexes": [],
