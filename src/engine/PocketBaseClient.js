@@ -193,7 +193,15 @@ export class PocketBaseClient {
 
       if (!response.ok) {
         const errData = await response.json();
-        throw new Error(errData.message || 'OAuth authentication failed');
+        console.error('[PocketBase OAuth Error Detail]', errData);
+        let errMsg = errData.message || 'OAuth authentication failed';
+        if (errData.data && Object.keys(errData.data).length > 0) {
+          const details = Object.entries(errData.data)
+            .map(([key, val]) => `${key}: ${val.message || JSON.stringify(val)}`)
+            .join(', ');
+          errMsg += ` (${details})`;
+        }
+        throw new Error(errMsg);
       }
 
       const data = await response.json();
