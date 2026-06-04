@@ -5104,7 +5104,7 @@ export class Game {
         fetch('https://api.twitch.tv/helix/users', {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
-            'Client-Id': 'fyb4qowkadr2y7xkofitv73ygnawt5'
+            'Client-Id': '1zu1g6sz69tae512pzy7dp57uowmvk'
           }
         })
         .then(res => {
