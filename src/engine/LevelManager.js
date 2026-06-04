@@ -1716,6 +1716,9 @@ export class LevelManager {
 
       // Trigger Runic Shop overlay!
       this.game.setState('SHOP');
+      if (this.game.twitchManager && this.game.twitchManager.connected) {
+        this.game.twitchManager.sendMessage(`🏆 [Aetherweaver] Wave ${this.wave} completed successfully! Streamer is now upgrading in the Runic Shop. Prepare for Wave ${this.wave + 1}!`);
+      }
       return;
     }
 

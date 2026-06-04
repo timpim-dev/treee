@@ -836,6 +836,9 @@ export class Game {
             color: '#c39aff', fontSize: 14, fontPixel: true, life: 3.0
           }
         );
+        if (this.twitchManager && this.twitchManager.connected) {
+          this.twitchManager.sendMessage(`🔮 [Aetherweaver] Streamer has achieved Rebirth ${this.player.rebirthCount}! Aether reborn! Permanent bonuses unlocked!`);
+        }
       }
     });
 
@@ -941,6 +944,9 @@ export class Game {
       this.levelManager.wave++;
       this.levelManager.startNextWave();
       this.setState('PLAYING');
+      if (this.twitchManager && this.twitchManager.connected) {
+        this.twitchManager.sendMessage(`🎮 [Aetherweaver] Wave ${this.levelManager.wave} has started! Spawn monsters with !spawn, curse the wizard with !curse, or trigger a !meteor!`);
+      }
     });
 
     // ── Inventory Panel ──────────────────────────────────────────────────
@@ -1163,8 +1169,17 @@ export class Game {
       btnTwitchLoginOauth.addEventListener('click', () => {
         const clientID = 'fyb4qowkadr2y7xkofitv73ygnawt5'; // standard Twitch client id
         const redirectUri = encodeURIComponent(window.location.origin + window.location.pathname);
-        const twitchAuthUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientID}&redirect_uri=${redirectUri}&response_type=token&scope=chat:read`;
+        const twitchAuthUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientID}&redirect_uri=${redirectUri}&response_type=token&scope=chat:read+chat:edit`;
         window.location.href = twitchAuthUrl;
+      });
+    }
+
+    const chkTwitchAnnouncements = document.getElementById('chk-twitch-announcements');
+    if (chkTwitchAnnouncements) {
+      chkTwitchAnnouncements.checked = this.twitchManager.enableAnnouncements;
+      chkTwitchAnnouncements.addEventListener('change', (e) => {
+        this.twitchManager.enableAnnouncements = e.target.checked;
+        this.twitchManager.saveSettings();
       });
     }
 
@@ -2508,6 +2523,9 @@ export class Game {
     this.updateHUD();
     
     this.setState('PLAYING');
+    if (this.twitchManager && this.twitchManager.connected) {
+      this.twitchManager.sendMessage(`🎮 [Aetherweaver] A new run has started! Wave 1 is active! Help or hinder the streamer in chat using commands: !heal, !spawn, !curse, !buff, !meteor, !gg`);
+    }
   }
 
   gameOver() {
@@ -2526,6 +2544,10 @@ export class Game {
     document.getElementById('go-score').innerText = this.score;
     
     this.player.saveGameState();
+
+    if (this.twitchManager && this.twitchManager.connected) {
+      this.twitchManager.sendMessage(`💀 [Aetherweaver] Run ended! Streamer was defeated on Wave ${this.levelManager.wave} with a final score of ${this.score}. Type !gg to console the wizard!`);
+    }
 
     // Reset submission panel
     document.getElementById('leaderboard-submission-box').classList.remove('hidden');

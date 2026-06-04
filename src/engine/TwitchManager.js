@@ -42,12 +42,15 @@ export class TwitchManager {
       'backrooms': { cooldown: 120, enabled: true, desc: 'Backrooms chance' },
     };
 
+    this.enableAnnouncements = true;
+    this.isAnonymous = true;
+
     // Load settings from localStorage
     this.loadSettings();
   }
 
   /**
-   * Connect to Twitch IRC as anonymous read-only viewer
+   * Connect to Twitch IRC
    */
   connect(channelName) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -57,19 +60,38 @@ export class TwitchManager {
     this.channel = channelName.toLowerCase().replace('#', '');
     console.log(`[Twitch] Connecting to #${this.channel}...`);
 
+    // Check if we have a matching OAuth token for write access
+    const savedToken = localStorage.getItem('twitch_oauth_token');
+    const savedUserStr = localStorage.getItem('twitch_oauth_user');
+    let oauthUser = null;
+    if (savedUserStr) {
+      try {
+        oauthUser = JSON.parse(savedUserStr);
+      } catch (e) {}
+    }
+
+    const useOAuth = savedToken && oauthUser && oauthUser.login && oauthUser.login.toLowerCase() === this.channel;
+    this.isAnonymous = !useOAuth;
+
     try {
       this.ws = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
 
       this.ws.onopen = () => {
-        // Anonymous login (read-only, no OAuth needed)
-        const anonId = Math.floor(Math.random() * 99999);
         this.ws.send('CAP REQ :twitch.tv/tags twitch.tv/commands');
-        this.ws.send(`NICK justinfan${anonId}`);
+        if (useOAuth) {
+          console.log(`[Twitch] Logging in with OAuth as ${oauthUser.login}...`);
+          this.ws.send(`PASS oauth:${savedToken}`);
+          this.ws.send(`NICK ${oauthUser.login}`);
+        } else {
+          console.log(`[Twitch] Logging in anonymously...`);
+          const anonId = Math.floor(Math.random() * 99999);
+          this.ws.send(`NICK justinfan${anonId}`);
+        }
         this.ws.send(`JOIN #${this.channel}`);
-        console.log(`[Twitch] Connected to #${this.channel}`);
+        console.log(`[Twitch] Connected and joined #${this.channel}`);
         this.connected = true;
         this.reconnectAttempts = 0;
-        this.addFeedMessage('SYSTEM', 'connected', `Connected to #${this.channel}`, '#4ecdc4');
+        this.addFeedMessage('SYSTEM', 'connected', `Connected to #${this.channel}${useOAuth ? ' (Bot Enabled)' : ' (Read-Only)'}`, '#4ecdc4');
       };
 
       this.ws.onmessage = (event) => {
@@ -99,6 +121,16 @@ export class TwitchManager {
     this.connected = false;
     this.channel = null;
     this.addFeedMessage('SYSTEM', 'disconnected', 'Disconnected from Twitch', '#ff6b6b');
+  }
+
+  sendMessage(message) {
+    if (!this.enableAnnouncements) return;
+    if (this.ws && this.connected && this.channel && !this.isAnonymous) {
+      console.log(`[Twitch Bot] Sending message to #${this.channel}: ${message}`);
+      this.ws.send(`PRIVMSG #${this.channel} :${message}`);
+    } else {
+      console.log(`[Twitch Bot] Cannot send message (connected: ${this.connected}, anonymous: ${this.isAnonymous})`);
+    }
   }
 
   attemptReconnect() {
@@ -214,6 +246,7 @@ export class TwitchManager {
     this.voteTimer = durationSeconds;
     this.voteCallback = callback;
     this.addFeedMessage('SYSTEM', 'vote', `VOTE STARTED! Type !vote ${options.join('/')}`, '#7d5fff');
+    this.sendMessage(`🗳️ [Aetherweaver] VOTE STARTED! Options: ${options.map(o => o.toUpperCase()).join(', ')}. Type "!vote <option>" in chat to participate! Time limit: ${durationSeconds} seconds.`);
   }
 
   /**
@@ -234,6 +267,7 @@ export class TwitchManager {
 
     const result = { winner, votes: { ...this.votes }, totalVoters: this.voterSet.size };
     this.addFeedMessage('SYSTEM', 'vote', `${winner ? winner.toUpperCase() + ' wins!' : 'No votes'} (${result.totalVoters} voters)`, '#7d5fff');
+    this.sendMessage(`🏆 [Aetherweaver] Vote finished! Option "${winner ? winner.toUpperCase() : 'NONE'}" won with ${maxVotes} votes (${result.totalVoters} total voters).`);
 
     if (this.voteCallback) {
       this.voteCallback(result);
@@ -521,6 +555,7 @@ export class TwitchManager {
       if (saved) {
         const data = JSON.parse(saved);
         if (data.channel) this.channel = data.channel;
+        if (data.enableAnnouncements !== undefined) this.enableAnnouncements = data.enableAnnouncements;
         if (data.commands) {
           for (const [key, val] of Object.entries(data.commands)) {
             if (this.commands[key]) {
@@ -544,6 +579,7 @@ export class TwitchManager {
       const data = {
         channel: this.channel,
         autoConnect: this.connected,
+        enableAnnouncements: this.enableAnnouncements,
         commands: {}
       };
       for (const [key, val] of Object.entries(this.commands)) {
