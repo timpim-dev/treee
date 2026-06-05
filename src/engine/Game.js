@@ -3928,13 +3928,15 @@ export class Game {
       }
 
       else if (ae.type === 'ice_trail') {
-        this.enemies.forEach((enemy) => {
-          if (enemy.dead) return;
-          const dist = Math.hypot(enemy.x - ae.x, enemy.y - ae.y);
-          if (dist <= ae.radius) {
-            enemy.applyStatus(SPELL_TYPES.FROST, 1.5);
-          }
-        });
+        if (isTick) {
+          this.enemies.forEach((enemy) => {
+            if (enemy.dead) return;
+            const dist = Math.hypot(enemy.x - ae.x, enemy.y - ae.y);
+            if (dist <= ae.radius) {
+              enemy.applyStatus(SPELL_TYPES.FROST, 1.5);
+            }
+          });
+        }
         
         const pDist = Math.hypot(this.player.x - ae.x, this.player.y - ae.y);
         if (pDist <= ae.radius) {
@@ -3956,24 +3958,30 @@ export class Game {
 
       else if (ae.type === 'chrono_slow') {
         // Slow down enemies in zone
-        this.enemies.forEach((enemy) => {
-          if (enemy.type !== 'warden') {
-            const dist = Math.hypot(enemy.x - ae.x, enemy.y - ae.y);
-            if (dist <= ae.radius) {
-              enemy.applyStatus(SPELL_TYPES.FROST, 0.4); // apply brief freezing slow
+        if (isTick) {
+          this.enemies.forEach((enemy) => {
+            if (enemy.type !== 'warden' && !enemy.dead) {
+              const dist = Math.hypot(enemy.x - ae.x, enemy.y - ae.y);
+              if (dist <= ae.radius) {
+                enemy.applyStatus(SPELL_TYPES.FROST, 0.45); // apply brief freezing slow
+              }
             }
-          }
-        });
+          });
+        }
       }
 
       else if (ae.type === 'frost_slow') {
         // Slow down enemies in zone
-        this.enemies.forEach((enemy) => {
-          const dist = Math.hypot(enemy.x - ae.x, enemy.y - ae.y);
-          if (dist <= ae.radius) {
-            enemy.applyStatus(SPELL_TYPES.FROST, 0.4);
-          }
-        });
+        if (isTick) {
+          this.enemies.forEach((enemy) => {
+            if (!enemy.dead) {
+              const dist = Math.hypot(enemy.x - ae.x, enemy.y - ae.y);
+              if (dist <= ae.radius) {
+                enemy.applyStatus(SPELL_TYPES.FROST, 0.45);
+              }
+            }
+          });
+        }
 
         // Spawn some frost particles on floor
         if (Math.random() < 0.15) {
@@ -3992,6 +4000,30 @@ export class Game {
     for (let i = 0; i < this.enemies.length; i++) {
       if (!this.enemies[i].dead) {
         this.enemies[i].update(enemyDt, this.player);
+      }
+    }
+
+    // Resolve pushing/bumping between active enemies in O(N^2 / 2) pairs check (no duplicate checks)
+    for (let i = 0; i < this.enemies.length; i++) {
+      const e1 = this.enemies[i];
+      if (e1.dead) continue;
+      for (let j = i + 1; j < this.enemies.length; j++) {
+        const e2 = this.enemies[j];
+        if (e2.dead) continue;
+        const bdx = e1.x - e2.x;
+        const bdy = e1.y - e2.y;
+        const bdist = Math.hypot(bdx, bdy);
+        const minDist = e1.radius + e2.radius;
+        if (bdist < minDist && bdist > 0.01) {
+          const push = (minDist - bdist) * 0.5;
+          const angle = Math.atan2(bdy, bdx);
+          const px = Math.cos(angle) * push;
+          const py = Math.sin(angle) * push;
+          e1.x += px;
+          e1.y += py;
+          e2.x -= px;
+          e2.y -= py;
+        }
       }
     }
 
@@ -4233,9 +4265,10 @@ export class Game {
     // Draw active area effect circles (e.g. fire/steam clouds)
     const playerX = this.player.x;
     const playerY = this.player.y;
+    const renderDistanceSq = this.renderDistance * this.renderDistance;
 
     this.areaEffects.forEach((ae) => {
-      if (Math.hypot(ae.x - playerX, ae.y - playerY) > this.renderDistance) return;
+      if ((ae.x - playerX) ** 2 + (ae.y - playerY) ** 2 > renderDistanceSq) return;
       const rx = ae.x - this.camera.x;
       const ry = ae.y - this.camera.y;
       
@@ -4263,7 +4296,7 @@ export class Game {
 
     // Draw Loot Items on ground
     this.items.forEach((item) => {
-      if (Math.hypot(item.x - playerX, item.y - playerY) > this.renderDistance) return;
+      if ((item.x - playerX) ** 2 + (item.y - playerY) ** 2 > renderDistanceSq) return;
       let assetKey = 'item_shard';
       if (item.type === 'hp') assetKey = 'item_hp';
       else if (item.type === 'mp') assetKey = 'item_mp';
@@ -4280,21 +4313,21 @@ export class Game {
     // Draw Enemies AI characters
     this.enemies.forEach((enemy) => {
       if (enemy.dead) return;
-      if (Math.hypot(enemy.x - playerX, enemy.y - playerY) > this.renderDistance) return;
+      if ((enemy.x - playerX) ** 2 + (enemy.y - playerY) ** 2 > renderDistanceSq) return;
       enemy.draw(this.ctx, this.assets);
     });
 
     // Draw Companions
     if (this.companions) {
       this.companions.forEach((comp) => {
-        if (Math.hypot(comp.x - playerX, comp.y - playerY) > this.renderDistance) return;
+        if ((comp.x - playerX) ** 2 + (comp.y - playerY) ** 2 > renderDistanceSq) return;
         comp.draw(this.ctx, this.assets);
       });
     }
 
     // Draw spell projectiles
     this.projectiles.forEach((proj) => {
-      if (Math.hypot(proj.x - playerX, proj.y - playerY) > this.renderDistance) return;
+      if ((proj.x - playerX) ** 2 + (proj.y - playerY) ** 2 > renderDistanceSq) return;
       // Draw ribbon trail
       if (this.showSpellTrails && proj.trail && proj.trail.length > 1) {
         this.ctx.save();

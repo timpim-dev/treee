@@ -972,23 +972,7 @@ export class Enemy {
       }
     }
 
-    // Bumping between enemies to prevent stacking
-    this.game.enemies.forEach((other) => {
-      if (other !== this && !other.dead) {
-        const bdx = this.x - other.x;
-        const bdy = this.y - other.y;
-        const bdist = Math.hypot(bdx, bdy);
-        const minDist = this.radius + other.radius;
-        if (bdist < minDist && bdist > 0.01) {
-          const push = (minDist - bdist) * 0.5;
-          const angle = Math.atan2(bdy, bdx);
-          this.x += Math.cos(angle) * push;
-          this.y += Math.sin(angle) * push;
-          other.x -= Math.cos(angle) * push;
-          other.y -= Math.sin(angle) * push;
-        }
-      }
-    });
+    // Bumping/stacking resolution is handled globally in Game.update() to avoid O(N^2) inner iterations.
 
     // Deal damage to Player if colliding
     const pdist = Math.hypot(player.x - this.x, player.y - this.y);
