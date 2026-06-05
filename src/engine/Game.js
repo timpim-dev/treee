@@ -45,6 +45,7 @@ export class Game {
     this.devtoolsVisible = false;
     this.customPresetIdx = 0;
     this.nextThemeOverride = null;
+    this.frameCount = 0;
     
     // Dev overlay flags
     this.devShowHitboxes = false;
@@ -1195,6 +1196,7 @@ export class Game {
           row.style.justifyContent = 'space-between';
           row.style.borderBottom = '1px dashed rgba(255,255,255,0.05)';
           row.style.paddingBottom = '4px';
+          row.style.flexWrap = 'nowrap';
 
           row.innerHTML = `
             <span style="width: 80px; font-family: var(--font-mono); color: #fff;">!${cmdName}</span>
@@ -1204,7 +1206,7 @@ export class Game {
             </label>
             <input type="number" class="cmd-cooldown devtools-input" data-cmd="${cmdName}" min="0" max="600" value="${cmdDef.cooldown}" style="width: 60px; text-align: center; margin: 0 5px; padding: 4px; font-size: 8px;">
             <input type="number" class="cmd-bits devtools-input" data-cmd="${cmdName}" min="0" max="100000" value="${cmdDef.bits || 0}" style="width: 60px; text-align: center; margin: 0 5px; padding: 4px; font-size: 8px;">
-            <input type="number" class="cmd-points devtools-input" data-cmd="${cmdName}" min="0" max="1000000" value="${cmdDef.points || 0}" style="width: 70px; text-align: center; margin-left: 5px; padding: 4px; font-size: 8px;">
+            <input type="text" class="cmd-redeem devtools-input" data-cmd="${cmdName}" value="${cmdDef.redeemId || ''}" placeholder="Reward ID" style="width: 140px; text-align: center; margin-left: 5px; padding: 4px; font-size: 8px;">
           `;
           listContainer.appendChild(row);
         }
@@ -1323,10 +1325,18 @@ export class Game {
           this.twitchManager.commands[cmdName].cooldown = parseInt(target.value) || 0;
         } else if (target.classList.contains('cmd-bits')) {
           this.twitchManager.commands[cmdName].bits = parseInt(target.value) || 0;
-        } else if (target.classList.contains('cmd-points')) {
-          this.twitchManager.commands[cmdName].points = parseInt(target.value) || 0;
         }
         this.saveTwitchManagerSettings();
+      });
+      listContainer.addEventListener('input', (e) => {
+        const target = e.target;
+        const cmdName = target.getAttribute('data-cmd');
+        if (!cmdName) return;
+
+        if (target.classList.contains('cmd-redeem')) {
+          this.twitchManager.commands[cmdName].redeemId = target.value.trim();
+          this.saveTwitchManagerSettings();
+        }
       });
     }
 
@@ -2897,12 +2907,28 @@ export class Game {
   }
 
   spawnItem(x, y, type, value) {
+    if (type === 'shard' || type === 'hp' || type === 'mp') {
+      const stackRadius = 30;
+      const existing = this.items.find(item => 
+        item.type === type && 
+        Math.hypot(item.x - x, item.y - y) <= stackRadius
+      );
+      if (existing) {
+        existing.value += value;
+        if (!existing.drawSize) existing.drawSize = 16;
+        existing.drawSize = Math.min(28, existing.drawSize + 1);
+        existing.radius = Math.min(20, existing.radius + 0.5);
+        return;
+      }
+    }
+
     this.items.push({
       x,
       y,
       type, // 'shard', 'hp', 'mp'
       value,
       radius: 6,
+      drawSize: 16,
       vx: (Math.random() - 0.5) * 50,
       vy: (Math.random() - 0.5) * 50,
       friction: 0.9
@@ -3413,6 +3439,7 @@ export class Game {
   // ENTITY UPDATES
   // ----------------------------------------------------
   update(dt) {
+    this.frameCount++;
     // Check Chrono Shift speed dilation (Slows enemies/projectiles by 80%)
     let enemyDt = dt;
     if (this.timeDilationTimer > 0) {
@@ -4185,7 +4212,7 @@ export class Game {
       if (item.type === 'hp') assetKey = 'item_hp';
       else if (item.type === 'mp') assetKey = 'item_mp';
       else if (item.type === 'relic') assetKey = item.value.sprite;
-      this.assets.draw(this.ctx, assetKey, item.x - this.camera.x, item.y - this.camera.y, 16);
+      this.assets.draw(this.ctx, assetKey, item.x - this.camera.x, item.y - this.camera.y, item.drawSize || 16);
     });
 
     // Draw Obstacles (Pillars, walls)
@@ -5331,7 +5358,7 @@ export class Game {
           enabled: val.enabled,
           cooldown: val.cooldown,
           bits: val.bits || 0,
-          points: val.points || 0
+          redeemId: val.redeemId || ''
         };
       }
       const settings = {

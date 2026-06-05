@@ -15,6 +15,7 @@ export class ParticleSystem {
    */
   spawn(x, y, options = {}) {
     if (this.lowParticleMode && this.particles.length >= 80) return;
+    if (this.particles.length >= 300) return;
     this.particles.push({
       x,
       y,
@@ -37,6 +38,7 @@ export class ParticleSystem {
    * Spawns floating combat text (Damage numbers, healing, status effects)
    */
   spawnText(x, y, text, options = {}) {
+    if (this.textParticles.length >= 100) return;
     this.textParticles.push({
       x,
       y,

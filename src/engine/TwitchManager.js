@@ -20,7 +20,7 @@ export class TwitchManager {
 
     // Chat feed (for HUD display)
     this.chatFeed = []; // { username, command, text, color, time }
-    this.maxFeedSize = 6;
+    this.maxFeedSize = 10;
     this.chatFontSize = 10;
 
     // Voting system
@@ -32,6 +32,9 @@ export class TwitchManager {
     this.voteCallback = null;
     this.voteDuration = 20;
 
+    // Last custom redemption ID seen
+    this.lastRedeemId = '';
+
     // Custom announcement templates (no emojis!)
     this.msgWaveStart = '[Aetherweaver] Wave {wave} has started! Spawn monsters with !spawn, curse the wizard with !curse, or trigger a !meteor!';
     this.msgVoteStart = '[Aetherweaver] VOTE STARTED! Options: {options}. Type "!vote <option>" in chat to participate! Time limit: {duration} seconds.';
@@ -39,14 +42,14 @@ export class TwitchManager {
 
     // Command definitions with cooldowns (seconds)
     this.commands = {
-      'spawn':     { cooldown: 10, enabled: true, desc: 'Spawn an enemy', bits: 0, points: 0 },
-      'heal':      { cooldown: 30, enabled: true, desc: 'Heal the player', bits: 0, points: 0 },
-      'curse':     { cooldown: 20, enabled: true, desc: 'Spawn mini slimes', bits: 0, points: 0 },
-      'buff':      { cooldown: 45, enabled: true, desc: 'Random buff', bits: 0, points: 0 },
-      'meteor':    { cooldown: 60, enabled: true, desc: 'Meteor event', bits: 0, points: 0 },
-      'vote':      { cooldown: 0,  enabled: true, desc: 'Vote on events', bits: 0, points: 0 },
-      'gg':        { cooldown: 3,  enabled: true, desc: 'GG celebration', perUser: true, bits: 0, points: 0 },
-      'backrooms': { cooldown: 120, enabled: true, desc: 'Backrooms chance', bits: 0, points: 0 },
+      'spawn':     { cooldown: 10, enabled: true, desc: 'Spawn an enemy', bits: 0, redeemId: '' },
+      'heal':      { cooldown: 30, enabled: true, desc: 'Heal the player', bits: 0, redeemId: '' },
+      'curse':     { cooldown: 20, enabled: true, desc: 'Spawn mini slimes', bits: 0, redeemId: '' },
+      'buff':      { cooldown: 45, enabled: true, desc: 'Random buff', bits: 0, redeemId: '' },
+      'meteor':    { cooldown: 60, enabled: true, desc: 'Meteor event', bits: 0, redeemId: '' },
+      'vote':      { cooldown: 0,  enabled: true, desc: 'Vote on events', bits: 0, redeemId: '' },
+      'gg':        { cooldown: 3,  enabled: true, desc: 'GG celebration', perUser: true, bits: 0, redeemId: '' },
+      'backrooms': { cooldown: 120, enabled: true, desc: 'Backrooms chance', bits: 0, redeemId: '' },
     };
 
     this.enableAnnouncements = true;
@@ -99,6 +102,7 @@ export class TwitchManager {
         this.connected = true;
         this.reconnectAttempts = 0;
         this.addFeedMessage('SYSTEM', 'connected', `Connected to #${this.channel}${useOAuth ? ' (Bot Enabled)' : ' (Read-Only)'}`, '#4ecdc4');
+        if (this.game && this.game.updateTwitchStatus) this.game.updateTwitchStatus();
       };
 
       this.ws.onmessage = (event) => {
@@ -108,12 +112,14 @@ export class TwitchManager {
       this.ws.onclose = () => {
         console.log('[Twitch] Connection closed');
         this.connected = false;
+        if (this.game && this.game.updateTwitchStatus) this.game.updateTwitchStatus();
         this.attemptReconnect();
       };
 
       this.ws.onerror = (err) => {
         console.error('[Twitch] WebSocket error:', err);
         this.connected = false;
+        if (this.game && this.game.updateTwitchStatus) this.game.updateTwitchStatus();
       };
     } catch (e) {
       console.error('[Twitch] Failed to create WebSocket:', e);
@@ -128,6 +134,7 @@ export class TwitchManager {
     this.connected = false;
     this.channel = null;
     this.addFeedMessage('SYSTEM', 'disconnected', 'Disconnected from Twitch', '#ff6b6b');
+    if (this.game && this.game.updateTwitchStatus) this.game.updateTwitchStatus();
   }
 
   sendMessage(message) {
@@ -160,18 +167,37 @@ export class TwitchManager {
     for (const line of lines) {
       if (!line) continue;
 
+      let tags = {};
+      let parseLine = line;
+      if (line.startsWith('@')) {
+        const firstSpace = line.indexOf(' ');
+        if (firstSpace !== -1) {
+          const tagsPart = line.substring(1, firstSpace);
+          parseLine = line.substring(firstSpace + 1);
+          const tagPairs = tagsPart.split(';');
+          for (const pair of tagPairs) {
+            const eqIdx = pair.indexOf('=');
+            if (eqIdx !== -1) {
+              const k = pair.substring(0, eqIdx);
+              const v = pair.substring(eqIdx + 1);
+              tags[k] = v;
+            }
+          }
+        }
+      }
+
       // Respond to PING to stay connected
-      if (line.startsWith('PING')) {
+      if (parseLine.startsWith('PING')) {
         this.ws.send('PONG :tmi.twitch.tv');
         return;
       }
 
       // Parse PRIVMSG (chat messages)
-      const privmsgMatch = line.match(/:(\w+)!\w+@\w+\.tmi\.twitch\.tv PRIVMSG #\w+ :(.+)/);
+      const privmsgMatch = parseLine.match(/:(\w+)!\w+@\w+\.tmi\.twitch\.tv PRIVMSG #\w+ :(.+)/);
       if (privmsgMatch) {
         const username = privmsgMatch[1];
         const message = privmsgMatch[2].trim();
-        this.handleChatMessage(username, message);
+        this.handleChatMessage(username, message, tags);
       }
     }
   }
@@ -179,53 +205,90 @@ export class TwitchManager {
   /**
    * Process a chat message for commands
    */
-  handleChatMessage(username, message) {
+  handleChatMessage(username, message, tags = {}) {
     if (this.game.isTutorial) return;
-    // Must start with !
-    if (!message.startsWith('!')) return;
 
-    const parts = message.substring(1).toLowerCase().split(/\s+/);
-    const cmdName = parts[0];
-    const args = parts.slice(1);
+    // Check custom reward redemption
+    const redeemId = tags['custom-reward-id'];
+    if (redeemId) {
+      console.log(`[Twitch] Custom reward redeemed: ${redeemId} by ${username}`);
+      this.lastRedeemId = redeemId;
+      const lastRedeemEl = document.getElementById('twitch-last-redeem-id');
+      if (lastRedeemEl) {
+        lastRedeemEl.value = redeemId;
+      }
+      if (this.game && this.game.player) {
+        this.game.particles.spawnText(this.game.player.x, this.game.player.y - 80, `REDEMPTION: ${username}!`, {
+          color: '#a970ff', fontSize: 11, fontPixel: true, life: 2.0
+        });
+      }
 
-    const cmdDef = this.commands[cmdName];
-    if (!cmdDef || !cmdDef.enabled) return;
-
-    // Check per-user global cooldown (3s between any commands)
-    const now = Date.now();
-    const userKey = `user_${username}`;
-    if (this.userCooldowns[userKey] && now - this.userCooldowns[userKey] < 3000) return;
-
-    // Check command-specific cooldown
-    if (cmdDef.perUser) {
-      const perUserKey = `${cmdName}_${username}`;
-      if (this.globalCooldowns[perUserKey] && now - this.globalCooldowns[perUserKey] < cmdDef.cooldown * 1000) return;
-      this.globalCooldowns[perUserKey] = now;
-    } else if (cmdDef.cooldown > 0) {
-      if (this.globalCooldowns[cmdName] && now - this.globalCooldowns[cmdName] < cmdDef.cooldown * 1000) return;
-      this.globalCooldowns[cmdName] = now;
+      for (const [cmdName, cmdDef] of Object.entries(this.commands)) {
+        if (cmdDef.enabled && cmdDef.redeemId && cmdDef.redeemId === redeemId) {
+          const parts = message.toLowerCase().split(/\s+/);
+          const args = parts;
+          this.commandQueue.push({ cmd: cmdName, username, args, time: Date.now() });
+          const colors = {
+            spawn: '#ff6b6b', heal: '#2ecc71', curse: '#e74c3c',
+            buff: '#a55eea', meteor: '#f39c12', gg: '#4ecdc4', backrooms: '#dbbf85'
+          };
+          this.addFeedMessage(username, cmdName, `[REDEEM] ${message}`, colors[cmdName] || '#9146FF');
+          return;
+        }
+      }
     }
 
-    this.userCooldowns[userKey] = now;
+    const isCommand = message.startsWith('!');
+    if (isCommand) {
+      const parts = message.substring(1).toLowerCase().split(/\s+/);
+      const cmdName = parts[0];
+      const args = parts.slice(1);
 
-    // Handle vote command specially
-    if (cmdName === 'vote') {
-      this.handleVote(username, args);
-      return;
+      const cmdDef = this.commands[cmdName];
+      if (cmdDef && cmdDef.enabled) {
+        const now = Date.now();
+        const userKey = `user_${username}`;
+        
+        // Check per-user global cooldown (3s between any commands)
+        if (this.userCooldowns[userKey] && now - this.userCooldowns[userKey] < 3000) return;
+
+        // Check command-specific cooldown
+        if (cmdDef.perUser) {
+          const perUserKey = `${cmdName}_${username}`;
+          if (this.globalCooldowns[perUserKey] && now - this.globalCooldowns[perUserKey] < cmdDef.cooldown * 1000) return;
+          this.globalCooldowns[perUserKey] = now;
+        } else if (cmdDef.cooldown > 0) {
+          if (this.globalCooldowns[cmdName] && now - this.globalCooldowns[cmdName] < cmdDef.cooldown * 1000) return;
+          this.globalCooldowns[cmdName] = now;
+        }
+
+        this.userCooldowns[userKey] = now;
+
+        // Handle vote command specially
+        if (cmdName === 'vote') {
+          this.handleVote(username, args);
+          return;
+        }
+
+        // Queue the command
+        if (this.commandQueue.length >= this.maxQueueSize) {
+          this.commandQueue.shift(); // Drop oldest
+        }
+        this.commandQueue.push({ cmd: cmdName, username, args, time: now });
+
+        // Add to chat feed
+        const colors = {
+          spawn: '#ff6b6b', heal: '#2ecc71', curse: '#e74c3c',
+          buff: '#a55eea', meteor: '#f39c12', gg: '#4ecdc4', backrooms: '#dbbf85'
+        };
+        this.addFeedMessage(username, cmdName, message, colors[cmdName] || '#fff');
+        return;
+      }
     }
 
-    // Queue the command
-    if (this.commandQueue.length >= this.maxQueueSize) {
-      this.commandQueue.shift(); // Drop oldest
-    }
-    this.commandQueue.push({ cmd: cmdName, username, args, time: now });
-
-    // Add to chat feed
-    const colors = {
-      spawn: '#ff6b6b', heal: '#2ecc71', curse: '#e74c3c',
-      buff: '#a55eea', meteor: '#f39c12', gg: '#4ecdc4', backrooms: '#dbbf85'
-    };
-    this.addFeedMessage(username, cmdName, `!${cmdName}${args.length ? ' ' + args.join(' ') : ''}`, colors[cmdName] || '#fff');
+    // Add normal message to feed (username colored by Twitch color tag if present)
+    const userColor = tags.color || '#a970ff';
+    this.addFeedMessage(username, 'chat', message, userColor);
   }
 
   /**
@@ -585,7 +648,8 @@ export class TwitchManager {
               this.commands[key].enabled = val.enabled !== false;
               if (val.cooldown !== undefined) this.commands[key].cooldown = val.cooldown;
               if (val.bits !== undefined) this.commands[key].bits = val.bits;
-              if (val.points !== undefined) this.commands[key].points = val.points;
+              if (val.redeemId !== undefined) this.commands[key].redeemId = val.redeemId;
+              else if (val.points !== undefined) this.commands[key].redeemId = val.points ? String(val.points) : ''; // fallback
             }
           }
         }
@@ -617,7 +681,7 @@ export class TwitchManager {
           enabled: val.enabled,
           cooldown: val.cooldown,
           bits: val.bits || 0,
-          points: val.points || 0
+          redeemId: val.redeemId || ''
         };
       }
       localStorage.setItem('twitch_settings', JSON.stringify(data));

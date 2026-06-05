@@ -1,1130 +1,2849 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <script>
-    (function() {
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get('code');
-      const state = params.get('state');
-      if (window.opener && code && state) {
-        // Post credentials back to opener window
-        window.opener.postMessage({
-          code: code,
-          state: state,
-          redirectUrl: window.location.origin + window.location.pathname
-        }, window.location.origin);
-        
-        // Render simple loading UI
-        document.documentElement.innerHTML = 
-          '<' + 'head>' +
-            '<title>Authorizing...</title>' +
-          '<' + '/head>' +
-          '<' + 'body style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #0c0d14; color: #dfe7ff; font-family: sans-serif; text-align: center; padding: 20px; box-sizing: border-box; margin: 0;">' +
-            '<div style="border: 4px solid #9146FF; border-top: 4px solid transparent; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px;"></div>' +
-            '<h2 style="color: #9146FF; font-family: monospace; font-size: 16px; margin: 0 0 10px; letter-spacing: 2px;">AUTHORIZING</h2>' +
-            '<p style="color: #888; font-size: 12px; margin: 0;">Connecting Aetherweaver to your account. Please wait...</p>' +
-            '<style>' +
-              '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }' +
-            '</style>' +
-          '<' + '/body>';
-        
-        setTimeout(() => {
-          window.close();
-        }, 500);
-        
-        // Stop any further script parsing/execution in this popup
-        window.stop();
-      }
-    })();
-  </script>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aetherweaver: Rune Odyssey</title>
-  <meta name="description" content="A dynamic pixel-art roguelite action game with a massive ability tree, active spell synergies, and elemental reaction systems.">
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/style.css">
-</head>
-<body>
-  <!-- Main Game Canvas Container -->
-  <div id="game-container">
-    <canvas id="game-canvas"></canvas>
+    <head>
+        <meta charset="UTF-8" />
+        <script>
+            (function () {
+                const params = new URLSearchParams(window.location.search);
+                const code = params.get("code");
+                const state = params.get("state");
+                if (window.opener && code && state) {
+                    // Post credentials back to opener window
+                    window.opener.postMessage(
+                        {
+                            code: code,
+                            state: state,
+                            redirectUrl:
+                                window.location.origin +
+                                window.location.pathname,
+                        },
+                        window.location.origin,
+                    );
 
-    <!-- Glassmorphic HUD overlay -->
-    <div id="hud" class="hud-layer hidden">
-      <!-- Player Profile & Health/Mana -->
-      <div id="hud-player-stats" class="hud-panel">
-        <div class="hud-profile">
-          <div class="avatar-glow"></div>
-          <canvas id="hud-avatar-canvas" width="40" height="40"></canvas>
-          <div class="hud-level-badge" id="hud-level-text">Lvl 1</div>
-        </div>
-        <div class="hud-bars-container">
-          <div class="hud-bar-wrapper">
-            <span class="bar-label">HP</span>
-            <div class="hud-bar hp-bar">
-              <div id="hud-hp-fill" class="bar-fill hp-fill" style="width: 100%;"></div>
-              <span id="hud-hp-text" class="bar-text">100 / 100</span>
-            </div>
-          </div>
-          <div class="hud-bar-wrapper">
-            <span class="bar-label">MP</span>
-            <div class="hud-bar mp-bar">
-              <div id="hud-mp-fill" class="bar-fill mp-fill" style="width: 100%;"></div>
-              <span id="hud-mp-text" class="bar-text">50 / 50</span>
-            </div>
-          </div>
-          <!-- XP Bar -->
-          <div class="hud-xp-wrapper">
-            <div class="hud-xp-bar">
-              <div id="hud-xp-fill" class="bar-fill xp-fill" style="width: 0%;"></div>
-            </div>
-          </div>
-        </div>
-      </div>
+                    // Render simple loading UI
+                    document.documentElement.innerHTML =
+                        "<" +
+                        "head>" +
+                        "<title>Authorizing...</title>" +
+                        "<" +
+                        "/head>" +
+                        "<" +
+                        'body style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #0c0d14; color: #dfe7ff; font-family: sans-serif; text-align: center; padding: 20px; box-sizing: border-box; margin: 0;">' +
+                        '<div style="border: 4px solid #9146FF; border-top: 4px solid transparent; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px;"></div>' +
+                        '<h2 style="color: #9146FF; font-family: monospace; font-size: 16px; margin: 0 0 10px; letter-spacing: 2px;">AUTHORIZING</h2>' +
+                        '<p style="color: #888; font-size: 12px; margin: 0;">Connecting Aetherweaver to your account. Please wait...</p>' +
+                        "<style>" +
+                        "@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }" +
+                        "</style>" +
+                        "<" +
+                        "/body>";
 
-      <!-- Wave / Timer Status -->
-      <div id="hud-wave-status" class="hud-panel text-center">
-        <div id="hud-wave-title">WAVE 1</div>
-        <div id="hud-wave-timer">00:30</div>
-        <div id="hud-enemies-left">Enemies: 0</div>
-      </div>
+                    setTimeout(() => {
+                        window.close();
+                    }, 500);
 
-      <!-- Resources (Gold, Aether Shards, Points, Keys) -->
-      <div id="hud-resources" class="hud-panel">
-        <div class="resource-item">
-          <canvas class="inline-icon" id="icon-shard-hud" width="12" height="12" draggable="false"></canvas>
-          <span id="hud-shards-value" class="resource-text">0</span>
-        </div>
-        <div class="resource-item" id="hud-keys-notification" style="margin-left: 10px;" title="Rune Keys (Complete Waves, Unlock Doors)">
-          <canvas class="inline-icon" id="icon-key-hud" width="20" height="20" draggable="false"></canvas>
-          <span id="hud-keys-value" class="resource-text">0</span>
-        </div>
-        <div class="resource-item" id="hud-ap-notification">
-          <button id="btn-open-tree-hud" class="btn-pulse-glow">
-            <canvas class="inline-icon" id="icon-ap-hud" width="12" height="12" draggable="false"></canvas> Tree (<span id="hud-ap-value">0</span> AP)
-          </button>
-        </div>
-        <!-- Twitch Status Indicator -->
-        <div class="resource-item" id="hud-twitch-notification" style="margin-left: 10px; display: none;">
-          <div id="hud-twitch-status-badge" style="font-family: var(--font-pixel); font-size: 7px; color: #a970ff; background: rgba(145, 70, 255, 0.15); border: 2px solid #9146FF; padding: 4px 8px; border-radius: 0; box-shadow: 2px 2px 0 rgba(0,0,0,0.6);" title="Connected to Twitch Chat">
-            TWITCH: OFF
-          </div>
-        </div>
-        <div class="resource-item" id="hud-devtools-notification">
-          <button id="btn-devtools-toggle" class="btn-pulse-glow hidden" style="padding: 4px 8px; font-size: 9px; line-height: 1;" title="Toggle Devtools (F3)">DEV</button>
-        </div>
-      </div>
+                    // Stop any further script parsing/execution in this popup
+                    window.stop();
+                }
+            })();
+        </script>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Aetherweaver: Rune Odyssey</title>
+        <meta
+            name="description"
+            content="A dynamic pixel-art roguelite action game with a massive ability tree, active spell synergies, and elemental reaction systems."
+        />
+        <!-- Fonts -->
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="/style.css" />
+    </head>
+    <body>
+        <!-- Main Game Canvas Container -->
+        <div id="game-container">
+            <canvas id="game-canvas"></canvas>
 
-      <!-- Relics Inventory HUD (compact strip — click to open full panel) -->
-      <div id="hud-inventory" class="hud-panel" style="cursor: pointer;" title="Open Satchel & Gear (I)">
-        <div class="inventory-title">
-          <canvas class="inline-icon" id="icon-satchel-hud" width="12" height="12" draggable="false"></canvas>
-          SATCHEL (I)
-        </div>
-        <div class="inventory-slots" id="inventory-container">
-          <!-- slots rendered dynamically by updateHUD -->
-        </div>
-      </div>
-
-      <!-- HUD Minimap widget -->
-      <div id="hud-minimap-container" class="hud-panel">
-        <div class="minimap-title-row">
-          <span>MINIMAP</span>
-          <button id="btn-toggle-worldmap" class="btn-map-toggle" title="Open World Map (Tab/M)">&#9974;</button>
-        </div>
-        <canvas id="minimap-canvas" width="120" height="120"></canvas>
-      </div>
-
-      <!-- Active Spells Hotbar -->
-      <div id="hud-spell-hotbar">
-        <div class="spell-slot locked" id="spell-slot-1">
-          <span class="key-bind">LMB</span>
-          <canvas class="spell-icon-canvas" id="spell-icon-1" width="32" height="32"></canvas>
-          <div class="cooldown-overlay" id="cooldown-1"></div>
-          <div class="tooltip" id="tooltip-spell-1">Primary Spell</div>
-        </div>
-        <div class="spell-slot locked" id="spell-slot-2">
-          <span class="key-bind">RMB</span>
-          <canvas class="spell-icon-canvas" id="spell-icon-2" width="32" height="32"></canvas>
-          <div class="cooldown-overlay" id="cooldown-2"></div>
-          <div class="tooltip" id="tooltip-spell-2">Secondary Spell</div>
-        </div>
-        <div class="spell-slot locked" id="spell-slot-3">
-          <span class="key-bind">Space</span>
-          <canvas class="spell-icon-canvas" id="spell-icon-3" width="32" height="32"></canvas>
-          <div class="cooldown-overlay" id="cooldown-3"></div>
-          <div class="tooltip" id="tooltip-spell-3">Utility Spell</div>
-        </div>
-        <div class="spell-slot locked" id="spell-slot-4">
-          <span class="key-bind">Q</span>
-          <canvas class="spell-icon-canvas" id="spell-icon-4" width="32" height="32"></canvas>
-          <div class="cooldown-overlay" id="cooldown-4"></div>
-          <div class="tooltip" id="tooltip-spell-4">Ultimate Spell</div>
-        </div>
-        <div class="spell-slot locked" id="spell-slot-5">
-          <span class="key-bind">E</span>
-          <canvas class="spell-icon-canvas" id="spell-icon-5" width="32" height="32"></canvas>
-          <div class="cooldown-overlay" id="cooldown-5"></div>
-          <div class="tooltip" id="tooltip-spell-5">Lightning Spell</div>
-        </div>
-        <div class="spell-slot locked hidden" id="spell-slot-6">
-          <span class="key-bind">1</span>
-          <canvas class="spell-icon-canvas" id="spell-icon-6" width="32" height="32"></canvas>
-          <div class="cooldown-overlay" id="cooldown-6"></div>
-          <div class="tooltip" id="tooltip-spell-6">Extra Slot 1</div>
-        </div>
-        <div class="spell-slot locked hidden" id="spell-slot-7">
-          <span class="key-bind">2</span>
-          <canvas class="spell-icon-canvas" id="spell-icon-7" width="32" height="32"></canvas>
-          <div class="cooldown-overlay" id="cooldown-7"></div>
-          <div class="tooltip" id="tooltip-spell-7">Extra Slot 2</div>
-        </div>
-      </div>
-
-      <!-- Combo Alert Overlay -->
-      <div id="combo-alert-container"></div>
-
-      <!-- Twitch Chat Overlay (HTML) -->
-      <div id="hud-twitch-chat" class="hidden"></div>
-    </div>
-
-    <!-- UI Overlay Panels -->
-    <!-- 1. MAIN MENU -->
-    <div id="panel-main-menu" class="panel-overlay">
-      <div class="menu-content main-menu-split">
-        <!-- Left Column: Title and Player Preview -->
-        <div class="main-menu-left">
-          <div class="main-menu-title-box">
-            <h1 id="menu-title" class="glitch-title" data-text="AETHERWEAVER">AETHERWEAVER</h1>
-            <h2 id="menu-subtitle">RUNE ODYSSEY</h2>
-          </div>
-          <div class="player-preview-box">
-            <canvas id="main-menu-player-canvas" width="128" height="128"></canvas>
-          </div>
-          <div class="menu-version-indicator" id="menu-version">v0.5.6Beta</div>
-        </div>
-        
-        <!-- Right Column: Navigation Buttons -->
-        <div class="main-menu-right">
-          <div class="menu-buttons vertical-buttons">
-            <button id="btn-play-menu" class="btn-menu">PLAY</button>
-            <button id="btn-player-account-menu" class="btn-menu" style="background: linear-gradient(135deg, #0e1d3e, #1c356f); border-color: #3b74e6; text-shadow: 0 0 5px rgba(59, 116, 230, 0.5);">PLAYER ACCOUNT</button>
-            <button id="btn-customize-menu" class="btn-menu">CHARACTER CUSTOMIZATION</button>
-            <button id="btn-community-hub" class="btn-menu" style="background: linear-gradient(135deg, #2b1154, #6441a5); border-color: #9146FF; text-shadow: 0 0 5px rgba(145, 70, 255, 0.5); color: #fff;">COMMUNITY HUB</button>
-            <button id="btn-settings-menu" class="btn-menu">SETTINGS</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 2. HUGE ABILITY TREE -->
-    <div id="panel-ability-tree" class="panel-overlay hidden">
-      <div class="tree-content-wrapper">
-        <div class="tree-header">
-          <h2>THE AETHER WEB</h2>
-          <div class="tree-stats">
-            <span>Aether Shards: <strong id="tree-shards">0</strong></span>
-            <span>Aether Points (AP): <strong id="tree-ap" class="text-glow">0</strong></span>
-            <span id="tree-rebirth-badge" class="hidden" style="color:#c39aff; font-size:0.8rem;">REBIRTH <strong id="tree-rebirth-count">0</strong></span>
-          </div>
-          <button id="btn-close-tree" class="btn-close">&times;</button>
-        </div>
-
-        <!-- Tab Layout for Ability Trees -->
-        <div id="tree-tabs" class="tree-tabs-container hidden">
-          <button class="tree-tab-btn active" data-view="player">PLAYER WEB</button>
-          <button class="tree-tab-btn hidden" data-view="companion1" id="tab-companion1">BABY DRAGON WEB</button>
-          <button class="tree-tab-btn hidden" data-view="companion2" id="tab-companion2">CHRONO GRIFFIN WEB</button>
-        </div>
-        
-        <!-- Canvas for Ability Tree Node network -->
-        <div id="tree-canvas-container">
-          <canvas id="tree-canvas" draggable="false"></canvas>
-          <div class="tree-controls">
-            <button id="btn-tree-zoom-in" class="btn-circle">+</button>
-            <button id="btn-tree-zoom-out" class="btn-circle">-</button>
-            <button id="btn-tree-reset" class="btn-tree-secondary">Reset Zoom</button>
-            <button id="btn-refund-tree" class="btn-tree-secondary danger">Refund All (-10 Shards)</button>
-          </div>
-          <div id="tree-tooltip" class="tree-node-tooltip hidden">
-            <h3 id="node-tooltip-title">Node Title</h3>
-            <div id="node-tooltip-type" class="node-type">Keystone</div>
-            <p id="node-tooltip-desc">Description of the node goes here...</p>
-            <div id="node-tooltip-cost">Cost: 1 AP</div>
-            <div id="node-tooltip-status" class="node-status-locked">Locked</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 3. GAME OVER PANEL -->
-    <div id="panel-game-over" class="panel-overlay hidden">
-      <div class="menu-content text-center">
-        <h1 class="text-danger glow-red">ODYSSEY ENDED</h1>
-        <p class="game-over-stats">
-          Waves Survived: <span id="go-waves" class="text-highlight">0</span><br>
-          Enemies Defeated: <span id="go-kills" class="text-highlight">0</span><br>
-          Runic Score: <span id="go-score" class="text-glow">0</span>
-        </p>
-        
-        <!-- Score submission form -->
-        <div id="leaderboard-submission-box">
-          <h3>Record Your Legend</h3>
-          <div class="input-group">
-            <input type="text" id="player-name-input" maxlength="15" placeholder="Enter Rune Name" />
-            <button id="btn-submit-score" class="btn-menu small">SUBMIT</button>
-          </div>
-          <p id="submit-status" class="hidden"></p>
-        </div>
-
-        <!-- Rebirth option (shown when level >= 10) -->
-        <div id="rebirth-panel" class="hidden" style="margin: 14px 0;">
-          <div id="rebirth-preview" style="font-size:0.78rem; color:#b39dff; margin-bottom:8px;"></div>
-          <button id="btn-rebirth" class="btn-menu" style="background: linear-gradient(135deg,#6c3baa,#a55eea); border-color:#c39aff;">
-            REBIRTH (Reset for Permanent Bonuses)
-          </button>
-        </div>
-
-        <div class="menu-buttons">
-          <button id="btn-restart-game" class="btn-menu">WEAVE AGAIN</button>
-          <button id="btn-go-to-menu" class="btn-menu secondary">MAIN MENU</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 4. LEADERBOARD PANEL -->
-    <div id="panel-leaderboard" class="panel-overlay hidden">
-      <div class="menu-content wide">
-        <h2>HALL OF RUNES</h2>
-        <div class="table-container">
-          <table id="leaderboard-table">
-            <thead>
-              <tr>
-                <th>Rank</th>
-                <th>Runeweaver</th>
-                <th>Score</th>
-                <th>Wave</th>
-                <th>Lvl</th>
-              </tr>
-            </thead>
-            <tbody id="leaderboard-body">
-              <!-- Dynamically populated -->
-            </tbody>
-          </table>
-        </div>
-        <div class="menu-buttons">
-          <button id="btn-close-leaderboard" class="btn-menu">BACK</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 5. PAUSE PANEL -->
-    <div id="panel-pause" class="panel-overlay hidden">
-      <div class="menu-content text-center">
-        <h1>GAME PAUSED</h1>
-        <div class="menu-buttons">
-          <button id="btn-resume-game" class="btn-menu">RESUME</button>
-          <button id="btn-pause-tree" class="btn-menu">OPEN ABILITY TREE</button>
-          <button id="btn-pause-spellmap" class="btn-menu">SPELL LOADOUT</button>
-          <button class="btn-menu" onclick="window.open('./wiki/', '_blank')">WIKI & ARCHIVES</button>
-          <button id="btn-settings-pause" class="btn-menu">SETTINGS</button>
-          <button id="btn-pause-menu" class="btn-menu secondary">QUIT TO MENU</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- settings. SETTINGS PANEL -->
-    <div id="panel-settings" class="panel-overlay hidden">
-      <div class="menu-content text-center" style="max-width: 460px;">
-        <h1>SETTINGS</h1>
-        
-        <!-- Minecraft-style Tab Buttons -->
-        <div class="settings-tab-bar">
-          <button class="settings-tab-btn active" data-tab="gameplay">GAMEPLAY</button>
-          <button class="settings-tab-btn" data-tab="video">VIDEO</button>
-          <button class="settings-tab-btn" data-tab="audio">AUDIO</button>
-          <button class="settings-tab-btn" data-tab="controls">CONTROLS</button>
-        </div>
-
-        <div class="menu-buttons" style="margin-top: 10px;">
-          <!-- Tab content: GAMEPLAY -->
-          <div id="settings-tab-gameplay" class="settings-tab-pane">
-            <div class="settings-toggles-box">
-              <div class="settings-toggles-grid">
-                <div class="setting-toggle-group">
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="chk-settings-shake" checked>
-                    <span class="checkbox-custom"></span>
-                    <span>SCREEN SHAKE</span>
-                  </label>
+            <!-- Glassmorphic HUD overlay -->
+            <div id="hud" class="hud-layer hidden">
+                <!-- Player Profile & Health/Mana -->
+                <div id="hud-player-stats" class="hud-panel">
+                    <div class="hud-profile">
+                        <div class="avatar-glow"></div>
+                        <canvas
+                            id="hud-avatar-canvas"
+                            width="40"
+                            height="40"
+                        ></canvas>
+                        <div class="hud-level-badge" id="hud-level-text">
+                            Lvl 1
+                        </div>
+                    </div>
+                    <div class="hud-bars-container">
+                        <div class="hud-bar-wrapper">
+                            <span class="bar-label">HP</span>
+                            <div class="hud-bar hp-bar">
+                                <div
+                                    id="hud-hp-fill"
+                                    class="bar-fill hp-fill"
+                                    style="width: 100%"
+                                ></div>
+                                <span id="hud-hp-text" class="bar-text"
+                                    >100 / 100</span
+                                >
+                            </div>
+                        </div>
+                        <div class="hud-bar-wrapper">
+                            <span class="bar-label">MP</span>
+                            <div class="hud-bar mp-bar">
+                                <div
+                                    id="hud-mp-fill"
+                                    class="bar-fill mp-fill"
+                                    style="width: 100%"
+                                ></div>
+                                <span id="hud-mp-text" class="bar-text"
+                                    >50 / 50</span
+                                >
+                            </div>
+                        </div>
+                        <!-- XP Bar -->
+                        <div class="hud-xp-wrapper">
+                            <div class="hud-xp-bar">
+                                <div
+                                    id="hud-xp-fill"
+                                    class="bar-fill xp-fill"
+                                    style="width: 0%"
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="setting-toggle-group">
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="chk-settings-damage" checked>
-                    <span class="checkbox-custom"></span>
-                    <span>DAMAGE NUMBERS</span>
-                  </label>
+
+                <!-- Wave / Timer Status -->
+                <div id="hud-wave-status" class="hud-panel text-center">
+                    <div id="hud-wave-title">WAVE 1</div>
+                    <div id="hud-wave-timer">00:30</div>
+                    <div id="hud-enemies-left">Enemies: 0</div>
                 </div>
-                <div class="setting-toggle-group" style="grid-column: span 2;">
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="chk-settings-healthbars" checked>
-                    <span class="checkbox-custom"></span>
-                    <span>ENEMY HP BARS</span>
-                  </label>
+
+                <!-- Resources (Gold, Aether Shards, Points, Keys) -->
+                <div id="hud-resources" class="hud-panel">
+                    <div class="resource-item">
+                        <canvas
+                            class="inline-icon"
+                            id="icon-shard-hud"
+                            width="12"
+                            height="12"
+                            draggable="false"
+                        ></canvas>
+                        <span id="hud-shards-value" class="resource-text"
+                            >0</span
+                        >
+                    </div>
+                    <div
+                        class="resource-item"
+                        id="hud-keys-notification"
+                        style="margin-left: 10px"
+                        title="Rune Keys (Complete Waves, Unlock Doors)"
+                    >
+                        <canvas
+                            class="inline-icon"
+                            id="icon-key-hud"
+                            width="20"
+                            height="20"
+                            draggable="false"
+                        ></canvas>
+                        <span id="hud-keys-value" class="resource-text">0</span>
+                    </div>
+                    <div class="resource-item" id="hud-ap-notification">
+                        <button id="btn-open-tree-hud" class="btn-pulse-glow">
+                            <canvas
+                                class="inline-icon"
+                                id="icon-ap-hud"
+                                width="12"
+                                height="12"
+                                draggable="false"
+                            ></canvas>
+                            Tree (<span id="hud-ap-value">0</span> AP)
+                        </button>
+                    </div>
+                    <!-- Twitch Status Indicator -->
+                    <div
+                        class="resource-item"
+                        id="hud-twitch-notification"
+                        style="margin-left: 10px; display: none"
+                    >
+                        <div
+                            id="hud-twitch-status-badge"
+                            style="
+                                font-family: var(--font-pixel);
+                                font-size: 7px;
+                                color: #a970ff;
+                                background: rgba(145, 70, 255, 0.15);
+                                border: 2px solid #9146ff;
+                                padding: 4px 8px;
+                                border-radius: 0;
+                                box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+                            "
+                            title="Connected to Twitch Chat"
+                        >
+                            TWITCH: OFF
+                        </div>
+                    </div>
+                    <div class="resource-item" id="hud-devtools-notification">
+                        <button
+                            id="btn-devtools-toggle"
+                            class="btn-pulse-glow hidden"
+                            style="
+                                padding: 4px 8px;
+                                font-size: 9px;
+                                line-height: 1;
+                            "
+                            title="Toggle Devtools (F3)"
+                        >
+                            DEV
+                        </button>
+                    </div>
                 </div>
-              </div>
-            </div>
-            <button id="btn-twitch-setup-menu" class="btn-menu small" style="background: #6441a5; border-color: #9146FF; box-shadow: 3px 3px 0 #7d5fff; width: 100%; margin-top: 10px;">TWITCH INTEGRATION</button>
-          </div>
 
-          <!-- Tab content: VIDEO -->
-          <div id="settings-tab-video" class="settings-tab-pane hidden">
-            <div class="volume-controls-box" style="padding: 10px;">
-              <div class="volume-slider-group" style="margin-top: 0;">
-                <div class="volume-header">
-                  <span class="volume-label">RENDER DISTANCE</span>
-                  <span id="lbl-settings-render-val" class="volume-value">1200px</span>
+                <!-- Relics Inventory HUD (compact strip — click to open full panel) -->
+                <div
+                    id="hud-inventory"
+                    class="hud-panel"
+                    style="cursor: pointer"
+                    title="Open Satchel & Gear (I)"
+                >
+                    <div class="inventory-title">
+                        <canvas
+                            class="inline-icon"
+                            id="icon-satchel-hud"
+                            width="12"
+                            height="12"
+                            draggable="false"
+                        ></canvas>
+                        SATCHEL (I)
+                    </div>
+                    <div class="inventory-slots" id="inventory-container">
+                        <!-- slots rendered dynamically by updateHUD -->
+                    </div>
                 </div>
-                <input type="range" id="sld-settings-render" min="600" max="2400" step="200" value="1200" class="volume-slider">
-              </div>
-            </div>
-            
-            <div class="settings-toggles-box">
-              <div class="settings-toggles-grid">
-                <div class="setting-toggle-group">
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="chk-settings-glow" checked>
-                    <span class="checkbox-custom"></span>
-                    <span>GLOW EFFECTS</span>
-                  </label>
+
+                <!-- HUD Minimap widget -->
+                <div id="hud-minimap-container" class="hud-panel">
+                    <div class="minimap-title-row">
+                        <span>MINIMAP</span>
+                        <button
+                            id="btn-toggle-worldmap"
+                            class="btn-map-toggle"
+                            title="Open World Map (Tab/M)"
+                        >
+                            &#9974;
+                        </button>
+                    </div>
+                    <canvas
+                        id="minimap-canvas"
+                        width="120"
+                        height="120"
+                    ></canvas>
                 </div>
-                <div class="setting-toggle-group">
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="chk-settings-floor" checked>
-                    <span class="checkbox-custom"></span>
-                    <span>FLOOR DETAILS</span>
-                  </label>
+
+                <!-- Active Spells Hotbar -->
+                <div id="hud-spell-hotbar">
+                    <div class="spell-slot locked" id="spell-slot-1">
+                        <span class="key-bind">LMB</span>
+                        <canvas
+                            class="spell-icon-canvas"
+                            id="spell-icon-1"
+                            width="32"
+                            height="32"
+                        ></canvas>
+                        <div class="cooldown-overlay" id="cooldown-1"></div>
+                        <div class="tooltip" id="tooltip-spell-1">
+                            Primary Spell
+                        </div>
+                    </div>
+                    <div class="spell-slot locked" id="spell-slot-2">
+                        <span class="key-bind">RMB</span>
+                        <canvas
+                            class="spell-icon-canvas"
+                            id="spell-icon-2"
+                            width="32"
+                            height="32"
+                        ></canvas>
+                        <div class="cooldown-overlay" id="cooldown-2"></div>
+                        <div class="tooltip" id="tooltip-spell-2">
+                            Secondary Spell
+                        </div>
+                    </div>
+                    <div class="spell-slot locked" id="spell-slot-3">
+                        <span class="key-bind">Space</span>
+                        <canvas
+                            class="spell-icon-canvas"
+                            id="spell-icon-3"
+                            width="32"
+                            height="32"
+                        ></canvas>
+                        <div class="cooldown-overlay" id="cooldown-3"></div>
+                        <div class="tooltip" id="tooltip-spell-3">
+                            Utility Spell
+                        </div>
+                    </div>
+                    <div class="spell-slot locked" id="spell-slot-4">
+                        <span class="key-bind">Q</span>
+                        <canvas
+                            class="spell-icon-canvas"
+                            id="spell-icon-4"
+                            width="32"
+                            height="32"
+                        ></canvas>
+                        <div class="cooldown-overlay" id="cooldown-4"></div>
+                        <div class="tooltip" id="tooltip-spell-4">
+                            Ultimate Spell
+                        </div>
+                    </div>
+                    <div class="spell-slot locked" id="spell-slot-5">
+                        <span class="key-bind">E</span>
+                        <canvas
+                            class="spell-icon-canvas"
+                            id="spell-icon-5"
+                            width="32"
+                            height="32"
+                        ></canvas>
+                        <div class="cooldown-overlay" id="cooldown-5"></div>
+                        <div class="tooltip" id="tooltip-spell-5">
+                            Lightning Spell
+                        </div>
+                    </div>
+                    <div class="spell-slot locked hidden" id="spell-slot-6">
+                        <span class="key-bind">1</span>
+                        <canvas
+                            class="spell-icon-canvas"
+                            id="spell-icon-6"
+                            width="32"
+                            height="32"
+                        ></canvas>
+                        <div class="cooldown-overlay" id="cooldown-6"></div>
+                        <div class="tooltip" id="tooltip-spell-6">
+                            Extra Slot 1
+                        </div>
+                    </div>
+                    <div class="spell-slot locked hidden" id="spell-slot-7">
+                        <span class="key-bind">2</span>
+                        <canvas
+                            class="spell-icon-canvas"
+                            id="spell-icon-7"
+                            width="32"
+                            height="32"
+                        ></canvas>
+                        <div class="cooldown-overlay" id="cooldown-7"></div>
+                        <div class="tooltip" id="tooltip-spell-7">
+                            Extra Slot 2
+                        </div>
+                    </div>
                 </div>
-                <div class="setting-toggle-group">
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="chk-settings-particles">
-                    <span class="checkbox-custom"></span>
-                    <span>LOW PARTICLES</span>
-                  </label>
+
+                <!-- Combo Alert Overlay -->
+                <div id="combo-alert-container"></div>
+
+                <!-- Twitch Chat Overlay (HTML) -->
+                <div id="hud-twitch-chat" class="hidden"></div>
+            </div>
+
+            <!-- UI Overlay Panels -->
+            <!-- 1. MAIN MENU -->
+            <div id="panel-main-menu" class="panel-overlay">
+                <div class="menu-content main-menu-split">
+                    <!-- Left Column: Title and Player Preview -->
+                    <div class="main-menu-left">
+                        <div class="main-menu-title-box">
+                            <h1
+                                id="menu-title"
+                                class="glitch-title"
+                                data-text="AETHERWEAVER"
+                            >
+                                AETHERWEAVER
+                            </h1>
+                            <h2 id="menu-subtitle">RUNE ODYSSEY</h2>
+                        </div>
+                        <div class="player-preview-box">
+                            <canvas
+                                id="main-menu-player-canvas"
+                                width="128"
+                                height="128"
+                            ></canvas>
+                        </div>
+                        <div class="menu-version-indicator" id="menu-version">
+                            v0.5.6Beta
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Navigation Buttons -->
+                    <div class="main-menu-right">
+                        <div class="menu-buttons vertical-buttons">
+                            <button id="btn-play-menu" class="btn-menu">
+                                PLAY
+                            </button>
+                            <button
+                                id="btn-player-account-menu"
+                                class="btn-menu"
+                                style="
+                                    background: linear-gradient(
+                                        135deg,
+                                        #0e1d3e,
+                                        #1c356f
+                                    );
+                                    border-color: #3b74e6;
+                                    text-shadow: 0 0 5px rgba(59, 116, 230, 0.5);
+                                "
+                            >
+                                PLAYER ACCOUNT
+                            </button>
+                            <button id="btn-customize-menu" class="btn-menu">
+                                CHARACTER CUSTOMIZATION
+                            </button>
+                            <button
+                                id="btn-community-hub"
+                                class="btn-menu"
+                                style="
+                                    background: linear-gradient(
+                                        135deg,
+                                        #2b1154,
+                                        #6441a5
+                                    );
+                                    border-color: #9146ff;
+                                    text-shadow: 0 0 5px rgba(145, 70, 255, 0.5);
+                                    color: #fff;
+                                "
+                            >
+                                COMMUNITY HUB
+                            </button>
+                            <button id="btn-settings-menu" class="btn-menu">
+                                SETTINGS
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <div class="setting-toggle-group">
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="chk-settings-trails" checked>
-                    <span class="checkbox-custom"></span>
-                    <span>SPELL TRAILS</span>
-                  </label>
+            </div>
+
+            <!-- 2. HUGE ABILITY TREE -->
+            <div id="panel-ability-tree" class="panel-overlay hidden">
+                <div class="tree-content-wrapper">
+                    <div class="tree-header">
+                        <h2>THE AETHER WEB</h2>
+                        <div class="tree-stats">
+                            <span
+                                >Aether Shards:
+                                <strong id="tree-shards">0</strong></span
+                            >
+                            <span
+                                >Aether Points (AP):
+                                <strong id="tree-ap" class="text-glow"
+                                    >0</strong
+                                ></span
+                            >
+                            <span
+                                id="tree-rebirth-badge"
+                                class="hidden"
+                                style="color: #c39aff; font-size: 0.8rem"
+                                >REBIRTH
+                                <strong id="tree-rebirth-count">0</strong></span
+                            >
+                        </div>
+                        <button id="btn-close-tree" class="btn-close">
+                            &times;
+                        </button>
+                    </div>
+
+                    <!-- Tab Layout for Ability Trees -->
+                    <div id="tree-tabs" class="tree-tabs-container hidden">
+                        <button class="tree-tab-btn active" data-view="player">
+                            PLAYER WEB
+                        </button>
+                        <button
+                            class="tree-tab-btn hidden"
+                            data-view="companion1"
+                            id="tab-companion1"
+                        >
+                            BABY DRAGON WEB
+                        </button>
+                        <button
+                            class="tree-tab-btn hidden"
+                            data-view="companion2"
+                            id="tab-companion2"
+                        >
+                            CHRONO GRIFFIN WEB
+                        </button>
+                    </div>
+
+                    <!-- Canvas for Ability Tree Node network -->
+                    <div id="tree-canvas-container">
+                        <canvas id="tree-canvas" draggable="false"></canvas>
+                        <div class="tree-controls">
+                            <button id="btn-tree-zoom-in" class="btn-circle">
+                                +
+                            </button>
+                            <button id="btn-tree-zoom-out" class="btn-circle">
+                                -
+                            </button>
+                            <button
+                                id="btn-tree-reset"
+                                class="btn-tree-secondary"
+                            >
+                                Reset Zoom
+                            </button>
+                            <button
+                                id="btn-refund-tree"
+                                class="btn-tree-secondary danger"
+                            >
+                                Refund All (-10 Shards)
+                            </button>
+                        </div>
+                        <div id="tree-tooltip" class="tree-node-tooltip hidden">
+                            <h3 id="node-tooltip-title">Node Title</h3>
+                            <div id="node-tooltip-type" class="node-type">
+                                Keystone
+                            </div>
+                            <p id="node-tooltip-desc">
+                                Description of the node goes here...
+                            </p>
+                            <div id="node-tooltip-cost">Cost: 1 AP</div>
+                            <div
+                                id="node-tooltip-status"
+                                class="node-status-locked"
+                            >
+                                Locked
+                            </div>
+                        </div>
+                    </div>
                 </div>
-              </div>
             </div>
-          </div>
 
-          <!-- Tab content: AUDIO -->
-          <div id="settings-tab-audio" class="settings-tab-pane hidden">
-            <button id="btn-settings-mute" class="btn-menu small" style="width: 100%; margin-bottom: 10px;">MUTE AUDIO</button>
-            <div class="volume-controls-box" style="padding: 10px;">
-              <div class="volume-slider-group">
-                <div class="volume-header">
-                  <span class="volume-label">MUSIC VOLUME</span>
-                  <span id="lbl-settings-music-val" class="volume-value">35%</span>
+            <!-- 3. GAME OVER PANEL -->
+            <div id="panel-game-over" class="panel-overlay hidden">
+                <div class="menu-content text-center">
+                    <h1 class="text-danger glow-red">ODYSSEY ENDED</h1>
+                    <p class="game-over-stats">
+                        Waves Survived:
+                        <span id="go-waves" class="text-highlight">0</span
+                        ><br />
+                        Enemies Defeated:
+                        <span id="go-kills" class="text-highlight">0</span
+                        ><br />
+                        Runic Score:
+                        <span id="go-score" class="text-glow">0</span>
+                    </p>
+
+                    <!-- Score submission form -->
+                    <div id="leaderboard-submission-box">
+                        <h3>Record Your Legend</h3>
+                        <div class="input-group">
+                            <input
+                                type="text"
+                                id="player-name-input"
+                                maxlength="15"
+                                placeholder="Enter Rune Name"
+                            />
+                            <button
+                                id="btn-submit-score"
+                                class="btn-menu small"
+                            >
+                                SUBMIT
+                            </button>
+                        </div>
+                        <p id="submit-status" class="hidden"></p>
+                    </div>
+
+                    <!-- Rebirth option (shown when level >= 10) -->
+                    <div
+                        id="rebirth-panel"
+                        class="hidden"
+                        style="margin: 14px 0"
+                    >
+                        <div
+                            id="rebirth-preview"
+                            style="
+                                font-size: 0.78rem;
+                                color: #b39dff;
+                                margin-bottom: 8px;
+                            "
+                        ></div>
+                        <button
+                            id="btn-rebirth"
+                            class="btn-menu"
+                            style="
+                                background: linear-gradient(
+                                    135deg,
+                                    #6c3baa,
+                                    #a55eea
+                                );
+                                border-color: #c39aff;
+                            "
+                        >
+                            REBIRTH (Reset for Permanent Bonuses)
+                        </button>
+                    </div>
+
+                    <div class="menu-buttons">
+                        <button id="btn-restart-game" class="btn-menu">
+                            WEAVE AGAIN
+                        </button>
+                        <button id="btn-go-to-menu" class="btn-menu secondary">
+                            MAIN MENU
+                        </button>
+                    </div>
                 </div>
-                <input type="range" id="sld-settings-music" min="0" max="100" value="35" class="volume-slider">
-              </div>
-              
-              <div class="volume-slider-group" style="margin-top: 10px;">
-                <div class="volume-header">
-                  <span class="volume-label">SFX VOLUME</span>
-                  <span id="lbl-settings-sfx-val" class="volume-value">55%</span>
+            </div>
+
+            <!-- 4. LEADERBOARD PANEL -->
+            <div id="panel-leaderboard" class="panel-overlay hidden">
+                <div class="menu-content wide">
+                    <h2>HALL OF RUNES</h2>
+                    <div class="table-container">
+                        <table id="leaderboard-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Runeweaver</th>
+                                    <th>Score</th>
+                                    <th>Wave</th>
+                                    <th>Lvl</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboard-body">
+                                <!-- Dynamically populated -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="menu-buttons">
+                        <button id="btn-close-leaderboard" class="btn-menu">
+                            BACK
+                        </button>
+                    </div>
                 </div>
-                <input type="range" id="sld-settings-sfx" min="0" max="100" value="55" class="volume-slider">
-              </div>
             </div>
-          </div>
 
-          <!-- Tab content: CONTROLS -->
-          <div id="settings-tab-controls" class="settings-tab-pane hidden">
-            <div style="font-family: var(--font-pixel); font-size: 7px; color: #888; margin-bottom: 6px; text-align: left;">
-              LAYOUT DETECTED: <span id="lbl-detected-layout" style="color: var(--color-aether);">QWERTY</span>
-            </div>
-            
-            <div class="keybinds-grid" id="settings-keybinds-list">
-              <!-- Keybind rows will be generated dynamically by JavaScript -->
-            </div>
-            
-            <button id="btn-reset-keybinds" class="btn-menu small secondary" style="width: 100%; margin-top: 10px;">RESET TO DEFAULTS</button>
-          </div>
-          
-          <button id="btn-close-settings" class="btn-menu secondary" style="margin-top: 20px; width: 100%;">BACK</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- TWITCH SETUP PANEL -->
-    <div id="panel-twitch" class="panel-overlay hidden">
-      <div class="menu-content text-center" style="max-width: 650px; max-height: 90vh; overflow-y: auto;">
-        <h1>TWITCH INTEGRATION</h1>
-        <div class="menu-decor"></div>
-        
-        <!-- Status Indicator -->
-        <div style="margin-bottom: 15px; font-size: 10px; font-family: var(--font-pixel);">
-          STATUS: <span id="twitch-status-lbl" style="color: #ff6b6b; text-shadow: 0 0 5px rgba(255,107,107,0.5);">DISCONNECTED</span>
-        </div>
-        
-        <div class="menu-buttons" style="width: 100%;">
-          <!-- Twitch Login Button (OAuth) -->
-          <div style="margin-bottom: 15px; width: 100%;">
-            <button id="btn-twitch-login-oauth" class="btn-menu" style="background: #9146FF; border-color: #a970ff; box-shadow: 4px 4px 0 #6441a5; color: #fff; margin: 0 auto 10px;">LOG IN WITH TWITCH</button>
-            <div style="font-size: 7px; color: #a970ff; line-height: 1.4; margin-bottom: 10px;">Automated token connection &amp; chat sync</div>
-            
-            <!-- Bot Announcements Toggle & Chat Settings -->
-            <div class="setting-toggle-group" style="justify-content: center; display: flex; margin-bottom: 10px;">
-              <label class="setting-toggle" style="font-size: 9px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-                <input type="checkbox" id="chk-twitch-announcements" checked>
-                <span class="checkbox-custom"></span>
-                <span>ENABLE BOT ANNOUNCEMENTS</span>
-              </label>
-            </div>
-          </div>
-
-          <div style="border-top: 1px dashed rgba(255,255,255,0.15); margin: 10px 0; padding-top: 10px; width: 100%;"></div>
-
-          <!-- Customizable Fields (Font size, Vote duration) -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; text-align: left;">
-            <div class="devtools-row" style="margin: 0; width: 100%;">
-              <label class="devtools-label" for="twitch-chat-size" style="min-width: 120px; font-size: 8px;">CHAT FONT SIZE</label>
-              <input type="number" id="twitch-chat-size" min="8" max="24" value="10" class="devtools-input" style="padding: 6px 10px; font-size: 10px; flex: 1;">
-            </div>
-            <div class="devtools-row" style="margin: 0; width: 100%;">
-              <label class="devtools-label" for="twitch-vote-duration" style="min-width: 120px; font-size: 8px;">VOTE TIMER (S)</label>
-              <input type="number" id="twitch-vote-duration" min="5" max="120" value="20" class="devtools-input" style="padding: 6px 10px; font-size: 10px; flex: 1;">
-            </div>
-          </div>
-
-          <!-- Customizable Announcement Messages -->
-          <div style="border-top: 1px dashed rgba(255,255,255,0.15); margin: 10px 0; padding-top: 10px; text-align: left; width: 100%;">
-            <div style="font-size: 8px; font-family: var(--font-pixel); margin-bottom: 10px; color: #a970ff;">CUSTOM ANNOUNCEMENT TEMPLATES</div>
-            <div class="devtools-row" style="margin-bottom: 8px; width: 100%;">
-              <label class="devtools-label" for="twitch-msg-wave" style="min-width: 120px; font-size: 7px;">WAVE START MSG</label>
-              <input type="text" id="twitch-msg-wave" class="devtools-input" style="padding: 6px 10px; font-size: 8px; flex: 1;">
-            </div>
-            <div class="devtools-row" style="margin-bottom: 8px; width: 100%;">
-              <label class="devtools-label" for="twitch-msg-vote" style="min-width: 120px; font-size: 7px;">VOTE START MSG</label>
-              <input type="text" id="twitch-msg-vote" class="devtools-input" style="padding: 6px 10px; font-size: 8px; flex: 1;">
-            </div>
-            <div class="devtools-row" style="margin-bottom: 8px; width: 100%;">
-              <label class="devtools-label" for="twitch-msg-winner" style="min-width: 120px; font-size: 7px;">VOTE END MSG</label>
-              <input type="text" id="twitch-msg-winner" class="devtools-input" style="padding: 6px 10px; font-size: 8px; flex: 1;">
-            </div>
-          </div>
-
-          <!-- Customizable Commands List Grid -->
-          <div style="border-top: 1px dashed rgba(255,255,255,0.15); margin: 15px 0; padding-top: 15px; text-align: left; width: 100%;">
-            <div style="font-size: 8px; font-family: var(--font-pixel); margin-bottom: 8px; color: #a970ff;">COMMAND CONFIGURATIONS</div>
-            <div style="max-height: 200px; overflow-y: auto; padding-right: 5px; border: 2px dashed rgba(125,95,255,0.2); background: rgba(10, 11, 22, 0.4); padding: 8px;">
-              <div class="devtools-row" style="border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 4px; margin-bottom: 8px; font-size: 7px; color: var(--text-secondary);">
-                <span style="width: 80px; text-align: left;">COMMAND</span>
-                <span style="width: 50px; text-align: center;">ENABLE</span>
-                <span style="width: 60px; text-align: center; margin: 0 5px;">COOLDOWN (S)</span>
-                <span style="width: 60px; text-align: center; margin: 0 5px;">BITS COST</span>
-                <span style="width: 70px; text-align: center; margin-left: 5px;">POINTS COST</span>
-              </div>
-              <div id="twitch-commands-list">
-                <!-- Injected dynamically by initTwitchUIListeners -->
-              </div>
-            </div>
-          </div>
-
-          <div style="border-top: 1px dashed rgba(255,255,255,0.15); margin: 15px 0; padding-top: 15px; width: 100%;">
-            <h3 style="font-size: 10px; color: #7d5fff; margin-bottom: 12px; font-family: var(--font-pixel);">STREAMER AUTH (POCKETBASE)</h3>
-            
-            <!-- PocketBase Streamer login inputs -->
-            <div id="pb-login-section" style="width: 100%;">
-              <div class="devtools-row" style="margin-bottom: 8px; width: 100%;">
-                <label class="devtools-label" for="pb-username" style="min-width: 90px; font-size: 8px;">IDENTITY</label>
-                <input type="text" id="pb-username" placeholder="Username/Email" class="devtools-input" style="padding: 6px 10px; font-size: 10px; flex: 1;">
-              </div>
-              <div class="devtools-row" style="margin-bottom: 12px; width: 100%;">
-                <label class="devtools-label" for="pb-password" style="min-width: 90px; font-size: 8px;">PASSWORD</label>
-                <input type="password" id="pb-password" placeholder="••••••••" class="devtools-input" style="padding: 6px 10px; font-size: 10px; flex: 1;">
-              </div>
-              <button id="btn-pb-login" class="btn-menu small" style="margin-bottom: 8px; width: 100%;">LOGIN TO PERSIST SETTINGS</button>
-            </div>
-            
-            <div id="pb-logged-in-section" class="hidden" style="width: 100%;">
-              <div style="font-size: 8px; margin-bottom: 10px; color: var(--text-secondary);">Logged in as <strong id="pb-logged-in-username">Streamer</strong></div>
-              <button id="btn-pb-save-settings" class="btn-menu small" style="margin-bottom: 8px; width: 100%;">SAVE SETTINGS TO CLOUD</button>
-              <button id="btn-pb-logout" class="btn-menu small secondary" style="width: 100%;">LOGOUT</button>
-            </div>
-            <div id="pb-status-msg" style="font-size: 8px; margin-top: 8px; color: #f1c40f;"></div>
-          </div>
-          
-          <button id="btn-close-twitch" class="btn-menu secondary" style="margin-top: 10px;">BACK</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- LOCAL DEVTOOLS -->
-    <div id="panel-devtools" class="panel-overlay hidden">
-      <div class="menu-content text-center" style="max-width: 520px;">
-        <h1>DEVTOOLS</h1>
-        <p class="menu-decor"></p>
-        <pre id="devtools-info" style="text-align: left; white-space: pre-wrap; margin: 0 auto 18px; padding: 16px; max-width: 440px; background: rgba(5,8,18,0.8); border: 1px solid rgba(181, 126, 255, 0.45); color: #dfe7ff; font-size: 11px; line-height: 1.5;"></pre>
-        <div class="devtools-controls">
-          <div class="devtools-row">
-            <label class="devtools-label" for="dev-var-preset">COMMON</label>
-            <select id="dev-var-preset" class="devtools-select">
-              <option value="player.shards">Gems</option>
-              <option value="player.ap">AP</option>
-              <option value="player.xp">XP</option>
-              <option value="player.level">Level</option>
-              <option value="levelManager.wave">Wave</option>
-              <option value="levelManager.mapRevealed">Map Revealed</option>
-              <option value="showSpellTrails">Spell Trails</option>
-              <option value="renderDistance">Render Distance</option>
-              <option value="state">State</option>
-            </select>
-            <button id="btn-devtools-load-preset" class="btn-menu small">LOAD</button>
-          </div>
-          <div class="devtools-row">
-            <input id="dev-var-path" type="text" placeholder="player.shards / levelManager.wave / state" class="devtools-input">
-            <input id="dev-var-value" type="text" placeholder="value" class="devtools-input devtools-value">
-            <button id="btn-devtools-apply-var" class="btn-menu">APPLY</button>
-          </div>
-          <div class="devtools-row">
-            <label class="devtools-label" for="dev-next-theme">NEXT REGION</label>
-            <select id="dev-next-theme" class="devtools-select" style="flex: 1; margin-right: 8px;">
-              <option value="">Random</option>
-              <option value="dungeon">Dark Dungeon</option>
-              <option value="gardens">Harmonious Gardens</option>
-              <option value="underground">Deep Caverns</option>
-              <option value="pool">Triton Pools</option>
-              <option value="volcanic">Volcanic Core</option>
-              <option value="void_rift">Void Rift</option>
-              <option value="backrooms">Limitless Backrooms</option>
-            </select>
-            <button id="btn-devtools-apply-theme" class="btn-menu small">SET</button>
-          </div>
-          <div class="devtools-row devtools-chip-row">
-            <button class="btn-menu small" data-dev-preset="player.shards">GEMS</button>
-            <button class="btn-menu small" data-dev-preset="player.ap">AP</button>
-            <button class="btn-menu small" data-dev-preset="player.xp">XP</button>
-            <button class="btn-menu small" data-dev-preset="player.level">LEVEL</button>
-            <button class="btn-menu small" data-dev-preset="player.hp">HP</button>
-            <button class="btn-menu small" data-dev-preset="player.mp">MP</button>
-          </div>
-          <div class="devtools-row devtools-checkbox-row">
-            <label class="devtools-checkbox-label"><input type="checkbox" id="dev-show-hitboxes"> HITBOXES</label>
-            <label class="devtools-checkbox-label"><input type="checkbox" id="dev-show-paths"> PATHS</label>
-            <label class="devtools-checkbox-label"><input type="checkbox" id="dev-show-fps"> FPS</label>
-            <label class="devtools-checkbox-label"><input type="checkbox" id="dev-show-grid"> GRID</label>
-          </div>
-          <div class="devtools-row devtools-actions">
-            <button id="btn-devtools-respawn" class="btn-menu">RESPAWN</button>
-            <button id="btn-devtools-reveal" class="btn-menu">REVEAL 3x3</button>
-            <button id="btn-devtools-refresh" class="btn-menu">REFRESH AREA</button>
-            <button id="btn-devtools-rebuild" class="btn-menu">REBUILD WORLD</button>
-            <button id="btn-devtools-trails" class="btn-menu secondary">TRAILS: ON</button>
-            <button id="btn-close-devtools" class="btn-menu secondary">CLOSE</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 7. RUNIC SHOP PANEL -->
-    <div id="panel-shop" class="panel-overlay hidden">
-      <div class="menu-content wide text-center">
-        <h1 class="text-glow">RUNIC SHOP</h1>
-        <p class="shop-intro">Trade shards for upgrades to prepare for the next onslaught</p>
-        
-        <div class="shop-shards-display">
-          Aether Shards: <canvas class="inline-icon" id="icon-shard-shop" width="12" height="12" draggable="false"></canvas> <span id="shop-shards-value">0</span>
-        </div>
-
-        <div class="shop-grid">
-          <!-- Item 1: HP Potion -->
-          <div class="shop-item">
-            <canvas class="shop-item-canvas" id="shop-canvas-hp" width="32" height="32"></canvas>
-            <h3>Health Potion</h3>
-            <p>Restores 50 HP</p>
-            <button id="btn-buy-hp" class="btn-menu small">BUY (15 Shards)</button>
-          </div>
-
-          <!-- Item 2: MP Potion -->
-          <div class="shop-item">
-            <canvas class="shop-item-canvas" id="shop-canvas-mp" width="32" height="32"></canvas>
-            <h3>Mana Potion</h3>
-            <p>Restores 30 Mana</p>
-            <button id="btn-buy-mp" class="btn-menu small">BUY (15 Shards)</button>
-          </div>
-
-          <!-- Item 3: Vitality Upgrade -->
-          <div class="shop-item">
-            <canvas class="shop-item-canvas" id="shop-canvas-vit" width="32" height="32"></canvas>
-            <h3>Runic Heart</h3>
-            <p>Perm +15 Max HP</p>
-            <button id="btn-buy-vit" class="btn-menu small">BUY (40 Shards)</button>
-          </div>
-
-          <!-- Item 4: Mana Upgrade -->
-          <div class="shop-item">
-            <canvas class="shop-item-canvas" id="shop-canvas-mana" width="32" height="32"></canvas>
-            <h3>Mana Well</h3>
-            <p>Perm +10 MP & +0.3/s Regen</p>
-            <button id="btn-buy-mana" class="btn-menu small">BUY (40 Shards)</button>
-          </div>
-
-          <!-- Item 5: Relic Chest -->
-          <div class="shop-item" style="grid-column: span 2;">
-            <canvas class="shop-item-canvas" id="shop-canvas-relic" width="32" height="32"></canvas>
-            <h3>Relic Chest</h3>
-            <p>Buy a random powerful Relic</p>
-            <button id="btn-buy-relic" class="btn-menu small">BUY (50 Shards)</button>
-          </div>
-        </div>
-
-        <div class="menu-buttons" style="margin-top: 25px; width: auto;">
-          <button id="btn-start-next-wave" class="btn-menu">START NEXT WAVE</button>
-          <div id="shop-twitch-vote-status" style="display: none; margin-top: 12px; font-family: var(--font-pixel); font-size: 8px; color: #a970ff; text-shadow: 0 0 5px rgba(169, 112, 255, 0.5);">
-            TWITCH VOTE ACTIVE...
-          </div>
-          <div id="twitch-vote-waiting-msg" style="display: none; margin-top: 8px; font-family: var(--font-pixel); font-size: 8px; color: #ff4757;">
-            Waiting for Twitch vote to finish...
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 8. STORAGE & EQUIPMENT — Full Inventory Management Panel -->
-    <div id="panel-inventory" class="panel-overlay hidden">
-      <div class="inv-panel-content">
-
-        <!-- Header -->
-        <div class="inv-panel-header">
-          <h2>COLLECTION &amp; GEAR</h2>
-          <div class="inv-panel-meta">
-            <span>Shards: <canvas class="inline-icon" id="icon-shard-inv" width="12" height="12" draggable="false"></canvas> <strong id="inv-shards-value">0</strong></span>
-          </div>
-          <button id="btn-close-inventory" class="btn-close">&times;</button>
-        </div>
-
-        <!-- Tab bar -->
-        <div class="inv-tab-bar">
-          <button class="inv-tab-btn active" data-tab="runes">RUNES <span id="inv-rune-count" style="font-size:6px; opacity:0.7;"></span></button>
-          <button class="inv-tab-btn" data-tab="gear">GEAR &amp; ARMOR (<span id="inv-gear-count">0</span>)</button>
-          <button class="inv-tab-btn" data-tab="spells">SPELLS &amp; HOTBAR</button>
-          <button class="inv-tab-btn" data-tab="achievements">ACHIEVEMENTS (<span id="inv-achievements-count">0</span>)</button>
-        </div>
-
-        <!-- RUNES TAB -->
-        <div class="inv-tab-pane" data-tab="runes">
-          <p class="inv-tab-desc">Equip runes to activate their bonuses. Click a rune from storage to equip it. Click an equipped rune to unequip.</p>
-
-          <div class="inv-rune-section-label">EQUIPPED RUNES</div>
-          <div id="inv-equipped-rune-grid" class="inv-relic-grid inv-equipped-rune-grid">
-            <!-- injected by JS -->
-          </div>
-
-          <div class="inv-rune-section-label" style="margin-top:14px;">RUNE STORAGE</div>
-          <div id="inv-rune-grid" class="inv-relic-grid">
-            <!-- injected by JS -->
-          </div>
-        </div>
-
-        <!-- GEAR TAB -->
-        <div class="inv-tab-pane hidden" data-tab="gear">
-          <div class="inv-gear-layout">
-
-            <!-- Left: Paper Doll (equipped) -->
-            <div class="inv-equip-section">
-              <h3>EQUIPPED</h3>
-              <div class="equip-slots-container">
-                <div class="equip-slot" id="equip-slot-helmet" data-slot="helmet" style="grid-column:1;grid-row:1;">
-                  <div class="equip-slot-label">HELMET</div>
-                  <canvas class="equip-slot-canvas" id="equip-canvas-helmet" width="32" height="32"></canvas>
-                  <div class="tooltip" id="tooltip-equip-helmet">Empty Helmet Slot</div>
+            <!-- 5. PAUSE PANEL -->
+            <div id="panel-pause" class="panel-overlay hidden">
+                <div class="menu-content text-center">
+                    <h1>GAME PAUSED</h1>
+                    <div class="menu-buttons">
+                        <button id="btn-resume-game" class="btn-menu">
+                            RESUME
+                        </button>
+                        <button id="btn-pause-tree" class="btn-menu">
+                            OPEN ABILITY TREE
+                        </button>
+                        <button id="btn-pause-spellmap" class="btn-menu">
+                            SPELL LOADOUT
+                        </button>
+                        <button
+                            class="btn-menu"
+                            onclick="window.open('./wiki/', '_blank')"
+                        >
+                            WIKI & ARCHIVES
+                        </button>
+                        <button id="btn-settings-pause" class="btn-menu">
+                            SETTINGS
+                        </button>
+                        <button id="btn-pause-menu" class="btn-menu secondary">
+                            QUIT TO MENU
+                        </button>
+                    </div>
                 </div>
-                <div class="equip-slot" id="equip-slot-chestplate" data-slot="chestplate" style="grid-column:1;grid-row:2;">
-                  <div class="equip-slot-label">ROBE</div>
-                  <canvas class="equip-slot-canvas" id="equip-canvas-chestplate" width="32" height="32"></canvas>
-                  <div class="tooltip" id="tooltip-equip-chestplate">Empty Robe Slot</div>
+            </div>
+
+            <!-- settings. SETTINGS PANEL -->
+            <div id="panel-settings" class="panel-overlay hidden">
+                <div class="menu-content text-center" style="max-width: 460px">
+                    <h1>SETTINGS</h1>
+
+                    <!-- Minecraft-style Tab Buttons -->
+                    <div class="settings-tab-bar">
+                        <button
+                            class="settings-tab-btn active"
+                            data-tab="gameplay"
+                        >
+                            GAMEPLAY
+                        </button>
+                        <button class="settings-tab-btn" data-tab="video">
+                            VIDEO
+                        </button>
+                        <button class="settings-tab-btn" data-tab="audio">
+                            AUDIO
+                        </button>
+                        <button class="settings-tab-btn" data-tab="controls">
+                            CONTROLS
+                        </button>
+                    </div>
+
+                    <div class="menu-buttons" style="margin-top: 10px">
+                        <!-- Tab content: GAMEPLAY -->
+                        <div
+                            id="settings-tab-gameplay"
+                            class="settings-tab-pane"
+                        >
+                            <div class="settings-toggles-box">
+                                <div class="settings-toggles-grid">
+                                    <div class="setting-toggle-group">
+                                        <label class="setting-toggle">
+                                            <input
+                                                type="checkbox"
+                                                id="chk-settings-shake"
+                                                checked
+                                            />
+                                            <span
+                                                class="checkbox-custom"
+                                            ></span>
+                                            <span>SCREEN SHAKE</span>
+                                        </label>
+                                    </div>
+                                    <div class="setting-toggle-group">
+                                        <label class="setting-toggle">
+                                            <input
+                                                type="checkbox"
+                                                id="chk-settings-damage"
+                                                checked
+                                            />
+                                            <span
+                                                class="checkbox-custom"
+                                            ></span>
+                                            <span>DAMAGE NUMBERS</span>
+                                        </label>
+                                    </div>
+                                    <div
+                                        class="setting-toggle-group"
+                                        style="grid-column: span 2"
+                                    >
+                                        <label class="setting-toggle">
+                                            <input
+                                                type="checkbox"
+                                                id="chk-settings-healthbars"
+                                                checked
+                                            />
+                                            <span
+                                                class="checkbox-custom"
+                                            ></span>
+                                            <span>ENEMY HP BARS</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                id="btn-twitch-setup-menu"
+                                class="btn-menu small"
+                                style="
+                                    background: #6441a5;
+                                    border-color: #9146ff;
+                                    box-shadow: 3px 3px 0 #7d5fff;
+                                    width: 100%;
+                                    margin-top: 10px;
+                                "
+                            >
+                                TWITCH INTEGRATION
+                            </button>
+                        </div>
+
+                        <!-- Tab content: VIDEO -->
+                        <div
+                            id="settings-tab-video"
+                            class="settings-tab-pane hidden"
+                        >
+                            <div
+                                class="volume-controls-box"
+                                style="padding: 10px"
+                            >
+                                <div
+                                    class="volume-slider-group"
+                                    style="margin-top: 0"
+                                >
+                                    <div class="volume-header">
+                                        <span class="volume-label"
+                                            >RENDER DISTANCE</span
+                                        >
+                                        <span
+                                            id="lbl-settings-render-val"
+                                            class="volume-value"
+                                            >1200px</span
+                                        >
+                                    </div>
+                                    <input
+                                        type="range"
+                                        id="sld-settings-render"
+                                        min="600"
+                                        max="2400"
+                                        step="200"
+                                        value="1200"
+                                        class="volume-slider"
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="settings-toggles-box">
+                                <div class="settings-toggles-grid">
+                                    <div class="setting-toggle-group">
+                                        <label class="setting-toggle">
+                                            <input
+                                                type="checkbox"
+                                                id="chk-settings-glow"
+                                                checked
+                                            />
+                                            <span
+                                                class="checkbox-custom"
+                                            ></span>
+                                            <span>GLOW EFFECTS</span>
+                                        </label>
+                                    </div>
+                                    <div class="setting-toggle-group">
+                                        <label class="setting-toggle">
+                                            <input
+                                                type="checkbox"
+                                                id="chk-settings-floor"
+                                                checked
+                                            />
+                                            <span
+                                                class="checkbox-custom"
+                                            ></span>
+                                            <span>FLOOR DETAILS</span>
+                                        </label>
+                                    </div>
+                                    <div class="setting-toggle-group">
+                                        <label class="setting-toggle">
+                                            <input
+                                                type="checkbox"
+                                                id="chk-settings-particles"
+                                            />
+                                            <span
+                                                class="checkbox-custom"
+                                            ></span>
+                                            <span>LOW PARTICLES</span>
+                                        </label>
+                                    </div>
+                                    <div class="setting-toggle-group">
+                                        <label class="setting-toggle">
+                                            <input
+                                                type="checkbox"
+                                                id="chk-settings-trails"
+                                                checked
+                                            />
+                                            <span
+                                                class="checkbox-custom"
+                                            ></span>
+                                            <span>SPELL TRAILS</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab content: AUDIO -->
+                        <div
+                            id="settings-tab-audio"
+                            class="settings-tab-pane hidden"
+                        >
+                            <button
+                                id="btn-settings-mute"
+                                class="btn-menu small"
+                                style="width: 100%; margin-bottom: 10px"
+                            >
+                                MUTE AUDIO
+                            </button>
+                            <div
+                                class="volume-controls-box"
+                                style="padding: 10px"
+                            >
+                                <div class="volume-slider-group">
+                                    <div class="volume-header">
+                                        <span class="volume-label"
+                                            >MUSIC VOLUME</span
+                                        >
+                                        <span
+                                            id="lbl-settings-music-val"
+                                            class="volume-value"
+                                            >35%</span
+                                        >
+                                    </div>
+                                    <input
+                                        type="range"
+                                        id="sld-settings-music"
+                                        min="0"
+                                        max="100"
+                                        value="35"
+                                        class="volume-slider"
+                                    />
+                                </div>
+
+                                <div
+                                    class="volume-slider-group"
+                                    style="margin-top: 10px"
+                                >
+                                    <div class="volume-header">
+                                        <span class="volume-label"
+                                            >SFX VOLUME</span
+                                        >
+                                        <span
+                                            id="lbl-settings-sfx-val"
+                                            class="volume-value"
+                                            >55%</span
+                                        >
+                                    </div>
+                                    <input
+                                        type="range"
+                                        id="sld-settings-sfx"
+                                        min="0"
+                                        max="100"
+                                        value="55"
+                                        class="volume-slider"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab content: CONTROLS -->
+                        <div
+                            id="settings-tab-controls"
+                            class="settings-tab-pane hidden"
+                        >
+                            <div
+                                style="
+                                    font-family: var(--font-pixel);
+                                    font-size: 7px;
+                                    color: #888;
+                                    margin-bottom: 6px;
+                                    text-align: left;
+                                "
+                            >
+                                LAYOUT DETECTED:
+                                <span
+                                    id="lbl-detected-layout"
+                                    style="color: var(--color-aether)"
+                                    >QWERTY</span
+                                >
+                            </div>
+
+                            <div
+                                class="keybinds-grid"
+                                id="settings-keybinds-list"
+                            >
+                                <!-- Keybind rows will be generated dynamically by JavaScript -->
+                            </div>
+
+                            <button
+                                id="btn-reset-keybinds"
+                                class="btn-menu small secondary"
+                                style="width: 100%; margin-top: 10px"
+                            >
+                                RESET TO DEFAULTS
+                            </button>
+                        </div>
+
+                        <button
+                            id="btn-close-settings"
+                            class="btn-menu secondary"
+                            style="margin-top: 20px; width: 100%"
+                        >
+                            BACK
+                        </button>
+                    </div>
                 </div>
-                <div class="equip-slot" id="equip-slot-boots" data-slot="boots" style="grid-column:1;grid-row:3;">
-                  <div class="equip-slot-label">BOOTS</div>
-                  <canvas class="equip-slot-canvas" id="equip-canvas-boots" width="32" height="32"></canvas>
-                  <div class="tooltip" id="tooltip-equip-boots">Empty Boots Slot</div>
+            </div>
+
+            <!-- TWITCH SETUP PANEL -->
+            <div id="panel-twitch" class="panel-overlay hidden">
+                <div
+                    class="menu-content text-center"
+                    style="max-width: 650px; max-height: 90vh; overflow-y: auto"
+                >
+                    <h1>TWITCH INTEGRATION</h1>
+                    <div class="menu-decor"></div>
+
+                    <!-- Status Indicator -->
+                    <div
+                        style="
+                            margin-bottom: 15px;
+                            font-size: 10px;
+                            font-family: var(--font-pixel);
+                        "
+                    >
+                        STATUS:
+                        <span
+                            id="twitch-status-lbl"
+                            style="
+                                color: #ff6b6b;
+                                text-shadow: 0 0 5px rgba(255, 107, 107, 0.5);
+                            "
+                            >DISCONNECTED</span
+                        >
+                    </div>
+
+                    <div class="menu-buttons" style="width: 100%">
+                        <!-- Twitch Login Button (OAuth) -->
+                        <div style="margin-bottom: 15px; width: 100%">
+                            <button
+                                id="btn-twitch-login-oauth"
+                                class="btn-menu"
+                                style="
+                                    background: #9146ff;
+                                    border-color: #a970ff;
+                                    box-shadow: 4px 4px 0 #6441a5;
+                                    color: #fff;
+                                    margin: 0 auto 10px;
+                                "
+                            >
+                                LOG IN WITH TWITCH
+                            </button>
+                            <div
+                                style="
+                                    font-size: 7px;
+                                    color: #a970ff;
+                                    line-height: 1.4;
+                                    margin-bottom: 10px;
+                                "
+                            >
+                                Automated token connection &amp; chat sync
+                            </div>
+
+                            <!-- Bot Announcements Toggle & Chat Settings -->
+                            <div
+                                class="setting-toggle-group"
+                                style="
+                                    justify-content: center;
+                                    display: flex;
+                                    margin-bottom: 10px;
+                                "
+                            >
+                                <label
+                                    class="setting-toggle"
+                                    style="
+                                        font-size: 9px;
+                                        cursor: pointer;
+                                        display: flex;
+                                        align-items: center;
+                                        gap: 8px;
+                                    "
+                                >
+                                    <input
+                                        type="checkbox"
+                                        id="chk-twitch-announcements"
+                                        checked
+                                    />
+                                    <span class="checkbox-custom"></span>
+                                    <span>ENABLE BOT ANNOUNCEMENTS</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div
+                            style="
+                                border-top: 1px dashed rgba(255, 255, 255, 0.15);
+                                margin: 10px 0;
+                                padding-top: 10px;
+                                width: 100%;
+                            "
+                        ></div>
+
+                        <!-- Customizable Fields (Font size, Vote duration) -->
+                        <div
+                            style="
+                                display: grid;
+                                grid-template-columns: 1fr 1fr;
+                                gap: 10px;
+                                margin-bottom: 15px;
+                                text-align: left;
+                            "
+                        >
+                            <div
+                                class="devtools-row"
+                                style="margin: 0; width: 100%"
+                            >
+                                <label
+                                    class="devtools-label"
+                                    for="twitch-chat-size"
+                                    style="min-width: 120px; font-size: 8px"
+                                    >CHAT FONT SIZE</label
+                                >
+                                <input
+                                    type="number"
+                                    id="twitch-chat-size"
+                                    min="8"
+                                    max="24"
+                                    value="10"
+                                    class="devtools-input"
+                                    style="
+                                        padding: 6px 10px;
+                                        font-size: 10px;
+                                        flex: 1;
+                                    "
+                                />
+                            </div>
+                            <div
+                                class="devtools-row"
+                                style="margin: 0; width: 100%"
+                            >
+                                <label
+                                    class="devtools-label"
+                                    for="twitch-vote-duration"
+                                    style="min-width: 120px; font-size: 8px"
+                                    >VOTE TIMER (S)</label
+                                >
+                                <input
+                                    type="number"
+                                    id="twitch-vote-duration"
+                                    min="5"
+                                    max="120"
+                                    value="20"
+                                    class="devtools-input"
+                                    style="
+                                        padding: 6px 10px;
+                                        font-size: 10px;
+                                        flex: 1;
+                                    "
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Customizable Announcement Messages -->
+                        <div
+                            style="
+                                border-top: 1px dashed rgba(255, 255, 255, 0.15);
+                                margin: 10px 0;
+                                padding-top: 10px;
+                                text-align: left;
+                                width: 100%;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 8px;
+                                    font-family: var(--font-pixel);
+                                    margin-bottom: 10px;
+                                    color: #a970ff;
+                                "
+                            >
+                                CUSTOM ANNOUNCEMENT TEMPLATES
+                            </div>
+                            <div
+                                class="devtools-row"
+                                style="margin-bottom: 8px; width: 100%"
+                            >
+                                <label
+                                    class="devtools-label"
+                                    for="twitch-msg-wave"
+                                    style="min-width: 120px; font-size: 7px"
+                                    >WAVE START MSG</label
+                                >
+                                <input
+                                    type="text"
+                                    id="twitch-msg-wave"
+                                    class="devtools-input"
+                                    style="
+                                        padding: 6px 10px;
+                                        font-size: 8px;
+                                        flex: 1;
+                                    "
+                                />
+                            </div>
+                            <div
+                                class="devtools-row"
+                                style="margin-bottom: 8px; width: 100%"
+                            >
+                                <label
+                                    class="devtools-label"
+                                    for="twitch-msg-vote"
+                                    style="min-width: 120px; font-size: 7px"
+                                    >VOTE START MSG</label
+                                >
+                                <input
+                                    type="text"
+                                    id="twitch-msg-vote"
+                                    class="devtools-input"
+                                    style="
+                                        padding: 6px 10px;
+                                        font-size: 8px;
+                                        flex: 1;
+                                    "
+                                />
+                            </div>
+                            <div
+                                class="devtools-row"
+                                style="margin-bottom: 8px; width: 100%"
+                            >
+                                <label
+                                    class="devtools-label"
+                                    for="twitch-msg-winner"
+                                    style="min-width: 120px; font-size: 7px"
+                                    >VOTE END MSG</label
+                                >
+                                <input
+                                    type="text"
+                                    id="twitch-msg-winner"
+                                    class="devtools-input"
+                                    style="
+                                        padding: 6px 10px;
+                                        font-size: 8px;
+                                        flex: 1;
+                                    "
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Customizable Commands List Grid -->
+                        <div
+                            style="
+                                border-top: 1px dashed rgba(255, 255, 255, 0.15);
+                                margin: 15px 0;
+                                padding-top: 15px;
+                                text-align: left;
+                                width: 100%;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 8px;
+                                    font-family: var(--font-pixel);
+                                    margin-bottom: 8px;
+                                    color: #a970ff;
+                                "
+                             >
+                                COMMAND CONFIGURATIONS
+                            </div>
+                            <div style="font-size: 7px; font-family: var(--font-pixel); color: #dfe7ff; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                                <span>LAST DETECTED REDEMPTION ID:</span>
+                                <input type="text" id="twitch-last-redeem-id" readonly placeholder="No redemptions yet" style="background: rgba(0,0,0,0.5); border: 1px solid rgba(145, 70, 255, 0.4); color: #2ecc71; font-family: Courier New, monospace; font-size: 8px; padding: 4px; width: 280px; text-align: center; outline: none;" onclick="this.select(); document.execCommand('copy');" title="Click to copy">
+                            </div>
+                            <div
+                                style="
+                                    max-height: 200px;
+                                    overflow-y: auto;
+                                    padding-right: 5px;
+                                    border: 2px dashed rgba(125, 95, 255, 0.2);
+                                    background: rgba(10, 11, 22, 0.4);
+                                    padding: 8px;
+                                "
+                            >
+                                <div
+                                    class="devtools-row"
+                                    style="
+                                        border-bottom: 1px solid
+                                            rgba(255, 255, 255, 0.15);
+                                        padding-bottom: 4px;
+                                        margin-bottom: 8px;
+                                        font-size: 7px;
+                                        color: var(--text-secondary);
+                                        flex-wrap: nowrap;
+                                        justify-content: space-between;
+                                    "
+                                >
+                                    <span style="width: 80px; text-align: left"
+                                        >COMMAND</span
+                                    >
+                                    <span
+                                        style="width: 50px; text-align: center"
+                                        >ENABLE</span
+                                    >
+                                    <span
+                                        style="
+                                            width: 60px;
+                                            text-align: center;
+                                            margin: 0 5px;
+                                        "
+                                        >COOLDOWN (S)</span
+                                    >
+                                    <span
+                                        style="
+                                            width: 60px;
+                                            text-align: center;
+                                            margin: 0 5px;
+                                        "
+                                        >BITS COST</span
+                                    >
+                                    <span
+                                        style="
+                                            width: 140px;
+                                            text-align: center;
+                                            margin-left: 5px;
+                                        "
+                                        >REDEEM ID</span
+                                    >
+                                </div>
+                                <div id="twitch-commands-list">
+                                    <!-- Injected dynamically by initTwitchUIListeners -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <div
+                            style="
+                                border-top: 1px dashed rgba(255, 255, 255, 0.15);
+                                margin: 15px 0;
+                                padding-top: 15px;
+                                width: 100%;
+                            "
+                        >
+                            <h3
+                                style="
+                                    font-size: 10px;
+                                    color: #7d5fff;
+                                    margin-bottom: 12px;
+                                    font-family: var(--font-pixel);
+                                "
+                            >
+                                STREAMER AUTH (POCKETBASE)
+                            </h3>
+
+                            <!-- PocketBase Streamer login inputs -->
+                            <div id="pb-login-section" style="width: 100%">
+                                <div
+                                    class="devtools-row"
+                                    style="margin-bottom: 8px; width: 100%"
+                                >
+                                    <label
+                                        class="devtools-label"
+                                        for="pb-username"
+                                        style="min-width: 90px; font-size: 8px"
+                                        >IDENTITY</label
+                                    >
+                                    <input
+                                        type="text"
+                                        id="pb-username"
+                                        placeholder="Username/Email"
+                                        class="devtools-input"
+                                        style="
+                                            padding: 6px 10px;
+                                            font-size: 10px;
+                                            flex: 1;
+                                        "
+                                    />
+                                </div>
+                                <div
+                                    class="devtools-row"
+                                    style="margin-bottom: 12px; width: 100%"
+                                >
+                                    <label
+                                        class="devtools-label"
+                                        for="pb-password"
+                                        style="min-width: 90px; font-size: 8px"
+                                        >PASSWORD</label
+                                    >
+                                    <input
+                                        type="password"
+                                        id="pb-password"
+                                        placeholder="••••••••"
+                                        class="devtools-input"
+                                        style="
+                                            padding: 6px 10px;
+                                            font-size: 10px;
+                                            flex: 1;
+                                        "
+                                    />
+                                </div>
+                                <button
+                                    id="btn-pb-login"
+                                    class="btn-menu small"
+                                    style="margin-bottom: 8px; width: 100%"
+                                >
+                                    LOGIN TO PERSIST SETTINGS
+                                </button>
+                            </div>
+
+                            <div
+                                id="pb-logged-in-section"
+                                class="hidden"
+                                style="width: 100%"
+                            >
+                                <div
+                                    style="
+                                        font-size: 8px;
+                                        margin-bottom: 10px;
+                                        color: var(--text-secondary);
+                                    "
+                                >
+                                    Logged in as
+                                    <strong id="pb-logged-in-username"
+                                        >Streamer</strong
+                                    >
+                                </div>
+                                <button
+                                    id="btn-pb-save-settings"
+                                    class="btn-menu small"
+                                    style="margin-bottom: 8px; width: 100%"
+                                >
+                                    SAVE SETTINGS TO CLOUD
+                                </button>
+                                <button
+                                    id="btn-pb-logout"
+                                    class="btn-menu small secondary"
+                                    style="width: 100%"
+                                >
+                                    LOGOUT
+                                </button>
+                            </div>
+                            <div
+                                id="pb-status-msg"
+                                style="
+                                    font-size: 8px;
+                                    margin-top: 8px;
+                                    color: #f1c40f;
+                                "
+                            ></div>
+                        </div>
+
+                        <button
+                            id="btn-close-twitch"
+                            class="btn-menu secondary"
+                            style="margin-top: 10px"
+                        >
+                            BACK
+                        </button>
+                    </div>
                 </div>
-                <div class="equip-player-preview">
-                  <canvas class="equip-player-canvas" id="inv-player-canvas" width="48" height="48"></canvas>
+            </div>
+
+            <!-- LOCAL DEVTOOLS -->
+            <div id="panel-devtools" class="panel-overlay hidden">
+                <div class="menu-content text-center" style="max-width: 520px">
+                    <h1>DEVTOOLS</h1>
+                    <p class="menu-decor"></p>
+                    <pre
+                        id="devtools-info"
+                        style="
+                            text-align: left;
+                            white-space: pre-wrap;
+                            margin: 0 auto 18px;
+                            padding: 16px;
+                            max-width: 440px;
+                            background: rgba(5, 8, 18, 0.8);
+                            border: 1px solid rgba(181, 126, 255, 0.45);
+                            color: #dfe7ff;
+                            font-size: 11px;
+                            line-height: 1.5;
+                        "
+                    ></pre>
+                    <div class="devtools-controls">
+                        <div class="devtools-row">
+                            <label class="devtools-label" for="dev-var-preset"
+                                >COMMON</label
+                            >
+                            <select id="dev-var-preset" class="devtools-select">
+                                <option value="player.shards">Gems</option>
+                                <option value="player.ap">AP</option>
+                                <option value="player.xp">XP</option>
+                                <option value="player.level">Level</option>
+                                <option value="levelManager.wave">Wave</option>
+                                <option value="levelManager.mapRevealed">
+                                    Map Revealed
+                                </option>
+                                <option value="showSpellTrails">
+                                    Spell Trails
+                                </option>
+                                <option value="renderDistance">
+                                    Render Distance
+                                </option>
+                                <option value="state">State</option>
+                            </select>
+                            <button
+                                id="btn-devtools-load-preset"
+                                class="btn-menu small"
+                            >
+                                LOAD
+                            </button>
+                        </div>
+                        <div class="devtools-row">
+                            <input
+                                id="dev-var-path"
+                                type="text"
+                                placeholder="player.shards / levelManager.wave / state"
+                                class="devtools-input"
+                            />
+                            <input
+                                id="dev-var-value"
+                                type="text"
+                                placeholder="value"
+                                class="devtools-input devtools-value"
+                            />
+                            <button
+                                id="btn-devtools-apply-var"
+                                class="btn-menu"
+                            >
+                                APPLY
+                            </button>
+                        </div>
+                        <div class="devtools-row">
+                            <label class="devtools-label" for="dev-next-theme"
+                                >NEXT REGION</label
+                            >
+                            <select
+                                id="dev-next-theme"
+                                class="devtools-select"
+                                style="flex: 1; margin-right: 8px"
+                            >
+                                <option value="">Random</option>
+                                <option value="dungeon">Dark Dungeon</option>
+                                <option value="gardens">
+                                    Harmonious Gardens
+                                </option>
+                                <option value="underground">
+                                    Deep Caverns
+                                </option>
+                                <option value="pool">Triton Pools</option>
+                                <option value="volcanic">Volcanic Core</option>
+                                <option value="void_rift">Void Rift</option>
+                                <option value="backrooms">
+                                    Limitless Backrooms
+                                </option>
+                            </select>
+                            <button
+                                id="btn-devtools-apply-theme"
+                                class="btn-menu small"
+                            >
+                                SET
+                            </button>
+                        </div>
+                        <div class="devtools-row devtools-chip-row">
+                            <button
+                                class="btn-menu small"
+                                data-dev-preset="player.shards"
+                            >
+                                GEMS
+                            </button>
+                            <button
+                                class="btn-menu small"
+                                data-dev-preset="player.ap"
+                            >
+                                AP
+                            </button>
+                            <button
+                                class="btn-menu small"
+                                data-dev-preset="player.xp"
+                            >
+                                XP
+                            </button>
+                            <button
+                                class="btn-menu small"
+                                data-dev-preset="player.level"
+                            >
+                                LEVEL
+                            </button>
+                            <button
+                                class="btn-menu small"
+                                data-dev-preset="player.hp"
+                            >
+                                HP
+                            </button>
+                            <button
+                                class="btn-menu small"
+                                data-dev-preset="player.mp"
+                            >
+                                MP
+                            </button>
+                        </div>
+                        <div class="devtools-row devtools-checkbox-row">
+                            <label class="devtools-checkbox-label"
+                                ><input
+                                    type="checkbox"
+                                    id="dev-show-hitboxes"
+                                />
+                                HITBOXES</label
+                            >
+                            <label class="devtools-checkbox-label"
+                                ><input type="checkbox" id="dev-show-paths" />
+                                PATHS</label
+                            >
+                            <label class="devtools-checkbox-label"
+                                ><input type="checkbox" id="dev-show-fps" />
+                                FPS</label
+                            >
+                            <label class="devtools-checkbox-label"
+                                ><input type="checkbox" id="dev-show-grid" />
+                                GRID</label
+                            >
+                        </div>
+                        <div class="devtools-row devtools-actions">
+                            <button id="btn-devtools-respawn" class="btn-menu">
+                                RESPAWN
+                            </button>
+                            <button id="btn-devtools-reveal" class="btn-menu">
+                                REVEAL 3x3
+                            </button>
+                            <button id="btn-devtools-refresh" class="btn-menu">
+                                REFRESH AREA
+                            </button>
+                            <button id="btn-devtools-rebuild" class="btn-menu">
+                                REBUILD WORLD
+                            </button>
+                            <button
+                                id="btn-devtools-trails"
+                                class="btn-menu secondary"
+                            >
+                                TRAILS: ON
+                            </button>
+                            <button
+                                id="btn-close-devtools"
+                                class="btn-menu secondary"
+                            >
+                                CLOSE
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <div class="equip-slot" id="equip-slot-weapon" data-slot="weapon" style="grid-column:3;grid-row:1;">
-                  <div class="equip-slot-label">WEAPON</div>
-                  <canvas class="equip-slot-canvas" id="equip-canvas-weapon" width="32" height="32"></canvas>
-                  <div class="tooltip" id="tooltip-equip-weapon">Empty Weapon Slot</div>
+            </div>
+
+            <!-- 7. RUNIC SHOP PANEL -->
+            <div id="panel-shop" class="panel-overlay hidden">
+                <div class="menu-content wide text-center">
+                    <h1 class="text-glow">RUNIC SHOP</h1>
+                    <p class="shop-intro">
+                        Trade shards for upgrades to prepare for the next
+                        onslaught
+                    </p>
+
+                    <div class="shop-shards-display">
+                        Aether Shards:
+                        <canvas
+                            class="inline-icon"
+                            id="icon-shard-shop"
+                            width="12"
+                            height="12"
+                            draggable="false"
+                        ></canvas>
+                        <span id="shop-shards-value">0</span>
+                    </div>
+
+                    <div class="shop-grid">
+                        <!-- Item 1: HP Potion -->
+                        <div class="shop-item">
+                            <canvas
+                                class="shop-item-canvas"
+                                id="shop-canvas-hp"
+                                width="32"
+                                height="32"
+                            ></canvas>
+                            <h3>Health Potion</h3>
+                            <p>Restores 50 HP</p>
+                            <button id="btn-buy-hp" class="btn-menu small">
+                                BUY (15 Shards)
+                            </button>
+                        </div>
+
+                        <!-- Item 2: MP Potion -->
+                        <div class="shop-item">
+                            <canvas
+                                class="shop-item-canvas"
+                                id="shop-canvas-mp"
+                                width="32"
+                                height="32"
+                            ></canvas>
+                            <h3>Mana Potion</h3>
+                            <p>Restores 30 Mana</p>
+                            <button id="btn-buy-mp" class="btn-menu small">
+                                BUY (15 Shards)
+                            </button>
+                        </div>
+
+                        <!-- Item 3: Vitality Upgrade -->
+                        <div class="shop-item">
+                            <canvas
+                                class="shop-item-canvas"
+                                id="shop-canvas-vit"
+                                width="32"
+                                height="32"
+                            ></canvas>
+                            <h3>Runic Heart</h3>
+                            <p>Perm +15 Max HP</p>
+                            <button id="btn-buy-vit" class="btn-menu small">
+                                BUY (40 Shards)
+                            </button>
+                        </div>
+
+                        <!-- Item 4: Mana Upgrade -->
+                        <div class="shop-item">
+                            <canvas
+                                class="shop-item-canvas"
+                                id="shop-canvas-mana"
+                                width="32"
+                                height="32"
+                            ></canvas>
+                            <h3>Mana Well</h3>
+                            <p>Perm +10 MP & +0.3/s Regen</p>
+                            <button id="btn-buy-mana" class="btn-menu small">
+                                BUY (40 Shards)
+                            </button>
+                        </div>
+
+                        <!-- Item 5: Relic Chest -->
+                        <div class="shop-item" style="grid-column: span 2">
+                            <canvas
+                                class="shop-item-canvas"
+                                id="shop-canvas-relic"
+                                width="32"
+                                height="32"
+                            ></canvas>
+                            <h3>Relic Chest</h3>
+                            <p>Buy a random powerful Relic</p>
+                            <button id="btn-buy-relic" class="btn-menu small">
+                                BUY (50 Shards)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div
+                        class="menu-buttons"
+                        style="margin-top: 25px; width: auto"
+                    >
+                        <button id="btn-start-next-wave" class="btn-menu">
+                            START NEXT WAVE
+                        </button>
+                        <div
+                            id="shop-twitch-vote-status"
+                            style="
+                                display: none;
+                                margin-top: 12px;
+                                font-family: var(--font-pixel);
+                                font-size: 8px;
+                                color: #a970ff;
+                                text-shadow: 0 0 5px rgba(169, 112, 255, 0.5);
+                            "
+                        >
+                            TWITCH VOTE ACTIVE...
+                        </div>
+                        <div
+                            id="twitch-vote-waiting-msg"
+                            style="
+                                display: none;
+                                margin-top: 8px;
+                                font-family: var(--font-pixel);
+                                font-size: 8px;
+                                color: #ff4757;
+                            "
+                        >
+                            Waiting for Twitch vote to finish...
+                        </div>
+                    </div>
                 </div>
-                <div class="equip-slot" id="equip-slot-ring" data-slot="ring" style="grid-column:3;grid-row:2;">
-                  <div class="equip-slot-label">RING</div>
-                  <canvas class="equip-slot-canvas" id="equip-canvas-ring" width="32" height="32"></canvas>
-                  <div class="tooltip" id="tooltip-equip-ring">Empty Ring Slot</div>
+            </div>
+
+            <!-- 8. STORAGE & EQUIPMENT — Full Inventory Management Panel -->
+            <div id="panel-inventory" class="panel-overlay hidden">
+                <div class="inv-panel-content">
+                    <!-- Header -->
+                    <div class="inv-panel-header">
+                        <h2>COLLECTION &amp; GEAR</h2>
+                        <div class="inv-panel-meta">
+                            <span
+                                >Shards:
+                                <canvas
+                                    class="inline-icon"
+                                    id="icon-shard-inv"
+                                    width="12"
+                                    height="12"
+                                    draggable="false"
+                                ></canvas>
+                                <strong id="inv-shards-value">0</strong></span
+                            >
+                        </div>
+                        <button id="btn-close-inventory" class="btn-close">
+                            &times;
+                        </button>
+                    </div>
+
+                    <!-- Tab bar -->
+                    <div class="inv-tab-bar">
+                        <button class="inv-tab-btn active" data-tab="runes">
+                            RUNES
+                            <span
+                                id="inv-rune-count"
+                                style="font-size: 6px; opacity: 0.7"
+                            ></span>
+                        </button>
+                        <button class="inv-tab-btn" data-tab="gear">
+                            GEAR &amp; ARMOR (<span id="inv-gear-count">0</span
+                            >)
+                        </button>
+                        <button class="inv-tab-btn" data-tab="spells">
+                            SPELLS &amp; HOTBAR
+                        </button>
+                        <button class="inv-tab-btn" data-tab="achievements">
+                            ACHIEVEMENTS (<span id="inv-achievements-count"
+                                >0</span
+                            >)
+                        </button>
+                    </div>
+
+                    <!-- RUNES TAB -->
+                    <div class="inv-tab-pane" data-tab="runes">
+                        <p class="inv-tab-desc">
+                            Equip runes to activate their bonuses. Click a rune
+                            from storage to equip it. Click an equipped rune to
+                            unequip.
+                        </p>
+
+                        <div class="inv-rune-section-label">EQUIPPED RUNES</div>
+                        <div
+                            id="inv-equipped-rune-grid"
+                            class="inv-relic-grid inv-equipped-rune-grid"
+                        >
+                            <!-- injected by JS -->
+                        </div>
+
+                        <div
+                            class="inv-rune-section-label"
+                            style="margin-top: 14px"
+                        >
+                            RUNE STORAGE
+                        </div>
+                        <div id="inv-rune-grid" class="inv-relic-grid">
+                            <!-- injected by JS -->
+                        </div>
+                    </div>
+
+                    <!-- GEAR TAB -->
+                    <div class="inv-tab-pane hidden" data-tab="gear">
+                        <div class="inv-gear-layout">
+                            <!-- Left: Paper Doll (equipped) -->
+                            <div class="inv-equip-section">
+                                <h3>EQUIPPED</h3>
+                                <div class="equip-slots-container">
+                                    <div
+                                        class="equip-slot"
+                                        id="equip-slot-helmet"
+                                        data-slot="helmet"
+                                        style="grid-column: 1; grid-row: 1"
+                                    >
+                                        <div class="equip-slot-label">
+                                            HELMET
+                                        </div>
+                                        <canvas
+                                            class="equip-slot-canvas"
+                                            id="equip-canvas-helmet"
+                                            width="32"
+                                            height="32"
+                                        ></canvas>
+                                        <div
+                                            class="tooltip"
+                                            id="tooltip-equip-helmet"
+                                        >
+                                            Empty Helmet Slot
+                                        </div>
+                                    </div>
+                                    <div
+                                        class="equip-slot"
+                                        id="equip-slot-chestplate"
+                                        data-slot="chestplate"
+                                        style="grid-column: 1; grid-row: 2"
+                                    >
+                                        <div class="equip-slot-label">ROBE</div>
+                                        <canvas
+                                            class="equip-slot-canvas"
+                                            id="equip-canvas-chestplate"
+                                            width="32"
+                                            height="32"
+                                        ></canvas>
+                                        <div
+                                            class="tooltip"
+                                            id="tooltip-equip-chestplate"
+                                        >
+                                            Empty Robe Slot
+                                        </div>
+                                    </div>
+                                    <div
+                                        class="equip-slot"
+                                        id="equip-slot-boots"
+                                        data-slot="boots"
+                                        style="grid-column: 1; grid-row: 3"
+                                    >
+                                        <div class="equip-slot-label">
+                                            BOOTS
+                                        </div>
+                                        <canvas
+                                            class="equip-slot-canvas"
+                                            id="equip-canvas-boots"
+                                            width="32"
+                                            height="32"
+                                        ></canvas>
+                                        <div
+                                            class="tooltip"
+                                            id="tooltip-equip-boots"
+                                        >
+                                            Empty Boots Slot
+                                        </div>
+                                    </div>
+                                    <div class="equip-player-preview">
+                                        <canvas
+                                            class="equip-player-canvas"
+                                            id="inv-player-canvas"
+                                            width="48"
+                                            height="48"
+                                        ></canvas>
+                                    </div>
+                                    <div
+                                        class="equip-slot"
+                                        id="equip-slot-weapon"
+                                        data-slot="weapon"
+                                        style="grid-column: 3; grid-row: 1"
+                                    >
+                                        <div class="equip-slot-label">
+                                            WEAPON
+                                        </div>
+                                        <canvas
+                                            class="equip-slot-canvas"
+                                            id="equip-canvas-weapon"
+                                            width="32"
+                                            height="32"
+                                        ></canvas>
+                                        <div
+                                            class="tooltip"
+                                            id="tooltip-equip-weapon"
+                                        >
+                                            Empty Weapon Slot
+                                        </div>
+                                    </div>
+                                    <div
+                                        class="equip-slot"
+                                        id="equip-slot-ring"
+                                        data-slot="ring"
+                                        style="grid-column: 3; grid-row: 2"
+                                    >
+                                        <div class="equip-slot-label">RING</div>
+                                        <canvas
+                                            class="equip-slot-canvas"
+                                            id="equip-canvas-ring"
+                                            width="32"
+                                            height="32"
+                                        ></canvas>
+                                        <div
+                                            class="tooltip"
+                                            id="tooltip-equip-ring"
+                                        >
+                                            Empty Ring Slot
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right: Gear storage -->
+                            <div class="inv-bag-section">
+                                <h3>GEAR STORAGE</h3>
+                                <p
+                                    class="inv-tab-desc"
+                                    style="margin-bottom: 8px"
+                                >
+                                    Click a piece of gear to equip it. Click an
+                                    equipped slot to unequip.
+                                </p>
+                                <div id="inv-gear-grid" class="inv-relic-grid">
+                                    <!-- injected by JS -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SPELLS TAB -->
+                    <div class="inv-tab-pane hidden" data-tab="spells">
+                        <p class="inv-tab-desc">
+                            Configure your active hotbar assignments. Click an
+                            unlocked spell, then click an active slot to assign
+                            it.
+                        </p>
+                        <div
+                            class="spellmap-meta"
+                            style="
+                                margin-bottom: 8px;
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                            "
+                        >
+                            <span
+                                id="spellmap-slots-info"
+                                style="
+                                    font-family: var(--font-pixel);
+                                    font-size: 10px;
+                                    color: #fff;
+                                "
+                                >Slots: 5 / 7</span
+                            >
+                            <button
+                                id="btn-spellmap-buy-slot"
+                                class="btn-menu small"
+                                style="margin: 0"
+                            >
+                                UNLOCK SLOT (<span id="spellmap-slot-cost"
+                                    >80</span
+                                >
+                                Shards)
+                            </button>
+                        </div>
+                        <div class="spellmap-body">
+                            <!-- Left: available spell palette -->
+                            <div class="spellmap-palette-col">
+                                <div class="spellmap-col-title">
+                                    UNLOCKED SPELLS
+                                </div>
+                                <div
+                                    id="spellmap-palette"
+                                    class="spellmap-palette"
+                                >
+                                    <!-- injected by JS -->
+                                </div>
+                            </div>
+
+                            <!-- Right: slot targets -->
+                            <div class="spellmap-slots-col">
+                                <div class="spellmap-col-title">
+                                    ACTIVE SLOTS
+                                </div>
+                                <div id="spellmap-slots" class="spellmap-slots">
+                                    <!-- injected by JS -->
+                                </div>
+                                <div class="spellmap-hint">
+                                    Drag a spell onto a slot — or select a spell
+                                    then click a slot.
+                                </div>
+                            </div>
+                        </div>
+                        <div style="text-align: center; margin-top: 10px">
+                            <button
+                                id="btn-spellmap-reset"
+                                class="btn-menu secondary small"
+                            >
+                                RESET HOTBAR TO DEFAULT
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ACHIEVEMENTS TAB -->
+                    <div class="inv-tab-pane hidden" data-tab="achievements">
+                        <p class="inv-tab-desc">
+                            Earn badges by completing challenges during your
+                            odyssey.
+                        </p>
+                        <div
+                            id="inv-achievements-grid"
+                            class="achievements-grid"
+                            style="
+                                display: grid;
+                                grid-template-columns: 1fr 1fr;
+                                gap: 10px;
+                                padding: 10px;
+                                max-height: 220px;
+                                overflow-y: auto;
+                            "
+                        >
+                            <!-- achievements injected by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Close -->
+                    <div class="menu-buttons" style="margin-top: 14px">
+                        <button id="btn-inv-back" class="btn-menu secondary">
+                            CLOSE
+                        </button>
+                    </div>
                 </div>
-              </div>
             </div>
 
-            <!-- Right: Gear storage -->
-            <div class="inv-bag-section">
-              <h3>GEAR STORAGE</h3>
-              <p class="inv-tab-desc" style="margin-bottom:8px;">Click a piece of gear to equip it. Click an equipped slot to unequip.</p>
-              <div id="inv-gear-grid" class="inv-relic-grid">
-                <!-- injected by JS -->
-              </div>
+            <!-- 8.5 DUNGEON MAP OVERLAY -->
+            <div id="panel-worldmap" class="panel-overlay hidden">
+                <div class="worldmap-content">
+                    <div class="worldmap-header">
+                        <h2>DUNGEON MAP</h2>
+                        <button id="btn-close-worldmap" class="btn-close">
+                            &times;
+                        </button>
+                    </div>
+                    <div class="worldmap-canvas-container">
+                        <canvas
+                            id="worldmap-canvas"
+                            width="400"
+                            height="400"
+                        ></canvas>
+                    </div>
+                    <div class="worldmap-legend">
+                        <span class="legend-item"
+                            ><span class="legend-color player"></span>
+                            Player</span
+                        >
+                        <span class="legend-item"
+                            ><span class="legend-color chest"></span>
+                            Chest</span
+                        >
+                        <span class="legend-item"
+                            ><span class="legend-color shrine"></span>
+                            Shrine</span
+                        >
+                        <span class="legend-item"
+                            ><span class="legend-color special"></span> Special
+                            Room</span
+                        >
+                    </div>
+                    <div
+                        class="menu-buttons"
+                        style="
+                            margin-top: 14px;
+                            display: flex;
+                            gap: 10px;
+                            justify-content: center;
+                        "
+                    >
+                        <button id="btn-reveal-map" class="btn-menu small">
+                            REVEAL MAP (150 Shards)
+                        </button>
+                        <button
+                            id="btn-close-worldmap-btn"
+                            class="btn-menu secondary"
+                        >
+                            CLOSE
+                        </button>
+                    </div>
+                </div>
             </div>
 
-          </div>
-        </div>
+            <!-- 8. PLAY GAME MODES MENU -->
+            <div id="panel-play-menu" class="panel-overlay hidden">
+                <div class="menu-content wide text-center">
+                    <h1 class="glitch-title" data-text="SELECT GAME MODE">
+                        SELECT GAME MODE
+                    </h1>
+                    <p class="menu-decor"></p>
 
-        <!-- SPELLS TAB -->
-        <div class="inv-tab-pane hidden" data-tab="spells">
-          <p class="inv-tab-desc">Configure your active hotbar assignments. Click an unlocked spell, then click an active slot to assign it.</p>
-          <div class="spellmap-meta" style="margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-            <span id="spellmap-slots-info" style="font-family:var(--font-pixel); font-size:10px; color:#fff;">Slots: 5 / 7</span>
-            <button id="btn-spellmap-buy-slot" class="btn-menu small" style="margin: 0;">UNLOCK SLOT (<span id="spellmap-slot-cost">80</span> Shards)</button>
-          </div>
-          <div class="spellmap-body">
-            <!-- Left: available spell palette -->
-            <div class="spellmap-palette-col">
-              <div class="spellmap-col-title">UNLOCKED SPELLS</div>
-              <div id="spellmap-palette" class="spellmap-palette">
-                <!-- injected by JS -->
-              </div>
+                    <div class="modes-grid">
+                        <!-- Tutorial Mode -->
+                        <div class="mode-card" id="mode-card-tutorial">
+                            <div class="mode-preview-box">
+                                <canvas
+                                    id="canvas-mode-tutorial"
+                                    width="64"
+                                    height="64"
+                                ></canvas>
+                            </div>
+                            <h3>TUTORIAL</h3>
+                            <p>
+                                Learn the basics of moving, casting spells,
+                                triggering elemental combinations, and equipping
+                                gear.
+                            </p>
+                            <button
+                                id="btn-start-tutorial"
+                                class="btn-menu small"
+                            >
+                                BEGIN TRIAL
+                            </button>
+                        </div>
+
+                        <!-- Weaver Mode -->
+                        <div class="mode-card" id="mode-card-weaver">
+                            <div class="mode-preview-box">
+                                <canvas
+                                    id="canvas-mode-weaver"
+                                    width="64"
+                                    height="64"
+                                ></canvas>
+                            </div>
+                            <h3>WEAVER MODE</h3>
+                            <p>
+                                The standard endless spell-weaving challenge.
+                                Defeat waves, collect shards, and climb the
+                                Leaderboard.
+                            </p>
+                            <button
+                                id="btn-start-weaver"
+                                class="btn-menu small"
+                            >
+                                START RUNE
+                            </button>
+                        </div>
+
+                        <!-- Story Mode -->
+                        <div
+                            class="mode-card disabled-mode"
+                            id="mode-card-story"
+                        >
+                            <div class="mode-preview-box">
+                                <canvas
+                                    id="icon-mainmenu-story"
+                                    width="64"
+                                    height="64"
+                                ></canvas>
+                            </div>
+                            <h3>STORY MODE</h3>
+                            <p>
+                                Unravel the mysteries of the Aether Web in a
+                                handcrafted 5-chapter narrative campaign.
+                            </p>
+                            <button class="btn-menu small secondary" disabled>
+                                COMING SOON
+                            </button>
+                        </div>
+
+                        <!-- Multiplayer Mode (Coming Soon) -->
+                        <div
+                            class="mode-card disabled-mode"
+                            id="mode-card-multiplayer"
+                        >
+                            <div class="mode-preview-box">
+                                <canvas
+                                    id="icon-mainmenu-multiplayer"
+                                    width="64"
+                                    height="64"
+                                ></canvas>
+                            </div>
+                            <h3>MULTIPLAYER</h3>
+                            <p>
+                                Co-op with fellow Runeweavers or duel in active
+                                PvP arenas. (Coming Soon!)
+                            </p>
+                            <button class="btn-menu small secondary" disabled>
+                                COMING SOON
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="menu-buttons" style="margin-top: 20px">
+                        <button id="btn-play-back" class="btn-menu secondary">
+                            BACK
+                        </button>
+                    </div>
+                </div>
             </div>
 
-            <!-- Right: slot targets -->
-            <div class="spellmap-slots-col">
-              <div class="spellmap-col-title">ACTIVE SLOTS</div>
-              <div id="spellmap-slots" class="spellmap-slots">
-                <!-- injected by JS -->
-              </div>
-              <div class="spellmap-hint">Drag a spell onto a slot — or select a spell then click a slot.</div>
+            <!-- 9. CHARACTER CUSTOMIZATION PANEL -->
+            <div id="panel-customize" class="panel-overlay hidden">
+                <div class="menu-content text-center">
+                    <h1 class="glitch-title" data-text="CUSTOMIZATION">
+                        CUSTOMIZATION
+                    </h1>
+                    <p class="menu-decor"></p>
+
+                    <div class="customize-preview-container">
+                        <canvas
+                            id="customize-player-canvas"
+                            width="96"
+                            height="96"
+                        ></canvas>
+                    </div>
+
+                    <div class="customize-selector">
+                        <button id="btn-prev-preset" class="btn-circle">
+                            &lt;
+                        </button>
+                        <span
+                            id="customize-preset-name"
+                            style="
+                                font-family: var(--font-pixel);
+                                font-size: 11px;
+                                color: #fff;
+                                min-width: 150px;
+                                display: inline-block;
+                            "
+                            >Aether Blue</span
+                        >
+                        <button id="btn-next-preset" class="btn-circle">
+                            &gt;
+                        </button>
+                    </div>
+
+                    <div class="menu-buttons" style="margin-top: 25px">
+                        <button id="btn-save-customize" class="btn-menu">
+                            SAVE & CLOSE
+                        </button>
+                    </div>
+                </div>
             </div>
-          </div>
-          <div style="text-align: center; margin-top: 10px;">
-            <button id="btn-spellmap-reset" class="btn-menu secondary small">RESET HOTBAR TO DEFAULT</button>
-          </div>
-        </div>
 
-        <!-- ACHIEVEMENTS TAB -->
-        <div class="inv-tab-pane hidden" data-tab="achievements">
-          <p class="inv-tab-desc">Earn badges by completing challenges during your odyssey.</p>
-          <div id="inv-achievements-grid" class="achievements-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; max-height:220px; overflow-y:auto;">
-            <!-- achievements injected by JS -->
-          </div>
-        </div>
+            <!-- 10. CREDITS PANEL -->
+            <div id="panel-credits" class="panel-overlay hidden">
+                <div class="menu-content text-center">
+                    <h1 class="glitch-title" data-text="CREDITS">CREDITS</h1>
+                    <p class="menu-decor"></p>
 
-        <!-- Close -->
-        <div class="menu-buttons" style="margin-top:14px;">
-          <button id="btn-inv-back" class="btn-menu secondary">CLOSE</button>
-        </div>
-      </div>
-    </div>
+                    <div
+                        style="
+                            font-family: var(--font-pixel);
+                            font-size: 10px;
+                            line-height: 2.2;
+                            color: #fff;
+                            text-align: center;
+                            margin: 25px 0;
+                            max-height: 400px;
+                            overflow-y: auto;
+                        "
+                    >
+                        <div style="margin-bottom: 30px">
+                            <p
+                                style="
+                                    color: #ff6b6b;
+                                    font-size: 12px;
+                                    margin-bottom: 10px;
+                                "
+                            >
+                                ━━━ DEVELOPMENT ━━━
+                            </p>
+                            <p>GAME DESIGN & PROGRAMMING</p>
+                            <p style="color: #4ecdc4; font-size: 14px">
+                                FELIXX
+                            </p>
+                        </div>
 
-    <!-- 8.5 DUNGEON MAP OVERLAY -->
-    <div id="panel-worldmap" class="panel-overlay hidden">
-      <div class="worldmap-content">
-        <div class="worldmap-header">
-          <h2>DUNGEON MAP</h2>
-          <button id="btn-close-worldmap" class="btn-close">&times;</button>
-        </div>
-        <div class="worldmap-canvas-container">
-          <canvas id="worldmap-canvas" width="400" height="400"></canvas>
-        </div>
-        <div class="worldmap-legend">
-          <span class="legend-item"><span class="legend-color player"></span> Player</span>
-          <span class="legend-item"><span class="legend-color chest"></span> Chest</span>
-          <span class="legend-item"><span class="legend-color shrine"></span> Shrine</span>
-          <span class="legend-item"><span class="legend-color special"></span> Special Room</span>
-        </div>
-        <div class="menu-buttons" style="margin-top:14px; display: flex; gap: 10px; justify-content: center;">
-          <button id="btn-reveal-map" class="btn-menu small">REVEAL MAP (150 Shards)</button>
-          <button id="btn-close-worldmap-btn" class="btn-menu secondary">CLOSE</button>
-        </div>
-      </div>
-    </div>
+                        <div style="margin-bottom: 30px">
+                            <p
+                                style="
+                                    color: #ff6b6b;
+                                    font-size: 12px;
+                                    margin-bottom: 10px;
+                                "
+                            >
+                                ━━━ MUSIC ━━━
+                            </p>
+                            <p
+                                style="
+                                    font-size: 9px;
+                                    color: #aaa;
+                                    margin-bottom: 8px;
+                                "
+                            >
+                                LICENSED UNDER CC BY 3.0
+                            </p>
+                            <p>"BEACH" - AARON KROGH</p>
+                            <p>"BOSS" - TERREL O'BRIEN</p>
+                            <p>"BUTCHER" - ATTRIBUTION NEEDED</p>
+                            <p>"CAVE" - TERREL O'BRIEN</p>
+                            <p>"COWLEVEL" - ATTRIBUTION NEEDED</p>
+                            <p>"DEATHANGEL" - ATTRIBUTION NEEDED</p>
+                            <p>"DESERT" - TERREL O'BRIEN</p>
+                            <p>"FOREST" - DAN TILDEN</p>
+                            <p>"FREEZINGLAND" - ATTRIBUTION NEEDED</p>
+                            <p>"ICEWALK" - ATTRIBUTION NEEDED</p>
+                            <p>"LAVALAND" - TERREL O'BRIEN</p>
+                            <p>"NECROMANCER" - ATTRIBUTION NEEDED</p>
+                            <p>"SHAMAN" - ATTRIBUTION NEEDED</p>
+                            <p>"SKELETON COMMANDER" - ATTRIBUTION NEEDED</p>
+                            <p>"TEMPLE" - ATTRIBUTION NEEDED</p>
+                            <p>"VILLAGE" - JOEL DAY</p>
+                        </div>
 
+                        <div style="margin-bottom: 30px">
+                            <p
+                                style="
+                                    color: #ff6b6b;
+                                    font-size: 12px;
+                                    margin-bottom: 10px;
+                                "
+                            >
+                                ━━━ SPECIAL THANKS ━━━
+                            </p>
+                            <p style="color: #4ecdc4">MOOSEREF</p>
+                            <p style="font-size: 9px; color: #aaa">
+                                FOR LIVE STREAMING THE BETA & GIVING AWESOME
+                                FEEDBACK
+                            </p>
+                            <br />
+                            <p>ALL PLAYERS & TESTERS</p>
+                            <p>OPEN SOURCE COMMUNITY</p>
+                            <p>CREATIVE COMMONS ARTISTS</p>
+                        </div>
 
+                        <div style="margin-top: 30px">
+                            <p style="color: #95e1d3; font-size: 11px">
+                                THANK YOU FOR PLAYING!
+                            </p>
+                        </div>
+                    </div>
 
-    <!-- 8. PLAY GAME MODES MENU -->
-    <div id="panel-play-menu" class="panel-overlay hidden">
-      <div class="menu-content wide text-center">
-        <h1 class="glitch-title" data-text="SELECT GAME MODE">SELECT GAME MODE</h1>
-        <p class="menu-decor"></p>
-        
-        <div class="modes-grid">
-          <!-- Tutorial Mode -->
-          <div class="mode-card" id="mode-card-tutorial">
-            <div class="mode-preview-box">
-              <canvas id="canvas-mode-tutorial" width="64" height="64"></canvas>
+                    <div class="menu-buttons" style="margin-top: 20px">
+                        <button id="btn-credits-close" class="btn-menu">
+                            BACK
+                        </button>
+                    </div>
+                </div>
             </div>
-            <h3>TUTORIAL</h3>
-            <p>Learn the basics of moving, casting spells, triggering elemental combinations, and equipping gear.</p>
-            <button id="btn-start-tutorial" class="btn-menu small">BEGIN TRIAL</button>
-          </div>
 
-          <!-- Weaver Mode -->
-          <div class="mode-card" id="mode-card-weaver">
-            <div class="mode-preview-box">
-              <canvas id="canvas-mode-weaver" width="64" height="64"></canvas>
+            <!-- 11. CONTACT PANEL -->
+            <div id="panel-contact" class="panel-overlay hidden">
+                <div class="menu-content text-center">
+                    <h1 class="glitch-title" data-text="CONTACT">CONTACT</h1>
+                    <p class="menu-decor"></p>
+
+                    <div
+                        style="
+                            font-family: var(--font-pixel);
+                            font-size: 9px;
+                            line-height: 2;
+                            color: #fff;
+                            text-align: left;
+                            margin: 15px 0;
+                        "
+                    >
+                        <p
+                            style="
+                                color: var(--color-lightning);
+                                font-size: 11px;
+                            "
+                        >
+                            REPORT AN ANOMALY / EMAIL:
+                        </p>
+                        <p style="margin-left: 10px">
+                            <a
+                                href="mailto:contact@felixx.dev"
+                                style="
+                                    color: var(--color-frost);
+                                    text-decoration: underline;
+                                "
+                                >contact@felixx.dev</a
+                            >
+                        </p>
+                        <br />
+                        <p style="color: var(--color-void); font-size: 11px">
+                            RUNE ARCHIVES:
+                        </p>
+                        <p style="margin-left: 10px">
+                            <a
+                                href="https://github.com/timpim-dev/treee"
+                                target="_blank"
+                                style="
+                                    color: var(--color-frost);
+                                    text-decoration: underline;
+                                "
+                                >GitHub Repository</a
+                            >
+                        </p>
+                    </div>
+
+                    <div class="menu-buttons" style="margin-top: 20px">
+                        <button id="btn-contact-close" class="btn-menu">
+                            BACK
+                        </button>
+                    </div>
+                </div>
             </div>
-            <h3>WEAVER MODE</h3>
-            <p>The standard endless spell-weaving challenge. Defeat waves, collect shards, and climb the Leaderboard.</p>
-            <button id="btn-start-weaver" class="btn-menu small">START RUNE</button>
-          </div>
 
-          <!-- Story Mode -->
-          <div class="mode-card disabled-mode" id="mode-card-story">
-            <div class="mode-preview-box">
-              <canvas id="icon-mainmenu-story" width="64" height="64"></canvas>
+            <!-- 12. COMMUNITY HUB PANEL -->
+            <div id="panel-community-hub" class="panel-overlay hidden">
+                <div class="menu-content text-center" style="max-width: 450px">
+                    <h1 class="glitch-title" data-text="COMMUNITY HUB">
+                        COMMUNITY HUB
+                    </h1>
+                    <p class="menu-decor"></p>
+
+                    <div class="menu-buttons">
+                        <button id="btn-community-leaderboard" class="btn-menu">
+                            GLOBAL LEADERBOARD
+                        </button>
+                        <button
+                            id="btn-community-streamers"
+                            class="btn-menu"
+                            style="
+                                background: linear-gradient(
+                                    135deg,
+                                    #2b1154,
+                                    #6441a5
+                                );
+                                border-color: #9146ff;
+                                text-shadow: 0 0 5px rgba(145, 70, 255, 0.5);
+                                color: #fff;
+                            "
+                        >
+                            STREAMERS &amp; USERS
+                        </button>
+                        <button id="btn-community-wiki" class="btn-menu">
+                            WIKI &amp; ARCHIVES
+                        </button>
+                        <button id="btn-community-credits" class="btn-menu">
+                            CREDITS
+                        </button>
+                        <button id="btn-community-contact" class="btn-menu">
+                            CONTACT &amp; BUGS
+                        </button>
+                        <button
+                            id="btn-community-back"
+                            class="btn-menu secondary"
+                            style="margin-top: 15px"
+                        >
+                            BACK
+                        </button>
+                    </div>
+                </div>
             </div>
-            <h3>STORY MODE</h3>
-            <p>Unravel the mysteries of the Aether Web in a handcrafted 5-chapter narrative campaign.</p>
-            <button class="btn-menu small secondary" disabled>COMING SOON</button>
-          </div>
 
-          <!-- Multiplayer Mode (Coming Soon) -->
-          <div class="mode-card disabled-mode" id="mode-card-multiplayer">
-            <div class="mode-preview-box">
-              <canvas id="icon-mainmenu-multiplayer" width="64" height="64"></canvas>
+            <!-- PLAYER ACCOUNT / CLOUD SYNC PANEL -->
+            <div id="panel-player-account" class="panel-overlay hidden">
+                <div class="menu-content text-center" style="max-width: 450px">
+                    <h1>PLAYER PROFILE</h1>
+                    <p class="menu-decor"></p>
+
+                    <!-- Login / Register Section -->
+                    <div id="player-auth-section" class="auth-box">
+                        <p
+                            style="
+                                font-size: 8px;
+                                font-family: var(--font-pixel);
+                                color: #888;
+                                margin-bottom: 15px;
+                                line-height: 1.4;
+                            "
+                        >
+                            AUTHENTICATE WITH TWITCH TO CLOUD-SYNC YOUR LEVEL,
+                            AP, XP, SHARDS, AND REBIRTH PROGRESS.
+                        </p>
+                        <button
+                            id="btn-player-twitch-login"
+                            class="btn-menu"
+                            style="
+                                background: #6441a5;
+                                border-color: #9146ff;
+                                box-shadow: 4px 4px 0 #7d5fff;
+                                width: 100%;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                gap: 8px;
+                                padding: 12px;
+                            "
+                        >
+                            <svg
+                                class="twitch-icon"
+                                style="width: 14px; height: 14px; fill: #fff"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"
+                                />
+                            </svg>
+                            LOG IN WITH TWITCH
+                        </button>
+                        <button
+                            id="btn-player-google-login"
+                            class="btn-menu"
+                            disabled
+                            style="
+                                background: #333;
+                                border-color: #555;
+                                box-shadow: 4px 4px 0 #111;
+                                width: 100%;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                gap: 8px;
+                                padding: 12px;
+                                margin-top: 10px;
+                                opacity: 0.6;
+                                cursor: not-allowed;
+                            "
+                        >
+                            SIGN IN WITH GOOGLE (COMING SOON)
+                        </button>
+                        <div
+                            id="player-auth-status"
+                            style="
+                                font-size: 8px;
+                                margin-top: 15px;
+                                color: #ff6b6b;
+                                font-family: var(--font-pixel);
+                                min-height: 10px;
+                            "
+                        ></div>
+                    </div>
+
+                    <!-- Profile Detail Section (Logged In) -->
+                    <div id="player-profile-section" class="profile-box hidden">
+                        <div
+                            class="profile-header-card"
+                            style="
+                                background: rgba(181, 126, 255, 0.05);
+                                padding: 12px;
+                                border: 1px solid rgba(181, 126, 255, 0.2);
+                                margin-bottom: 15px;
+                                border-radius: 4px;
+                            "
+                        >
+                            <div
+                                id="player-profile-nickname"
+                                style="
+                                    font-size: 14px;
+                                    font-family: var(--font-pixel);
+                                    color: var(--color-aether);
+                                    text-shadow: 0 0 5px
+                                        rgba(181, 126, 255, 0.4);
+                                "
+                            >
+                                RUNEWEAVER
+                            </div>
+                            <div
+                                id="player-profile-email"
+                                style="
+                                    font-size: 7px;
+                                    color: #888;
+                                    margin-top: 4px;
+                                "
+                            >
+                                player@email.com
+                            </div>
+                        </div>
+
+                        <div
+                            class="profile-stats-grid"
+                            style="
+                                display: grid;
+                                grid-template-columns: 1fr 1fr;
+                                gap: 8px;
+                                text-align: left;
+                                font-family: var(--font-pixel);
+                                font-size: 8px;
+                                color: #dfe7ff;
+                                margin-bottom: 15px;
+                            "
+                        >
+                            <div
+                                style="
+                                    background: rgba(0, 0, 0, 0.3);
+                                    padding: 8px;
+                                    border: 1px solid rgba(255, 255, 255, 0.05);
+                                    border-radius: 4px;
+                                "
+                            >
+                                Level:
+                                <span
+                                    id="prof-stat-level"
+                                    style="color: #f1c40f"
+                                    >1</span
+                                >
+                            </div>
+                            <div
+                                style="
+                                    background: rgba(0, 0, 0, 0.3);
+                                    padding: 8px;
+                                    border: 1px solid rgba(255, 255, 255, 0.05);
+                                    border-radius: 4px;
+                                "
+                            >
+                                Rebirths:
+                                <span
+                                    id="prof-stat-rebirths"
+                                    style="color: #9b59b6"
+                                    >0</span
+                                >
+                            </div>
+                            <div
+                                style="
+                                    background: rgba(0, 0, 0, 0.3);
+                                    padding: 8px;
+                                    border: 1px solid rgba(255, 255, 255, 0.05);
+                                    border-radius: 4px;
+                                "
+                            >
+                                Shards:
+                                <span
+                                    id="prof-stat-shards"
+                                    style="color: #eccc68"
+                                    >0</span
+                                >
+                            </div>
+                            <div
+                                style="
+                                    background: rgba(0, 0, 0, 0.3);
+                                    padding: 8px;
+                                    border: 1px solid rgba(255, 255, 255, 0.05);
+                                    border-radius: 4px;
+                                "
+                            >
+                                Story Chapter:
+                                <span
+                                    id="prof-stat-chapter"
+                                    style="color: #2ecc71"
+                                    >1</span
+                                >
+                            </div>
+                            <div
+                                style="
+                                    background: rgba(0, 0, 0, 0.3);
+                                    padding: 8px;
+                                    border: 1px solid rgba(255, 255, 255, 0.05);
+                                    border-radius: 4px;
+                                    grid-column: span 2;
+                                "
+                            >
+                                High Score:
+                                <span
+                                    id="prof-stat-highscore"
+                                    style="color: #7d5fff"
+                                    >0</span
+                                >
+                            </div>
+                        </div>
+
+                        <button
+                            id="btn-player-sync-now"
+                            class="btn-menu small"
+                            style="
+                                margin-bottom: 8px;
+                                width: 100%;
+                                background: linear-gradient(
+                                    135deg,
+                                    #16a085,
+                                    #2ecc71
+                                );
+                            "
+                        >
+                            MANUAL CLOUD SYNC
+                        </button>
+                        <button
+                            id="btn-player-logout"
+                            class="btn-menu small secondary"
+                            style="width: 100%"
+                        >
+                            SIGN OUT
+                        </button>
+                        <div
+                            id="player-profile-status"
+                            style="
+                                font-size: 8px;
+                                margin-top: 10px;
+                                color: #2ecc71;
+                                font-family: var(--font-pixel);
+                            "
+                        ></div>
+                    </div>
+
+                    <button
+                        id="btn-close-player-account"
+                        class="btn-menu secondary"
+                        style="margin-top: 15px"
+                    >
+                        BACK
+                    </button>
+                </div>
             </div>
-            <h3>MULTIPLAYER</h3>
-            <p>Co-op with fellow Runeweavers or duel in active PvP arenas. (Coming Soon!)</p>
-            <button class="btn-menu small secondary" disabled>COMING SOON</button>
-          </div>
+
+            <!-- STORY CHAPTERS SELECTOR PANEL -->
+            <div id="panel-story-chapters" class="panel-overlay hidden">
+                <div
+                    class="menu-content wide text-center"
+                    style="max-width: 600px"
+                >
+                    <h1 class="text-glow">STORY CHAPTERS</h1>
+                    <p class="shop-intro">
+                        Complete chapters to unlock the secrets of the void
+                    </p>
+                    <div
+                        id="story-chapters-list"
+                        class="chapters-grid"
+                        style="
+                            display: flex;
+                            flex-direction: column;
+                            gap: 12px;
+                            max-height: 280px;
+                            overflow-y: auto;
+                            padding: 10px;
+                        "
+                    >
+                        <!-- Populated dynamically -->
+                    </div>
+                    <div class="menu-buttons" style="margin-top: 20px">
+                        <button
+                            id="btn-close-story-chapters"
+                            class="btn-menu secondary"
+                        >
+                            BACK
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Floating Tutorial Guide Overlay -->
+            <div id="tutorial-guide" class="hidden">
+                <div class="tutorial-card">
+                    <div class="tutorial-header">
+                        <span class="tutorial-badge">TRIAL</span>
+                        <span id="tutorial-step-indicator">STEP 1/5</span>
+                    </div>
+                    <h3 id="tutorial-title">MOVE YOUR WIZARD</h3>
+                    <p id="tutorial-text">
+                        Use WASD or Arrow Keys to walk around the arena.
+                    </p>
+                    <div class="tutorial-progress">
+                        <div
+                            id="tutorial-progress-fill"
+                            style="width: 20%"
+                        ></div>
+                    </div>
+                    <div
+                        id="tutorial-finish-btn-container"
+                        class="hidden"
+                        style="margin-top: 10px; text-align: center"
+                    >
+                        <button id="btn-finish-tutorial" class="btn-menu small">
+                            FINISH TRIAL
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Visual XP Bar -->
+            <div id="hud-bottom-xp-bar" class="hidden">
+                <div id="hud-bottom-xp-fill"></div>
+                <span id="hud-bottom-xp-text">XP: 0 / 50</span>
+            </div>
         </div>
 
-        <div class="menu-buttons" style="margin-top: 20px;">
-          <button id="btn-play-back" class="btn-menu secondary">BACK</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 9. CHARACTER CUSTOMIZATION PANEL -->
-    <div id="panel-customize" class="panel-overlay hidden">
-      <div class="menu-content text-center">
-        <h1 class="glitch-title" data-text="CUSTOMIZATION">CUSTOMIZATION</h1>
-        <p class="menu-decor"></p>
-        
-        <div class="customize-preview-container">
-          <canvas id="customize-player-canvas" width="96" height="96"></canvas>
-        </div>
-        
-        <div class="customize-selector">
-          <button id="btn-prev-preset" class="btn-circle">&lt;</button>
-          <span id="customize-preset-name" style="font-family: var(--font-pixel); font-size: 11px; color: #fff; min-width: 150px; display: inline-block;">Aether Blue</span>
-          <button id="btn-next-preset" class="btn-circle">&gt;</button>
-        </div>
-        
-        <div class="menu-buttons" style="margin-top: 25px;">
-          <button id="btn-save-customize" class="btn-menu">SAVE & CLOSE</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 10. CREDITS PANEL -->
-    <div id="panel-credits" class="panel-overlay hidden">
-      <div class="menu-content text-center">
-        <h1 class="glitch-title" data-text="CREDITS">CREDITS</h1>
-        <p class="menu-decor"></p>
-        
-        <div style="font-family: var(--font-pixel); font-size: 10px; line-height: 2.2; color: #fff; text-align: center; margin: 25px 0; max-height: 400px; overflow-y: auto;">
-          
-          <div style="margin-bottom: 30px;">
-            <p style="color: #ff6b6b; font-size: 12px; margin-bottom: 10px;">━━━ DEVELOPMENT ━━━</p>
-            <p>GAME DESIGN & PROGRAMMING</p>
-            <p style="color: #4ecdc4; font-size: 14px;">FELIXX</p>
-          </div>
-
-          <div style="margin-bottom: 30px;">
-            <p style="color: #ff6b6b; font-size: 12px; margin-bottom: 10px;">━━━ MUSIC ━━━</p>
-            <p style="font-size: 9px; color: #aaa; margin-bottom: 8px;">LICENSED UNDER CC BY 3.0</p>
-            <p>"BEACH" - AARON KROGH</p>
-            <p>"BOSS" - TERREL O'BRIEN</p>
-            <p>"BUTCHER" - ATTRIBUTION NEEDED</p>
-            <p>"CAVE" - TERREL O'BRIEN</p>
-            <p>"COWLEVEL" - ATTRIBUTION NEEDED</p>
-            <p>"DEATHANGEL" - ATTRIBUTION NEEDED</p>
-            <p>"DESERT" - TERREL O'BRIEN</p>
-            <p>"FOREST" - DAN TILDEN</p>
-            <p>"FREEZINGLAND" - ATTRIBUTION NEEDED</p>
-            <p>"ICEWALK" - ATTRIBUTION NEEDED</p>
-            <p>"LAVALAND" - TERREL O'BRIEN</p>
-            <p>"NECROMANCER" - ATTRIBUTION NEEDED</p>
-            <p>"SHAMAN" - ATTRIBUTION NEEDED</p>
-            <p>"SKELETON COMMANDER" - ATTRIBUTION NEEDED</p>
-            <p>"TEMPLE" - ATTRIBUTION NEEDED</p>
-            <p>"VILLAGE" - JOEL DAY</p>
-          </div>
-
-          <div style="margin-bottom: 30px;">
-            <p style="color: #ff6b6b; font-size: 12px; margin-bottom: 10px;">━━━ SPECIAL THANKS ━━━</p>
-            <p style="color: #4ecdc4;">MOOSEREF</p>
-            <p style="font-size: 9px; color: #aaa;">FOR LIVE STREAMING THE BETA & GIVING AWESOME FEEDBACK</p>
-            <br>
-            <p>ALL PLAYERS & TESTERS</p>
-            <p>OPEN SOURCE COMMUNITY</p>
-            <p>CREATIVE COMMONS ARTISTS</p>
-          </div>
-
-          <div style="margin-top: 30px;">
-            <p style="color: #95e1d3; font-size: 11px;">THANK YOU FOR PLAYING!</p>
-          </div>
-          
-        </div>
-        
-        <div class="menu-buttons" style="margin-top: 20px;">
-          <button id="btn-credits-close" class="btn-menu">BACK</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 11. CONTACT PANEL -->
-    <div id="panel-contact" class="panel-overlay hidden">
-      <div class="menu-content text-center">
-        <h1 class="glitch-title" data-text="CONTACT">CONTACT</h1>
-        <p class="menu-decor"></p>
-        
-        <div style="font-family: var(--font-pixel); font-size: 9px; line-height: 2; color: #fff; text-align: left; margin: 15px 0;">
-          <p style="color: var(--color-lightning); font-size: 11px;">REPORT AN ANOMALY / EMAIL:</p>
-          <p style="margin-left: 10px;"><a href="mailto:contact@felixx.dev" style="color: var(--color-frost); text-decoration: underline;">contact@felixx.dev</a></p>
-          <br>
-          <p style="color: var(--color-void); font-size: 11px;">RUNE ARCHIVES:</p>
-          <p style="margin-left: 10px;"><a href="https://github.com/timpim-dev/treee" target="_blank" style="color: var(--color-frost); text-decoration: underline;">GitHub Repository</a></p>
-        </div>
-        
-        <div class="menu-buttons" style="margin-top: 20px;">
-          <button id="btn-contact-close" class="btn-menu">BACK</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 12. COMMUNITY HUB PANEL -->
-    <div id="panel-community-hub" class="panel-overlay hidden">
-      <div class="menu-content text-center" style="max-width: 450px;">
-        <h1 class="glitch-title" data-text="COMMUNITY HUB">COMMUNITY HUB</h1>
-        <p class="menu-decor"></p>
-        
-        <div class="menu-buttons">
-          <button id="btn-community-leaderboard" class="btn-menu">GLOBAL LEADERBOARD</button>
-          <button id="btn-community-streamers" class="btn-menu" style="background: linear-gradient(135deg, #2b1154, #6441a5); border-color: #9146FF; text-shadow: 0 0 5px rgba(145, 70, 255, 0.5); color: #fff;">STREAMERS &amp; USERS</button>
-          <button id="btn-community-wiki" class="btn-menu">WIKI &amp; ARCHIVES</button>
-          <button id="btn-community-credits" class="btn-menu">CREDITS</button>
-          <button id="btn-community-contact" class="btn-menu">CONTACT &amp; BUGS</button>
-          <button id="btn-community-back" class="btn-menu secondary" style="margin-top: 15px;">BACK</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- PLAYER ACCOUNT / CLOUD SYNC PANEL -->
-    <div id="panel-player-account" class="panel-overlay hidden">
-      <div class="menu-content text-center" style="max-width: 450px;">
-        <h1>PLAYER PROFILE</h1>
-        <p class="menu-decor"></p>
-        
-        <!-- Login / Register Section -->
-        <div id="player-auth-section" class="auth-box">
-          <p style="font-size: 8px; font-family: var(--font-pixel); color: #888; margin-bottom: 15px; line-height: 1.4;">AUTHENTICATE WITH TWITCH TO CLOUD-SYNC YOUR LEVEL, AP, XP, SHARDS, AND REBIRTH PROGRESS.</p>
-          <button id="btn-player-twitch-login" class="btn-menu" style="background: #6441a5; border-color: #9146FF; box-shadow: 4px 4px 0 #7d5fff; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px;">
-            <svg class="twitch-icon" style="width: 14px; height: 14px; fill: #fff;" viewBox="0 0 24 24"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
-            LOG IN WITH TWITCH
-          </button>
-          <button id="btn-player-google-login" class="btn-menu" disabled style="background: #333; border-color: #555; box-shadow: 4px 4px 0 #111; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; margin-top: 10px; opacity: 0.6; cursor: not-allowed;">
-            SIGN IN WITH GOOGLE (COMING SOON)
-          </button>
-          <div id="player-auth-status" style="font-size: 8px; margin-top: 15px; color: #ff6b6b; font-family: var(--font-pixel); min-height: 10px;"></div>
+        <!-- Mobile device unsupported warning overlay -->
+        <div
+            id="mobile-warning-overlay"
+            class="panel-overlay hidden"
+            style="
+                z-index: 9999;
+                background: #070913;
+                text-align: center;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+            "
+        >
+            <div
+                class="menu-content"
+                style="
+                    max-width: 420px;
+                    border-color: #ff4757;
+                    box-shadow: 8px 8px 0 rgba(255, 71, 87, 0.2);
+                "
+            >
+                <h2
+                    style="
+                        color: #ff4757;
+                        font-size: 12px;
+                        margin-bottom: 15px;
+                        font-family: var(--font-pixel);
+                        line-height: 1.4;
+                    "
+                >
+                    WARNING: MOBILE SYSTEM DETECTED
+                </h2>
+                <p
+                    style="
+                        font-family: var(--font-pixel);
+                        font-size: 8px;
+                        line-height: 1.8;
+                        color: #fff;
+                        margin-bottom: 25px;
+                        text-align: center;
+                    "
+                >
+                    AETHERWEAVER IS NOT SUPPORTED ON MOBILE SCREENS. CONTROLS
+                    REQUIRE A PHYSICAL KEYBOARD AND MOUSE.
+                </p>
+                <button
+                    id="btn-mobile-bypass"
+                    class="btn-menu danger"
+                    style="font-size: 8px; width: 100%"
+                >
+                    PROCEED ANYWAY
+                </button>
+            </div>
         </div>
 
-        <!-- Profile Detail Section (Logged In) -->
-        <div id="player-profile-section" class="profile-box hidden">
-          <div class="profile-header-card" style="background: rgba(181, 126, 255, 0.05); padding: 12px; border: 1px solid rgba(181, 126, 255, 0.2); margin-bottom: 15px; border-radius: 4px;">
-            <div id="player-profile-nickname" style="font-size: 14px; font-family: var(--font-pixel); color: var(--color-aether); text-shadow: 0 0 5px rgba(181, 126, 255, 0.4);">RUNEWEAVER</div>
-            <div id="player-profile-email" style="font-size: 7px; color: #888; margin-top: 4px;">player@email.com</div>
-          </div>
-          
-          <div class="profile-stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: left; font-family: var(--font-pixel); font-size: 8px; color: #dfe7ff; margin-bottom: 15px;">
-            <div style="background: rgba(0,0,0,0.3); padding: 8px; border: 1px solid rgba(255,255,255,0.05); border-radius: 4px;">Level: <span id="prof-stat-level" style="color: #f1c40f;">1</span></div>
-            <div style="background: rgba(0,0,0,0.3); padding: 8px; border: 1px solid rgba(255,255,255,0.05); border-radius: 4px;">Rebirths: <span id="prof-stat-rebirths" style="color: #9b59b6;">0</span></div>
-            <div style="background: rgba(0,0,0,0.3); padding: 8px; border: 1px solid rgba(255,255,255,0.05); border-radius: 4px;">Shards: <span id="prof-stat-shards" style="color: #eccc68;">0</span></div>
-            <div style="background: rgba(0,0,0,0.3); padding: 8px; border: 1px solid rgba(255,255,255,0.05); border-radius: 4px;">Story Chapter: <span id="prof-stat-chapter" style="color: #2ecc71;">1</span></div>
-            <div style="background: rgba(0,0,0,0.3); padding: 8px; border: 1px solid rgba(255,255,255,0.05); border-radius: 4px; grid-column: span 2;">High Score: <span id="prof-stat-highscore" style="color: #7d5fff;">0</span></div>
-          </div>
-          
-          <button id="btn-player-sync-now" class="btn-menu small" style="margin-bottom: 8px; width: 100%; background: linear-gradient(135deg, #16a085, #2ecc71);">MANUAL CLOUD SYNC</button>
-          <button id="btn-player-logout" class="btn-menu small secondary" style="width: 100%;">SIGN OUT</button>
-          <div id="player-profile-status" style="font-size: 8px; margin-top: 10px; color: #2ecc71; font-family: var(--font-pixel);"></div>
-        </div>
-
-        <button id="btn-close-player-account" class="btn-menu secondary" style="margin-top: 15px;">BACK</button>
-      </div>
-    </div>
-
-    <!-- STORY CHAPTERS SELECTOR PANEL -->
-    <div id="panel-story-chapters" class="panel-overlay hidden">
-      <div class="menu-content wide text-center" style="max-width: 600px;">
-        <h1 class="text-glow">STORY CHAPTERS</h1>
-        <p class="shop-intro">Complete chapters to unlock the secrets of the void</p>
-        <div id="story-chapters-list" class="chapters-grid" style="display: flex; flex-direction: column; gap: 12px; max-height: 280px; overflow-y: auto; padding: 10px;">
-          <!-- Populated dynamically -->
-        </div>
-        <div class="menu-buttons" style="margin-top: 20px;">
-          <button id="btn-close-story-chapters" class="btn-menu secondary">BACK</button>
-        </div>
-      </div>
-    </div>
-
-
-
-    <!-- Floating Tutorial Guide Overlay -->
-    <div id="tutorial-guide" class="hidden">
-      <div class="tutorial-card">
-        <div class="tutorial-header">
-          <span class="tutorial-badge">TRIAL</span>
-          <span id="tutorial-step-indicator">STEP 1/5</span>
-        </div>
-        <h3 id="tutorial-title">MOVE YOUR WIZARD</h3>
-        <p id="tutorial-text">Use WASD or Arrow Keys to walk around the arena.</p>
-        <div class="tutorial-progress">
-          <div id="tutorial-progress-fill" style="width: 20%;"></div>
-        </div>
-        <div id="tutorial-finish-btn-container" class="hidden" style="margin-top: 10px; text-align: center;">
-          <button id="btn-finish-tutorial" class="btn-menu small">FINISH TRIAL</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Bottom Visual XP Bar -->
-    <div id="hud-bottom-xp-bar" class="hidden">
-      <div id="hud-bottom-xp-fill"></div>
-      <span id="hud-bottom-xp-text">XP: 0 / 50</span>
-    </div>
-
-  </div>
-
-  <!-- Mobile device unsupported warning overlay -->
-  <div id="mobile-warning-overlay" class="panel-overlay hidden" style="z-index: 9999; background: #070913; text-align: center; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;">
-    <div class="menu-content" style="max-width: 420px; border-color: #ff4757; box-shadow: 8px 8px 0 rgba(255, 71, 87, 0.2);">
-      <h2 style="color: #ff4757; font-size: 12px; margin-bottom: 15px; font-family: var(--font-pixel); line-height: 1.4;">WARNING: MOBILE SYSTEM DETECTED</h2>
-      <p style="font-family: var(--font-pixel); font-size: 8px; line-height: 1.8; color: #fff; margin-bottom: 25px; text-align: center;">
-        AETHERWEAVER IS NOT SUPPORTED ON MOBILE SCREENS. CONTROLS REQUIRE A PHYSICAL KEYBOARD AND MOUSE.
-      </p>
-      <button id="btn-mobile-bypass" class="btn-menu danger" style="font-size: 8px; width: 100%;">PROCEED ANYWAY</button>
-    </div>
-  </div>
-
-  <!-- Entry Script -->
-  <script type="module" src="/src/main.js"></script>
-</body>
+        <!-- Entry Script -->
+        <script type="module" src="/src/main.js"></script>
+    </body>
 </html>

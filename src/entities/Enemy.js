@@ -62,6 +62,7 @@ export class Enemy {
     // State timer trackers
     this.shootTimer = Math.random() * 2.0; // random offset for shooters
     this.teleportCooldown = 3.0;
+    this._pathTimer = Math.random() * 0.6;
   }
 
   initArchetype() {
@@ -747,17 +748,15 @@ export class Enemy {
 
     // Initialise path state on first use
     if (!this._path)           this._path = [];
-    if (!this._pathTimer)      this._pathTimer = 0;
+    if (this._pathTimer === undefined) this._pathTimer = Math.random() * PATH_REFRESH;
     if (!this._lastGoalCell)   this._lastGoalCell = { c: -1, r: -1 };
 
     this._pathTimer -= dt;
 
-    const goalCell = lvl.worldToCell(player.x, player.y);
-    const goalChanged = goalCell.c !== this._lastGoalCell.c || goalCell.r !== this._lastGoalCell.r;
-
-    if (this._pathTimer <= 0 || goalChanged || this._path.length === 0) {
+    if (this._pathTimer <= 0 || this._path.length === 0) {
       this._path = lvl.findPath(this.x, this.y, player.x, player.y);
       this._pathTimer = PATH_REFRESH;
+      const goalCell = lvl.worldToCell(player.x, player.y);
       this._lastGoalCell = goalCell;
     }
 

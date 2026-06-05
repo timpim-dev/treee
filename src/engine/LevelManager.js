@@ -1611,6 +1611,9 @@ export class LevelManager {
       const unloadCutoffSq = unloadCutoff * unloadCutoff;
 
       for (let i = 0; i < this.game.enemies.length; i++) {
+        // Stagger checking: spread A* and collision loop checks across frames
+        if ((this.game.frameCount + i) % 12 !== 0) continue;
+
         const enemy = this.game.enemies[i];
         if (enemy.dead) continue;
         if (enemy.type === 'archon' || enemy.spriteKey === 'boss_archon') continue;
@@ -1625,7 +1628,7 @@ export class LevelManager {
           let targetY = py;
           let found = false;
 
-          for (let attempt = 0; attempt < 50; attempt++) {
+          for (let attempt = 0; attempt < 10; attempt++) {
             const angle = Math.random() * Math.PI * 2;
             const dist = 350 + Math.random() * (renderDistance - 350);
             targetX = px + Math.cos(angle) * dist;
