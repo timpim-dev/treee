@@ -23,7 +23,7 @@ export class Companion {
     // Target position is behind the player's movement direction, or floats nearby if player is idle.
     const playerVx = this.owner.vx;
     const playerVy = this.owner.vy;
-    const isMoving = Math.hypot(playerVx, playerVy) > 10;
+    const isMoving = playerVx * playerVx + playerVy * playerVy > 100;
 
     let targetX, targetY;
     if (isMoving) {
@@ -44,15 +44,15 @@ export class Companion {
 
     const dx = targetX - this.x;
     const dy = targetY - this.y;
-    const dist = Math.hypot(dx, dy);
+    const distSq = dx * dx + dy * dy;
 
-    const speed = dist * 5;
-    const maxSpeed = 360;
-    const clampedSpeed = Math.min(speed, maxSpeed);
-
-    if (dist > 3) {
-      this.vx = (dx / dist) * clampedSpeed;
-      this.vy = (dy / dist) * clampedSpeed;
+    if (distSq > 9) { // 3 * 3 = 9
+      const dist = Math.sqrt(distSq);
+      const speed = dist * 5;
+      const clampedSpeed = Math.min(speed, 360);
+      const factor = clampedSpeed / dist;
+      this.vx = dx * factor;
+      this.vy = dy * factor;
     } else {
       this.vx *= 0.8;
       this.vy *= 0.8;
@@ -99,15 +99,16 @@ export class Companion {
     return Math.round(dmg);
   }
 
-  shootAtNearestEnemy() {
     let nearest = null;
-    let minDist = 280; // range
+    let minDistSq = 280 * 280; // range squared
 
     for (const enemy of this.game.enemies) {
       if (enemy.dead || enemy.isInTallGrass()) continue;
-      const d = Math.hypot(enemy.x - this.x, enemy.y - this.y);
-      if (d < minDist) {
-        minDist = d;
+      const edx = enemy.x - this.x;
+      const edy = enemy.y - this.y;
+      const dSq = edx * edx + edy * edy;
+      if (dSq < minDistSq) {
+        minDistSq = dSq;
         nearest = enemy;
       }
     }
@@ -186,8 +187,9 @@ export class Companion {
       if (this.game.state !== 'PLAYING') return;
       this.game.enemies.forEach(enemy => {
         if (enemy.dead) return;
-        const dist = Math.hypot(enemy.x - tx, enemy.y - ty);
-        if (dist <= 65) {
+        const edx = enemy.x - tx;
+        const edy = enemy.y - ty;
+        if (edx * edx + edy * edy <= 4225) { // 65 * 65 = 4225
           enemy.takeDamage(Math.round(dmg), true, this.game);
           enemy.applyStatus(SPELL_TYPES.FIRE, 3.0);
         }

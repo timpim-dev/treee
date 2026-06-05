@@ -3242,61 +3242,154 @@ export class Game {
   updateHUD() {
     if (this.state !== 'PLAYING') return;
 
-    // HP / Mana values
-    const hpPct = (this.player.hp / this.player.getMaxHp()) * 100;
-    document.getElementById('hud-hp-fill').style.width = `${hpPct}%`;
-    document.getElementById('hud-hp-text').innerText = `${Math.ceil(this.player.hp)} / ${this.player.getMaxHp()}`;
+    if (!this._hudCache) {
+      this._hudCache = {
+        hp: -1, maxHp: -1,
+        mp: -1, maxMp: -1,
+        level: -1,
+        xp: -1, xpNeeded: -1,
+        wave: -1,
+        waveTimerSec: -1,
+        enemiesCount: -1,
+        shards: -1,
+        keys: -1,
+        ap: -1,
+        maxSpellSlots: -1,
+        isWaveHidden: null,
+        avatarFrame: -1,
+        runesStr: '',
+        cooldowns: {},
+        spellSlots: {},
+      };
+    }
 
-    const mpPct = (this.player.mp / this.player.getMaxMp()) * 100;
-    document.getElementById('hud-mp-fill').style.width = `${mpPct}%`;
-    document.getElementById('hud-mp-text').innerText = `${Math.ceil(this.player.mp)} / ${this.player.getMaxMp()}`;
+    // HP / Mana values
+    const hp = Math.ceil(this.player.hp);
+    const maxHp = this.player.getMaxHp();
+    if (this._hudCache.hp !== hp || this._hudCache.maxHp !== maxHp) {
+      this._hudCache.hp = hp;
+      this._hudCache.maxHp = maxHp;
+      const hpPct = (hp / maxHp) * 100;
+      const fillEl = document.getElementById('hud-hp-fill');
+      if (fillEl) fillEl.style.width = `${hpPct}%`;
+      const textEl = document.getElementById('hud-hp-text');
+      if (textEl) textEl.innerText = `${hp} / ${maxHp}`;
+    }
+
+    const mp = Math.ceil(this.player.mp);
+    const maxMp = this.player.getMaxMp();
+    if (this._hudCache.mp !== mp || this._hudCache.maxMp !== maxMp) {
+      this._hudCache.mp = mp;
+      this._hudCache.maxMp = maxMp;
+      const mpPct = (mp / maxMp) * 100;
+      const fillEl = document.getElementById('hud-mp-fill');
+      if (fillEl) fillEl.style.width = `${mpPct}%`;
+      const textEl = document.getElementById('hud-mp-text');
+      if (textEl) textEl.innerText = `${mp} / ${maxMp}`;
+    }
 
     // Draw animated avatar in HUD
-    const avatarCanvas = document.getElementById('hud-avatar-canvas');
-    if (avatarCanvas) {
-      const actx = avatarCanvas.getContext('2d');
-      actx.clearRect(0, 0, avatarCanvas.width, avatarCanvas.height);
-      actx.imageSmoothingEnabled = false;
-      const avatarFrame = Math.floor(this.frameIndex * 4) % 3; // Cycle idle/walk frames (0, 1, 2)
-      this.assets.draw(actx, 'player', avatarCanvas.width / 2, avatarCanvas.height / 2 + 1, 36, avatarFrame, 0, 1.0);
+    const avatarFrame = Math.floor(this.frameIndex * 4) % 3; // Cycle idle/walk frames (0, 1, 2)
+    if (this._hudCache.avatarFrame !== avatarFrame) {
+      this._hudCache.avatarFrame = avatarFrame;
+      const avatarCanvas = document.getElementById('hud-avatar-canvas');
+      if (avatarCanvas) {
+        const actx = avatarCanvas.getContext('2d');
+        actx.clearRect(0, 0, avatarCanvas.width, avatarCanvas.height);
+        actx.imageSmoothingEnabled = false;
+        this.assets.draw(actx, 'player', avatarCanvas.width / 2, avatarCanvas.height / 2 + 1, 36, avatarFrame, 0, 1.0);
+      }
     }
 
     // Level & XP
-    document.getElementById('hud-level-text').innerText = `Lvl ${this.player.level}`;
-    const xpPct = (this.player.xp / this.player.xpNeeded) * 100;
-    document.getElementById('hud-xp-fill').style.width = `${xpPct}%`;
+    const level = this.player.level;
+    const xp = Math.ceil(this.player.xp);
+    const xpNeeded = this.player.xpNeeded;
+    const xpPct = (xp / xpNeeded) * 100;
+    if (this._hudCache.level !== level) {
+      this._hudCache.level = level;
+      const lvlEl = document.getElementById('hud-level-text');
+      if (lvlEl) lvlEl.innerText = `Lvl ${level}`;
+    }
+    if (this._hudCache.xp !== xp || this._hudCache.xpNeeded !== xpNeeded) {
+      this._hudCache.xp = xp;
+      this._hudCache.xpNeeded = xpNeeded;
+      const xpFillEl = document.getElementById('hud-xp-fill');
+      if (xpFillEl) xpFillEl.style.width = `${xpPct}%`;
+      
+      const bottomXpFill = document.getElementById('hud-bottom-xp-fill');
+      if (bottomXpFill) bottomXpFill.style.width = `${xpPct}%`;
+      const bottomXpText = document.getElementById('hud-bottom-xp-text');
+      if (bottomXpText) bottomXpText.innerText = `XP: ${xp} / ${xpNeeded}`;
+    }
 
     // Wave countdown timer formatting
-    const waveStatusEl = document.getElementById('hud-wave-status');
-    if (waveStatusEl) {
-      waveStatusEl.classList.toggle('hidden', !!(this.isStoryMode || this.isTutorial));
+    const isWaveHidden = !!(this.isStoryMode || this.isTutorial);
+    if (this._hudCache.isWaveHidden !== isWaveHidden) {
+      this._hudCache.isWaveHidden = isWaveHidden;
+      const waveStatusEl = document.getElementById('hud-wave-status');
+      if (waveStatusEl) {
+        waveStatusEl.classList.toggle('hidden', isWaveHidden);
+      }
     }
 
-    document.getElementById('hud-wave-title').innerText = `WAVE ${this.levelManager.wave}`;
-    const min = Math.floor(this.levelManager.waveTimer / 60);
-    const sec = Math.floor(this.levelManager.waveTimer % 60);
-    const timerEl = document.getElementById('hud-wave-timer');
-    if (timerEl) {
-      timerEl.innerText = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
-      timerEl.classList.toggle('pulse-red', this.levelManager.waveTimer <= 5);
+    const wave = this.levelManager.wave;
+    if (this._hudCache.wave !== wave) {
+      this._hudCache.wave = wave;
+      const waveTitleEl = document.getElementById('hud-wave-title');
+      if (waveTitleEl) waveTitleEl.innerText = `WAVE ${wave}`;
     }
-    document.getElementById('hud-enemies-left').innerText = `Enemies: ${this.enemies.length}`;
+
+    const waveTimerSec = Math.floor(this.levelManager.waveTimer);
+    if (this._hudCache.waveTimerSec !== waveTimerSec) {
+      this._hudCache.waveTimerSec = waveTimerSec;
+      const min = Math.floor(waveTimerSec / 60);
+      const sec = Math.floor(waveTimerSec % 60);
+      const timerEl = document.getElementById('hud-wave-timer');
+      if (timerEl) {
+        timerEl.innerText = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+        timerEl.classList.toggle('pulse-red', waveTimerSec <= 5);
+      }
+    }
+
+    const enemiesCount = this.enemies.length;
+    if (this._hudCache.enemiesCount !== enemiesCount) {
+      this._hudCache.enemiesCount = enemiesCount;
+      const enemiesLeftEl = document.getElementById('hud-enemies-left');
+      if (enemiesLeftEl) enemiesLeftEl.innerText = `Enemies: ${enemiesCount}`;
+    }
 
     // Shards, Keys and Ability Points indicators
-    document.getElementById('hud-shards-value').innerText = this.player.shards;
-    const keysValEl = document.getElementById('hud-keys-value');
-    if (keysValEl) keysValEl.innerText = this.player.keys || 0;
+    const shards = this.player.shards;
+    if (this._hudCache.shards !== shards) {
+      this._hudCache.shards = shards;
+      const shardsEl = document.getElementById('hud-shards-value');
+      if (shardsEl) shardsEl.innerText = shards;
+    }
+
+    const keys = this.player.keys || 0;
+    if (this._hudCache.keys !== keys) {
+      this._hudCache.keys = keys;
+      const keysValEl = document.getElementById('hud-keys-value');
+      if (keysValEl) keysValEl.innerText = keys;
+    }
     
-    const apNotif = document.getElementById('hud-ap-notification');
-    if (apNotif) {
-      document.getElementById('hud-ap-value').innerText = this.player.ap;
+    const ap = this.player.ap;
+    if (this._hudCache.ap !== ap) {
+      this._hudCache.ap = ap;
+      const apEl = document.getElementById('hud-ap-value');
+      if (apEl) apEl.innerText = ap;
     }
 
     // Show/hide extra slots based on maxSpellSlots
-    const slot6El = document.getElementById('spell-slot-6');
-    const slot7El = document.getElementById('spell-slot-7');
-    if (slot6El) slot6El.classList.toggle('hidden', this.player.maxSpellSlots < 6);
-    if (slot7El) slot7El.classList.toggle('hidden', this.player.maxSpellSlots < 7);
+    const maxSpellSlots = this.player.maxSpellSlots;
+    if (this._hudCache.maxSpellSlots !== maxSpellSlots) {
+      this._hudCache.maxSpellSlots = maxSpellSlots;
+      const slot6El = document.getElementById('spell-slot-6');
+      const slot7El = document.getElementById('spell-slot-7');
+      if (slot6El) slot6El.classList.toggle('hidden', maxSpellSlots < 6);
+      if (slot7El) slot7El.classList.toggle('hidden', maxSpellSlots < 7);
+    }
 
     // Hotbar Quickslots setup
     const spellSlotsMapping = [
@@ -3313,38 +3406,50 @@ export class Game {
       const spellId = this.player.spellSlots[slot.element];
       const slotEl = document.getElementById(`spell-slot-${slot.id}`);
       const canvas = document.getElementById(`spell-icon-${slot.id}`);
-      const tooltip = slotEl.querySelector('.tooltip');
+      const tooltip = slotEl ? slotEl.querySelector('.tooltip') : null;
       const cdOverlay = document.getElementById(`cooldown-${slot.id}`);
 
-      if (spellId) {
-        slotEl.classList.remove('locked');
-        slotEl.className = `spell-slot ${SpellBook[spellId].element}`; // add color class fire/frost/lightning
-        
-        // Draw icon onto canvas
-        const iconCtx = canvas.getContext('2d');
-        iconCtx.clearRect(0, 0, 32, 32);
-        this.assets.draw(iconCtx, `icon_${spellId}`, 16, 16, 32);
-        
-        // Populate tooltips
-        const spell = SpellBook[spellId];
-        tooltip.innerHTML = `<strong>${spell.name}</strong><br>Mana: ${spell.manaCost}<br>${spell.description}`;
-        
-        // Cooldown height overlay scaling
+      if (this._hudCache.spellSlots[slot.element] !== spellId) {
+        this._hudCache.spellSlots[slot.element] = spellId;
+        if (slotEl && canvas && tooltip) {
+          if (spellId) {
+            slotEl.classList.remove('locked');
+            slotEl.className = `spell-slot ${SpellBook[spellId].element}`; // add color class fire/frost/lightning
+            
+            // Draw icon onto canvas
+            const iconCtx = canvas.getContext('2d');
+            iconCtx.clearRect(0, 0, 32, 32);
+            this.assets.draw(iconCtx, `icon_${spellId}`, 16, 16, 32);
+            
+            // Populate tooltips
+            const spell = SpellBook[spellId];
+            tooltip.innerHTML = `<strong>${spell.name}</strong><br>Mana: ${spell.manaCost}<br>${spell.description}`;
+          } else {
+            slotEl.className = 'spell-slot locked';
+            const iconCtx = canvas.getContext('2d');
+            iconCtx.clearRect(0, 0, 32, 32);
+            tooltip.innerText = 'Spell slot locked. Research nodes in the Runic Web to equip magic.';
+          }
+        }
+      }
+
+      if (spellId && cdOverlay) {
         const activeCD = this.player.spellCooldowns[slot.element];
         const maxCD = this.player.getSpellCooldown(spellId);
-        
+        let cdPct = 0;
         if (activeCD > 0 && maxCD > 0) {
-          const cdPct = (activeCD / maxCD) * 100;
+          cdPct = Math.round((activeCD / maxCD) * 100);
+        }
+        const cacheKey = `cooldown_${slot.element}`;
+        if (this._hudCache.cooldowns[cacheKey] !== cdPct) {
+          this._hudCache.cooldowns[cacheKey] = cdPct;
           cdOverlay.style.height = `${cdPct}%`;
-        } else {
+        }
+      } else if (cdOverlay) {
+        if (this._hudCache.cooldowns[`cooldown_${slot.element}`] !== 0) {
+          this._hudCache.cooldowns[`cooldown_${slot.element}`] = 0;
           cdOverlay.style.height = '0%';
         }
-      } else {
-        slotEl.className = 'spell-slot locked';
-        const iconCtx = canvas.getContext('2d');
-        iconCtx.clearRect(0, 0, 32, 32);
-        tooltip.innerText = 'Spell slot locked. Research nodes in the Runic Web to equip magic.';
-        cdOverlay.style.height = '0%';
       }
     });
 
@@ -3353,32 +3458,36 @@ export class Game {
     if (invContainer) {
       const runes = this.player.equippedRunes || [];
       const maxSlots = this.player.maxRuneSlots || 6;
-      const currentSlotCount = invContainer.querySelectorAll('.inv-slot').length;
-      if (currentSlotCount !== maxSlots) {
-        invContainer.innerHTML = '';
-        for (let i = 0; i < maxSlots; i++) {
-          invContainer.innerHTML += `<div class="inv-slot empty" id="inv-slot-${i+1}">
-            <canvas class="inv-slot-canvas" id="inv-canvas-${i+1}" width="16" height="16"></canvas>
-            <div class="tooltip" id="tooltip-inv-${i+1}">Empty Rune Slot</div>
-          </div>`;
+      const runesStr = runes.map(r => r ? r.id || r.name : 'empty').join(',') + `_max_${maxSlots}`;
+      if (this._hudCache.runesStr !== runesStr) {
+        this._hudCache.runesStr = runesStr;
+        const currentSlotCount = invContainer.querySelectorAll('.inv-slot').length;
+        if (currentSlotCount !== maxSlots) {
+          invContainer.innerHTML = '';
+          for (let i = 0; i < maxSlots; i++) {
+            invContainer.innerHTML += `<div class="inv-slot empty" id="inv-slot-${i+1}">
+              <canvas class="inv-slot-canvas" id="inv-canvas-${i+1}" width="16" height="16"></canvas>
+              <div class="tooltip" id="tooltip-inv-${i+1}">Empty Rune Slot</div>
+            </div>`;
+          }
         }
-      }
-      for (let i = 0; i < maxSlots; i++) {
-        const rune    = runes[i];
-        const slotEl  = document.getElementById(`inv-slot-${i+1}`);
-        const canvas  = document.getElementById(`inv-canvas-${i+1}`);
-        const tooltip = document.getElementById(`tooltip-inv-${i+1}`);
-        if (!slotEl || !canvas || !tooltip) continue;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        if (rune) {
-          slotEl.classList.remove('empty');
-          ctx.imageSmoothingEnabled = false;
-          this.assets.draw(ctx, rune.sprite, canvas.width / 2, canvas.height / 2, canvas.width);
-          tooltip.innerHTML = `<strong style="color:${rune.rarityColor || '#ffffff'}">${rune.name}</strong><br>${rune.desc}`;
-        } else {
-          slotEl.classList.add('empty');
-          tooltip.innerHTML = 'Empty Rune Slot';
+        for (let i = 0; i < maxSlots; i++) {
+          const rune    = runes[i];
+          const slotEl  = document.getElementById(`inv-slot-${i+1}`);
+          const canvas  = document.getElementById(`inv-canvas-${i+1}`);
+          const tooltip = document.getElementById(`tooltip-inv-${i+1}`);
+          if (!slotEl || !canvas || !tooltip) continue;
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          if (rune) {
+            slotEl.classList.remove('empty');
+            ctx.imageSmoothingEnabled = false;
+            this.assets.draw(ctx, rune.sprite, canvas.width / 2, canvas.height / 2, canvas.width);
+            tooltip.innerHTML = `<strong style="color:${rune.rarityColor || '#ffffff'}">${rune.name}</strong><br>${rune.desc}`;
+          } else {
+            slotEl.classList.add('empty');
+            tooltip.innerHTML = 'Empty Rune Slot';
+          }
         }
       }
     }
@@ -3386,14 +3495,9 @@ export class Game {
     // Bottom visual XP bar
     const bottomXpBar = document.getElementById('hud-bottom-xp-bar');
     if (bottomXpBar) {
-      bottomXpBar.classList.remove('hidden');
-      const bottomXpFill = document.getElementById('hud-bottom-xp-fill');
-      const bottomXpText = document.getElementById('hud-bottom-xp-text');
-      if (bottomXpFill) {
-        bottomXpFill.style.width = `${xpPct}%`;
-      }
-      if (bottomXpText) {
-        bottomXpText.innerText = `XP: ${Math.ceil(this.player.xp)} / ${this.player.xpNeeded}`;
+      if (this._hudCache.bottomXpBarShown !== true) {
+        this._hudCache.bottomXpBarShown = true;
+        bottomXpBar.classList.remove('hidden');
       }
     }
   }
@@ -3497,6 +3601,7 @@ export class Game {
   // ----------------------------------------------------
   update(dt) {
     this.frameCount++;
+    this.pathfindsThisFrame = 0;
     // Check Chrono Shift speed dilation (Slows enemies/projectiles by 80%)
     let enemyDt = dt;
     if (this.timeDilationTimer > 0) {
@@ -3839,31 +3944,39 @@ export class Game {
           if (enemy.dead) return;
           const dx = ae.x - enemy.x;
           const dy = ae.y - enemy.y;
-          const dist = Math.hypot(dx, dy);
-          if (dist < ae.radius && dist > 0.001) {
+          const distSq = dx * dx + dy * dy;
+          const radiusSq = ae.radius * ae.radius;
+          if (distSq < radiusSq && distSq > 0.000001) {
+            const dist = Math.sqrt(distSq);
             const pullForce = (1.0 - dist / ae.radius) * 160;
-            enemy.x += (dx / dist) * pullForce * enemyDt;
-            enemy.y += (dy / dist) * pullForce * enemyDt;
+            const factor = pullForce * enemyDt / dist;
+            enemy.x += dx * factor;
+            enemy.y += dy * factor;
           }
         });
 
         // Pull player into vortex center
         const pDx = ae.x - this.player.x;
         const pDy = ae.y - this.player.y;
-        const pDist = Math.hypot(pDx, pDy);
-        if (pDist < ae.radius && pDist > 0.001) {
+        const pDistSq = pDx * pDx + pDy * pDy;
+        const radiusSq = ae.radius * ae.radius;
+        if (pDistSq < radiusSq && pDistSq > 0.000001) {
+          const pDist = Math.sqrt(pDistSq);
           const pullForce = (1.0 - pDist / ae.radius) * 70;
-          this.player.x += (pDx / pDist) * pullForce * dt;
-          this.player.y += (pDy / pDist) * pullForce * dt;
+          const factor = pullForce * dt / pDist;
+          this.player.x += pDx * factor;
+          this.player.y += pDy * factor;
         }
 
         // Pull player fire projectiles and ignite singularity (Supernova Combo!)
         if (this.player.modifiers.supernovaEnabled) {
+          const radiusSq = ae.radius * ae.radius;
           for (let p = this.projectiles.length - 1; p >= 0; p--) {
             const proj = this.projectiles[p];
             if (proj.isPlayerOwned && proj.element === SPELL_TYPES.FIRE) {
-              const dist = Math.hypot(proj.x - ae.x, proj.y - ae.y);
-              if (dist < ae.radius) {
+              const pdx = proj.x - ae.x;
+              const pdy = proj.y - ae.y;
+              if (pdx * pdx + pdy * pdy < radiusSq) {
                 // Ignite Nova! Remove projectile
                 this.projectiles.splice(p, 1);
                 
@@ -3895,10 +4008,12 @@ export class Game {
       
       else if (ae.type === 'steam_cloud') {
         if (isTick) {
+          const radiusSq = ae.radius * ae.radius;
           this.enemies.forEach((enemy) => {
             if (enemy.dead) return;
-            const dist = Math.hypot(enemy.x - ae.x, enemy.y - ae.y);
-            if (dist <= ae.radius) enemy.takeDamage(5, false, this);
+            const edx = enemy.x - ae.x;
+            const edy = enemy.y - ae.y;
+            if (edx * edx + edy * edy <= radiusSq) enemy.takeDamage(5, false, this);
           });
         }
         
@@ -3916,10 +4031,12 @@ export class Game {
 
       else if (ae.type === 'fire_pool' || ae.type === 'fireball_burst') {
         if (isTick) {
+          const radiusSq = ae.radius * ae.radius;
           this.enemies.forEach((enemy) => {
             if (enemy.dead) return;
-            const dist = Math.hypot(enemy.x - ae.x, enemy.y - ae.y);
-            if (dist <= ae.radius) {
+            const edx = enemy.x - ae.x;
+            const edy = enemy.y - ae.y;
+            if (edx * edx + edy * edy <= radiusSq) {
               enemy.takeDamage(6, false, this);
               if (!enemy.dead) enemy.applyStatus(SPELL_TYPES.FIRE, 3.0);
             }
@@ -3928,18 +4045,21 @@ export class Game {
       }
 
       else if (ae.type === 'ice_trail') {
+        const radiusSq = ae.radius * ae.radius;
         if (isTick) {
           this.enemies.forEach((enemy) => {
             if (enemy.dead) return;
-            const dist = Math.hypot(enemy.x - ae.x, enemy.y - ae.y);
-            if (dist <= ae.radius) {
+            const edx = enemy.x - ae.x;
+            const edy = enemy.y - ae.y;
+            if (edx * edx + edy * edy <= radiusSq) {
               enemy.applyStatus(SPELL_TYPES.FROST, 1.5);
             }
           });
         }
         
-        const pDist = Math.hypot(this.player.x - ae.x, this.player.y - ae.y);
-        if (pDist <= ae.radius) {
+        const pdx = this.player.x - ae.x;
+        const pdy = this.player.y - ae.y;
+        if (pdx * pdx + pdy * pdy <= radiusSq) {
           this.player.onIceTrail = true;
         }
 
@@ -3959,10 +4079,12 @@ export class Game {
       else if (ae.type === 'chrono_slow') {
         // Slow down enemies in zone
         if (isTick) {
+          const radiusSq = ae.radius * ae.radius;
           this.enemies.forEach((enemy) => {
             if (enemy.type !== 'warden' && !enemy.dead) {
-              const dist = Math.hypot(enemy.x - ae.x, enemy.y - ae.y);
-              if (dist <= ae.radius) {
+              const edx = enemy.x - ae.x;
+              const edy = enemy.y - ae.y;
+              if (edx * edx + edy * edy <= radiusSq) {
                 enemy.applyStatus(SPELL_TYPES.FROST, 0.45); // apply brief freezing slow
               }
             }
@@ -3973,10 +4095,12 @@ export class Game {
       else if (ae.type === 'frost_slow') {
         // Slow down enemies in zone
         if (isTick) {
+          const radiusSq = ae.radius * ae.radius;
           this.enemies.forEach((enemy) => {
             if (!enemy.dead) {
-              const dist = Math.hypot(enemy.x - ae.x, enemy.y - ae.y);
-              if (dist <= ae.radius) {
+              const edx = enemy.x - ae.x;
+              const edy = enemy.y - ae.y;
+              if (edx * edx + edy * edy <= radiusSq) {
                 enemy.applyStatus(SPELL_TYPES.FROST, 0.45);
               }
             }
@@ -4012,13 +4136,15 @@ export class Game {
         if (e2.dead) continue;
         const bdx = e1.x - e2.x;
         const bdy = e1.y - e2.y;
-        const bdist = Math.hypot(bdx, bdy);
+        const distSq = bdx * bdx + bdy * bdy;
         const minDist = e1.radius + e2.radius;
-        if (bdist < minDist && bdist > 0.01) {
+        const minDistSq = minDist * minDist;
+        if (distSq < minDistSq && distSq > 0.0001) {
+          const bdist = Math.sqrt(distSq);
           const push = (minDist - bdist) * 0.5;
-          const angle = Math.atan2(bdy, bdx);
-          const px = Math.cos(angle) * push;
-          const py = Math.sin(angle) * push;
+          const factor = push / bdist;
+          const px = bdx * factor;
+          const py = bdy * factor;
           e1.x += px;
           e1.y += py;
           e2.x -= px;

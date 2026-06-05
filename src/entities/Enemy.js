@@ -416,7 +416,7 @@ export class Enemy {
 
       this.kbX *= Math.pow(this.kbFriction, dt * 60);
       this.kbY *= Math.pow(this.kbFriction, dt * 60);
-      if (Math.hypot(this.kbX, this.kbY) < 1) { this.kbX = 0; this.kbY = 0; }
+      if (this.kbX * this.kbX + this.kbY * this.kbY < 1) { this.kbX = 0; this.kbY = 0; }
 
       // Hard boundary clamp
       const lvl = this.game.levelManager;
@@ -428,12 +428,13 @@ export class Enemy {
         if (obs.type !== 'pillar' && obs.type !== 'explosive_barrel') continue;
         const odx = this.x - obs.x;
         const ody = this.y - obs.y;
-        const odist = Math.hypot(odx, ody);
+        const distSq = odx * odx + ody * ody;
         const minD = this.radius + obs.radius + 1;
-        if (odist < minD && odist > 0.01) {
-          const ang = Math.atan2(ody, odx);
-          this.x = obs.x + Math.cos(ang) * minD;
-          this.y = obs.y + Math.sin(ang) * minD;
+        if (distSq < minD * minD && distSq > 0.0001) {
+          const odist = Math.sqrt(distSq);
+          const factor = minD / odist;
+          this.x = obs.x + odx * factor;
+          this.y = obs.y + ody * factor;
         }
       }
       return;
@@ -460,7 +461,7 @@ export class Enemy {
     // Simple Pathfinding / AI steering
     const dx = player.x - this.x;
     const dy = player.y - this.y;
-    const dist = Math.hypot(dx, dy);
+    const dist = Math.sqrt(dx * dx + dy * dy);
 
     let moveX = 0;
     let moveY = 0;
@@ -753,17 +754,24 @@ export class Enemy {
 
     this._pathTimer -= dt;
 
-    if (this._pathTimer <= 0) {
-      this._path = lvl.findPath(this.x, this.y, player.x, player.y);
-      this._pathTimer = PATH_REFRESH + Math.random() * 0.15;
-      const goalCell = lvl.worldToCell(player.x, player.y);
-      this._lastGoalCell = goalCell;
+    const goalCell = lvl.worldToCell(player.x, player.y);
+    const goalChanged = (goalCell.c !== this._lastGoalCell.c || goalCell.r !== this._lastGoalCell.r);
+
+    if (this._pathTimer <= 0 || this._path.length === 0 || goalChanged) {
+      if (this.game.pathfindsThisFrame < 3) {
+        this._path = lvl.findPath(this.x, this.y, player.x, player.y);
+        this.game.pathfindsThisFrame++;
+        this._pathTimer = PATH_REFRESH + Math.random() * 0.15;
+        this._lastGoalCell = goalCell;
+      }
     }
 
     // Advance past waypoints we've already reached
     while (this._path.length > 0) {
       const wp = this._path[0];
-      if (Math.hypot(wp.x - this.x, wp.y - this.y) < WAYPOINT_RADIUS) {
+      const wdx = wp.x - this.x;
+      const wdy = wp.y - this.y;
+      if (wdx * wdx + wdy * wdy < WAYPOINT_RADIUS * WAYPOINT_RADIUS) {
         this._path.shift();
       } else {
         break;
@@ -773,20 +781,19 @@ export class Enemy {
     // Determine movement direction:
     // • If we have remaining waypoints, steer toward the next one.
     // • When we're in the same cell as the player (or very close), steer directly.
-    const directDist = Math.hypot(player.x - this.x, player.y - this.y);
-    if (this._path.length > 0 && directDist > lvl.navCellSize * 0.75) {
+    if (this._path.length > 0 && dist > lvl.navCellSize * 0.75) {
       const wp = this._path[0];
       const wdx = wp.x - this.x;
       const wdy = wp.y - this.y;
-      const wdist = Math.hypot(wdx, wdy);
+      const wdist = Math.sqrt(wdx * wdx + wdy * wdy);
       if (wdist > 1) {
         moveX = wdx / wdist;
         moveY = wdy / wdist;
       }
-    } else if (directDist > 5) {
+    } else if (dist > 5) {
       // Close enough — head straight at the player
-      moveX = dx / directDist;
-      moveY = dy / directDist;
+      moveX = dx / dist;
+      moveY = dy / dist;
     }
 
     // ── Movement wobble (organic weave, excluded for bosses/charging) ─────
@@ -826,24 +833,31 @@ export class Enemy {
             
             const odx = this.x - obsX;
             const ody = this.y - obsY;
-            const odist = Math.hypot(odx, ody);
+            const distSq = odx * odx + ody * ody;
             const zone = this.radius + obsRadius + 6;
-            if (odist < zone && odist > 0.01) {
+            if (distSq < zone * zone && distSq > 0.0001) {
+              const odist = Math.sqrt(distSq);
               const strength = (zone - odist) / zone;
-              repX += (odx / odist) * strength;
-              repY += (ody / odist) * strength;
+              const factor = strength / odist;
+              repX += odx * factor;
+              repY += ody * factor;
             }
           }
         }
       }
     }
-    const repMag = Math.hypot(repX, repY);
-    if (repMag > 0.01) {
+    const repMagSq = repX * repX + repY * repY;
+    if (repMagSq > 0.0001) {
+      const repMag = Math.sqrt(repMagSq);
       // Blend: keep most of the intended nav direction, add gentle push away
       moveX = moveX * 0.65 + (repX / repMag) * 0.35;
       moveY = moveY * 0.65 + (repY / repMag) * 0.35;
-      const blendMag = Math.hypot(moveX, moveY);
-      if (blendMag > 0.01) { moveX /= blendMag; moveY /= blendMag; }
+      const blendMagSq = moveX * moveX + moveY * moveY;
+      if (blendMagSq > 0.0001) {
+        const blendMag = Math.sqrt(blendMagSq);
+        moveX /= blendMag;
+        moveY /= blendMag;
+      }
     }
 
     // ── Integrate ─────────────────────────────────────────────────────────
@@ -856,7 +870,7 @@ export class Enemy {
     // Decay knockback
     this.kbX *= Math.pow(this.kbFriction, dt * 60);
     this.kbY *= Math.pow(this.kbFriction, dt * 60);
-    if (Math.hypot(this.kbX, this.kbY) < 1) { this.kbX = 0; this.kbY = 0; }
+    if (this.kbX * this.kbX + this.kbY * this.kbY < 1) { this.kbX = 0; this.kbY = 0; }
 
     // Hard boundary clamp
     this.x = Math.max(this.radius + 40, Math.min(lvl.width  - this.radius - 40, this.x));
@@ -879,12 +893,13 @@ export class Enemy {
               
               const odx = this.x - obsX;
               const ody = this.y - obsY;
-              const odist = Math.hypot(odx, ody);
+              const distSq = odx * odx + ody * ody;
               const minD = this.radius + obsRadius + 1;
-              if (odist < minD && odist > 0.01) {
-                const ang = Math.atan2(ody, odx);
-                this.x = obsX + Math.cos(ang) * minD;
-                this.y = obsY + Math.sin(ang) * minD;
+              if (distSq < minD * minD && distSq > 0.0001) {
+                const odist = Math.sqrt(distSq);
+                const factor = minD / odist;
+                this.x = obsX + odx * factor;
+                this.y = obsY + ody * factor;
               }
             }
           }
@@ -896,12 +911,13 @@ export class Enemy {
         if (obs.type !== 'explosive_barrel') continue;
         const odx = this.x - obs.x;
         const ody = this.y - obs.y;
-        const odist = Math.hypot(odx, ody);
+        const distSq = odx * odx + ody * ody;
         const minD = this.radius + obs.radius + 1;
-        if (odist < minD && odist > 0.01) {
-          const ang = Math.atan2(ody, odx);
-          this.x = obs.x + Math.cos(ang) * minD;
-          this.y = obs.y + Math.sin(ang) * minD;
+        if (distSq < minD * minD && distSq > 0.0001) {
+          const odist = Math.sqrt(distSq);
+          const factor = minD / odist;
+          this.x = obs.x + odx * factor;
+          this.y = obs.y + ody * factor;
         }
       }
     }
@@ -926,7 +942,9 @@ export class Enemy {
             if (lvl.tileGrid[ntx][nty] === 1) {
               const obsX = ntx * 40 + 20;
               const obsY = nty * 40 + 20;
-              if (Math.hypot(this.x - obsX, this.y - obsY) < 18) {
+              const sdx = this.x - obsX;
+              const sdy = this.y - obsY;
+              if (sdx * sdx + sdy * sdy < 324) { // 18 * 18 = 324
                 isStuck = true;
                 break;
               }
@@ -975,8 +993,7 @@ export class Enemy {
     // Bumping/stacking resolution is handled globally in Game.update() to avoid O(N^2) inner iterations.
 
     // Deal damage to Player if colliding
-    const pdist = Math.hypot(player.x - this.x, player.y - this.y);
-    if (pdist < this.radius + player.radius) {
+    if (dist < this.radius + player.radius) {
       player.takeDamage(this.damage, this.game);
       
       // Apply elemental effect if infused
@@ -988,8 +1005,10 @@ export class Enemy {
       }
 
       // bounce enemy back slightly on hit
-      const bounceAngle = Math.atan2(this.y - player.y, this.x - player.x);
-      this.applyKnockback(Math.cos(bounceAngle) * 120, Math.sin(bounceAngle) * 120);
+      const bounceDx = this.x - player.x;
+      const bounceDy = this.y - player.y;
+      const factor = 120 / (dist > 0.01 ? dist : 1);
+      this.applyKnockback(bounceDx * factor, bounceDy * factor);
     }
   }
 

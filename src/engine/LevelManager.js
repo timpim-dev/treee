@@ -1642,7 +1642,10 @@ export class LevelManager {
                 let overlap = false;
                 for (const obs of this.obstacles) {
                   if (obs.type === 'pillar') {
-                    if (Math.hypot(targetX - obs.x, targetY - obs.y) < obs.radius + enemy.radius) {
+                    const dx = targetX - obs.x;
+                    const dy = targetY - obs.y;
+                    const minDist = obs.radius + enemy.radius;
+                    if (dx * dx + dy * dy < minDist * minDist) {
                       overlap = true;
                       break;
                     }

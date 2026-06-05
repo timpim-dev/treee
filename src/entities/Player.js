@@ -509,8 +509,9 @@ export class Player {
     if (this.game && this.game.areaEffects) {
       for (const ae of this.game.areaEffects) {
         if (ae.type === 'frost_slow' || ae.type === 'singularity') {
-          const dist = Math.hypot(this.x - ae.x, this.y - ae.y);
-          if (dist <= ae.radius) {
+          const dx = this.x - ae.x;
+          const dy = this.y - ae.y;
+          if (dx * dx + dy * dy <= ae.radius * ae.radius) {
             multiplier *= 0.5; // 50% slow down
             break; // only apply slow once
           }
@@ -794,8 +795,10 @@ export class Player {
           const hitKey = `${i}_${enemy._vsId}`;
           if (this.voltShieldHitCooldowns[hitKey]) continue;
 
-          const d = Math.hypot(enemy.x - ox, enemy.y - oy);
-          if (d <= ORB_R + enemy.radius) {
+          const dx = enemy.x - ox;
+          const dy = enemy.y - oy;
+          const minDist = ORB_R + enemy.radius;
+          if (dx * dx + dy * dy <= minDist * minDist) {
             const dmg = ZAP_DMG + Math.round((this.modifiers.lightningDamage || 0) * ZAP_DMG);
             enemy.takeDamage(dmg, false, this.game);
             this.voltShieldHitCooldowns[hitKey] = ZAP_COOLDOWN;
@@ -854,10 +857,13 @@ export class Player {
     }
     
     // Movement integration with sub-stepping to prevent phasing through walls
-    const moveDist = Math.hypot(this.vx * this.getSpeed() * dt, this.vy * this.getSpeed() * dt);
+    const speedDt = this.getSpeed() * dt;
+    const stepX = this.vx * speedDt;
+    const stepY = this.vy * speedDt;
+    const moveDist = Math.sqrt(stepX * stepX + stepY * stepY);
     const subSteps = Math.ceil(moveDist / 10);
-    const stepDx = (this.vx * this.getSpeed() * dt) / subSteps;
-    const stepDy = (this.vy * this.getSpeed() * dt) / subSteps;
+    const stepDx = stepX / subSteps;
+    const stepDy = stepY / subSteps;
     
     for (let step = 0; step < subSteps; step++) {
       this.x += stepDx;
@@ -887,13 +893,15 @@ export class Player {
               
               const odx = this.x - closestX;
               const ody = this.y - closestY;
-              const odist = Math.hypot(odx, ody);
+              const distSq = odx * odx + ody * ody;
               
-              if (odist < this.radius) {
+              if (distSq < this.radius * this.radius) {
+                const odist = Math.sqrt(distSq);
                 if (odist > 0.01) {
                   const pushAmount = this.radius - odist;
-                  this.x += (odx / odist) * pushAmount;
-                  this.y += (ody / odist) * pushAmount;
+                  const factor = pushAmount / odist;
+                  this.x += odx * factor;
+                  this.y += ody * factor;
                 } else {
                   // Centered inside, push out to closest edge
                   const distL = this.x - minX;
@@ -933,7 +941,9 @@ export class Player {
             if (lvl.tileGrid[ntx][nty] === 1) {
               const obsX = ntx * 40 + 20;
               const obsY = nty * 40 + 20;
-              if (Math.hypot(this.x - obsX, this.y - obsY) < 18) {
+              const sdx = this.x - obsX;
+              const sdy = this.y - obsY;
+              if (sdx * sdx + sdy * sdy < 324) { // 18 * 18 = 324
                 isStuck = true;
                 break;
               }
@@ -984,11 +994,15 @@ export class Player {
     let minDist = trackRange;
 
     // Each additional wisp targets a different enemy (offset by index in sorted list)
-    const sorted = [...this.game.enemies].filter(e => !e.dead && !e.isInTallGrass()).sort((a, b) =>
-      Math.hypot(a.x - this.x, a.y - this.y) - Math.hypot(b.x - this.x, b.y - this.y)
-    );
+    const playerX = this.x;
+    const playerY = this.y;
+    const sorted = [...this.game.enemies].filter(e => !e.dead && !e.isInTallGrass()).sort((a, b) => {
+      const distSqA = (a.x - playerX) * (a.x - playerX) + (a.y - playerY) * (a.y - playerY);
+      const distSqB = (b.x - playerX) * (b.x - playerX) + (b.y - playerY) * (b.y - playerY);
+      return distSqA - distSqB;
+    });
     const target = sorted[wispIndex % sorted.length] || null;
-    nearest = target && Math.hypot(target.x - this.x, target.y - this.y) < trackRange ? target : null;
+    nearest = target && ((target.x - playerX) * (target.x - playerX) + (target.y - playerY) * (target.y - playerY) < trackRange * trackRange) ? target : null;
 
     if (nearest) {
       const wAngle = Math.atan2(nearest.y - this.y, nearest.x - this.x);
@@ -1244,7 +1258,7 @@ export class Player {
     const isFacingLeft = mx < this.x;
     
     let fIdx = 0;
-    if (Math.hypot(this.vx, this.vy) > 0.01) {
+    if (this.vx * this.vx + this.vy * this.vy > 0.0001) {
       fIdx = 1 + (Math.floor(frameIndex * 6) % 2);
     }
 
