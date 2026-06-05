@@ -744,7 +744,7 @@ export class Enemy {
     // PATH_REFRESH seconds or when the player enters a different cell.
     const lvl = this.game.levelManager;
 
-    const PATH_REFRESH = 0.6; // seconds between full A* recalcs
+    const PATH_REFRESH = 1.5; // seconds between full A* recalcs
     const WAYPOINT_RADIUS = 60; // how close before advancing to next waypoint
 
     // Initialise path state on first use

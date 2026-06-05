@@ -1151,9 +1151,19 @@ export class Player {
       progress.treeNodes[key] = this.game.abilityTree.nodes[key].unlocked;
     }
 
-    localStorage.setItem('aetherweaver_save', JSON.stringify(progress));
-    if (this.game && this.game.syncPlayerDataToCloud) {
-      this.game.syncPlayerDataToCloud();
+    this._pendingSave = progress;
+    if (!this._saveTimer) {
+      this._saveTimer = setTimeout(() => this._flushSave(), 500);
+    }
+  }
+
+  _flushSave() {
+    this._saveTimer = null;
+    if (!this._pendingSave) return;
+    localStorage.setItem('aetherweaver_save', JSON.stringify(this._pendingSave));
+    this._pendingSave = null;
+    if (this.game?.scheduleCloudSync) {
+      this.game.scheduleCloudSync();
     }
   }
 

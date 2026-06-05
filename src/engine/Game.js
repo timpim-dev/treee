@@ -3239,8 +3239,36 @@ export class Game {
   // ----------------------------------------------------
   // UPDATE HUD STATS DISPLAY
   // ----------------------------------------------------
+  _initHudElements() {
+    if (this._hudEls) return;
+    this._hudEls = {
+      hpFill: document.getElementById('hud-hp-fill'),
+      hpText: document.getElementById('hud-hp-text'),
+      mpFill: document.getElementById('hud-mp-fill'),
+      mpText: document.getElementById('hud-mp-text'),
+      avatarCanvas: document.getElementById('hud-avatar-canvas'),
+      levelText: document.getElementById('hud-level-text'),
+      xpFill: document.getElementById('hud-xp-fill'),
+      bottomXpFill: document.getElementById('hud-bottom-xp-fill'),
+      bottomXpText: document.getElementById('hud-bottom-xp-text'),
+      waveStatus: document.getElementById('hud-wave-status'),
+      waveTitle: document.getElementById('hud-wave-title'),
+      waveTimer: document.getElementById('hud-wave-timer'),
+      enemiesLeft: document.getElementById('hud-enemies-left'),
+      shards: document.getElementById('hud-shards-value'),
+      keys: document.getElementById('hud-keys-value'),
+      ap: document.getElementById('hud-ap-value'),
+      slot6: document.getElementById('spell-slot-6'),
+      slot7: document.getElementById('spell-slot-7'),
+      invContainer: document.getElementById('inventory-container'),
+      bottomXpBar: document.getElementById('hud-bottom-xp-bar'),
+    };
+  }
+
   updateHUD() {
     if (this.state !== 'PLAYING') return;
+    this._initHudElements();
+    const els = this._hudEls;
 
     if (!this._hudCache) {
       this._hudCache = {
@@ -3270,10 +3298,8 @@ export class Game {
       this._hudCache.hp = hp;
       this._hudCache.maxHp = maxHp;
       const hpPct = (hp / maxHp) * 100;
-      const fillEl = document.getElementById('hud-hp-fill');
-      if (fillEl) fillEl.style.width = `${hpPct}%`;
-      const textEl = document.getElementById('hud-hp-text');
-      if (textEl) textEl.innerText = `${hp} / ${maxHp}`;
+      if (els.hpFill) els.hpFill.style.width = `${hpPct}%`;
+      if (els.hpText) els.hpText.innerText = `${hp} / ${maxHp}`;
     }
 
     const mp = Math.ceil(this.player.mp);
@@ -3282,22 +3308,19 @@ export class Game {
       this._hudCache.mp = mp;
       this._hudCache.maxMp = maxMp;
       const mpPct = (mp / maxMp) * 100;
-      const fillEl = document.getElementById('hud-mp-fill');
-      if (fillEl) fillEl.style.width = `${mpPct}%`;
-      const textEl = document.getElementById('hud-mp-text');
-      if (textEl) textEl.innerText = `${mp} / ${maxMp}`;
+      if (els.mpFill) els.mpFill.style.width = `${mpPct}%`;
+      if (els.mpText) els.mpText.innerText = `${mp} / ${maxMp}`;
     }
 
     // Draw animated avatar in HUD
-    const avatarFrame = Math.floor(this.frameIndex * 4) % 3; // Cycle idle/walk frames (0, 1, 2)
+    const avatarFrame = Math.floor(this.frameIndex * 4) % 3;
     if (this._hudCache.avatarFrame !== avatarFrame) {
       this._hudCache.avatarFrame = avatarFrame;
-      const avatarCanvas = document.getElementById('hud-avatar-canvas');
-      if (avatarCanvas) {
-        const actx = avatarCanvas.getContext('2d');
-        actx.clearRect(0, 0, avatarCanvas.width, avatarCanvas.height);
+      if (els.avatarCanvas) {
+        const actx = els.avatarCanvas.getContext('2d');
+        actx.clearRect(0, 0, els.avatarCanvas.width, els.avatarCanvas.height);
         actx.imageSmoothingEnabled = false;
-        this.assets.draw(actx, 'player', avatarCanvas.width / 2, avatarCanvas.height / 2 + 1, 36, avatarFrame, 0, 1.0);
+        this.assets.draw(actx, 'player', els.avatarCanvas.width / 2, els.avatarCanvas.height / 2 + 1, 36, avatarFrame, 0, 1.0);
       }
     }
 
@@ -3308,36 +3331,29 @@ export class Game {
     const xpPct = (xp / xpNeeded) * 100;
     if (this._hudCache.level !== level) {
       this._hudCache.level = level;
-      const lvlEl = document.getElementById('hud-level-text');
-      if (lvlEl) lvlEl.innerText = `Lvl ${level}`;
+      if (els.levelText) els.levelText.innerText = `Lvl ${level}`;
     }
     if (this._hudCache.xp !== xp || this._hudCache.xpNeeded !== xpNeeded) {
       this._hudCache.xp = xp;
       this._hudCache.xpNeeded = xpNeeded;
-      const xpFillEl = document.getElementById('hud-xp-fill');
-      if (xpFillEl) xpFillEl.style.width = `${xpPct}%`;
-      
-      const bottomXpFill = document.getElementById('hud-bottom-xp-fill');
-      if (bottomXpFill) bottomXpFill.style.width = `${xpPct}%`;
-      const bottomXpText = document.getElementById('hud-bottom-xp-text');
-      if (bottomXpText) bottomXpText.innerText = `XP: ${xp} / ${xpNeeded}`;
+      if (els.xpFill) els.xpFill.style.width = `${xpPct}%`;
+      if (els.bottomXpFill) els.bottomXpFill.style.width = `${xpPct}%`;
+      if (els.bottomXpText) els.bottomXpText.innerText = `XP: ${xp} / ${xpNeeded}`;
     }
 
     // Wave countdown timer formatting
     const isWaveHidden = !!(this.isStoryMode || this.isTutorial);
     if (this._hudCache.isWaveHidden !== isWaveHidden) {
       this._hudCache.isWaveHidden = isWaveHidden;
-      const waveStatusEl = document.getElementById('hud-wave-status');
-      if (waveStatusEl) {
-        waveStatusEl.classList.toggle('hidden', isWaveHidden);
+      if (els.waveStatus) {
+        els.waveStatus.classList.toggle('hidden', isWaveHidden);
       }
     }
 
     const wave = this.levelManager.wave;
     if (this._hudCache.wave !== wave) {
       this._hudCache.wave = wave;
-      const waveTitleEl = document.getElementById('hud-wave-title');
-      if (waveTitleEl) waveTitleEl.innerText = `WAVE ${wave}`;
+      if (els.waveTitle) els.waveTitle.innerText = `WAVE ${wave}`;
     }
 
     const waveTimerSec = Math.floor(this.levelManager.waveTimer);
@@ -3345,50 +3361,43 @@ export class Game {
       this._hudCache.waveTimerSec = waveTimerSec;
       const min = Math.floor(waveTimerSec / 60);
       const sec = Math.floor(waveTimerSec % 60);
-      const timerEl = document.getElementById('hud-wave-timer');
-      if (timerEl) {
-        timerEl.innerText = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
-        timerEl.classList.toggle('pulse-red', waveTimerSec <= 5);
+      if (els.waveTimer) {
+        els.waveTimer.innerText = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+        els.waveTimer.classList.toggle('pulse-red', waveTimerSec <= 5);
       }
     }
 
     const enemiesCount = this.enemies.length;
     if (this._hudCache.enemiesCount !== enemiesCount) {
       this._hudCache.enemiesCount = enemiesCount;
-      const enemiesLeftEl = document.getElementById('hud-enemies-left');
-      if (enemiesLeftEl) enemiesLeftEl.innerText = `Enemies: ${enemiesCount}`;
+      if (els.enemiesLeft) els.enemiesLeft.innerText = `Enemies: ${enemiesCount}`;
     }
 
     // Shards, Keys and Ability Points indicators
     const shards = this.player.shards;
     if (this._hudCache.shards !== shards) {
       this._hudCache.shards = shards;
-      const shardsEl = document.getElementById('hud-shards-value');
-      if (shardsEl) shardsEl.innerText = shards;
+      if (els.shards) els.shards.innerText = shards;
     }
 
     const keys = this.player.keys || 0;
     if (this._hudCache.keys !== keys) {
       this._hudCache.keys = keys;
-      const keysValEl = document.getElementById('hud-keys-value');
-      if (keysValEl) keysValEl.innerText = keys;
+      if (els.keys) els.keys.innerText = keys;
     }
     
     const ap = this.player.ap;
     if (this._hudCache.ap !== ap) {
       this._hudCache.ap = ap;
-      const apEl = document.getElementById('hud-ap-value');
-      if (apEl) apEl.innerText = ap;
+      if (els.ap) els.ap.innerText = ap;
     }
 
     // Show/hide extra slots based on maxSpellSlots
     const maxSpellSlots = this.player.maxSpellSlots;
     if (this._hudCache.maxSpellSlots !== maxSpellSlots) {
       this._hudCache.maxSpellSlots = maxSpellSlots;
-      const slot6El = document.getElementById('spell-slot-6');
-      const slot7El = document.getElementById('spell-slot-7');
-      if (slot6El) slot6El.classList.toggle('hidden', maxSpellSlots < 6);
-      if (slot7El) slot7El.classList.toggle('hidden', maxSpellSlots < 7);
+      if (els.slot6) els.slot6.classList.toggle('hidden', maxSpellSlots < 6);
+      if (els.slot7) els.slot7.classList.toggle('hidden', maxSpellSlots < 7);
     }
 
     // Hotbar Quickslots setup
@@ -3454,7 +3463,7 @@ export class Game {
     });
 
     // Render HUD rune strip — shows equipped runes
-    const invContainer = document.getElementById('inventory-container');
+    const invContainer = els.invContainer;
     if (invContainer) {
       const runes = this.player.equippedRunes || [];
       const maxSlots = this.player.maxRuneSlots || 6;
@@ -3493,11 +3502,10 @@ export class Game {
     }
 
     // Bottom visual XP bar
-    const bottomXpBar = document.getElementById('hud-bottom-xp-bar');
-    if (bottomXpBar) {
+    if (els.bottomXpBar) {
       if (this._hudCache.bottomXpBarShown !== true) {
         this._hudCache.bottomXpBarShown = true;
-        bottomXpBar.classList.remove('hidden');
+        els.bottomXpBar.classList.remove('hidden');
       }
     }
   }
@@ -3551,11 +3559,15 @@ export class Game {
     }
 
     if (this.state === 'PLAYING') {
-      // Update music based on region theme and boss status
+      // Update music based on region theme and boss status (throttled)
       if (this.audio && this.audio.initialized) {
-        const isBoss = this.enemies && this.enemies.some(e => e.type === 'archon' || e.type === 'volcanic_titan' || e.type === 'void_behemoth');
-        const theme = this.levelManager ? this.levelManager.theme : 'dungeon';
-        this.audio.updateMusicForTheme(theme, isBoss);
+        this._musicCheckTimer = (this._musicCheckTimer || 0) + dt;
+        if (this._musicCheckTimer >= 1.0) {
+          this._musicCheckTimer = 0;
+          const isBoss = this.enemies && this.enemies.some(e => e.type === 'archon' || e.type === 'volcanic_titan' || e.type === 'void_behemoth');
+          const theme = this.levelManager ? this.levelManager.theme : 'dungeon';
+          this.audio.updateMusicForTheme(theme, isBoss);
+        }
       }
 
       this.update(dt);
@@ -4247,8 +4259,12 @@ export class Game {
     // Update Particles
     this.particles.update(dt);
 
-    // Keep HUD synchronized
-    this.updateHUD();
+    // Keep HUD synchronized (throttled — DOM writes don't need 60fps)
+    this._hudTimer = (this._hudTimer || 0) + dt;
+    if (this._hudTimer >= 0.05) {
+      this._hudTimer = 0;
+      this.updateHUD();
+    }
   }
 
   // ----------------------------------------------------
@@ -4558,7 +4574,7 @@ export class Game {
       this.drawBossHealthBar(boss);
     }
 
-    if (this.state === 'PLAYING') {
+    if (this.state === 'PLAYING' && this.frameCount % 8 === 0) {
       this.drawMinimap();
     }
 
@@ -6052,6 +6068,14 @@ export class Game {
       if (authBox) authBox.classList.remove('hidden');
       if (profileBox) profileBox.classList.add('hidden');
     }
+  }
+
+  scheduleCloudSync() {
+    if (this._cloudSyncTimer) return;
+    this._cloudSyncTimer = setTimeout(async () => {
+      this._cloudSyncTimer = null;
+      await this.syncPlayerDataToCloud();
+    }, 5000);
   }
 
   async syncPlayerDataToCloud() {

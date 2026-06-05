@@ -99,6 +99,7 @@ export class Companion {
     return Math.round(dmg);
   }
 
+  shootAtNearestEnemy() {
     let nearest = null;
     let minDistSq = 280 * 280; // range squared
 

@@ -1264,38 +1264,31 @@ export class LevelManager {
     // Same cell — no waypoints needed
     if (sc.c === gc.c && sc.r === gc.r) return [];
 
-    // Use sorted array for open set (descending f so pop() is lowest f)
     const open = [];
-    const openMap = new Map(); // key -> node
+    const openMap = new Map();
     const closed = new Set();
 
     const startNode = { c: sc.c, r: sc.r, g: 0, f: Math.abs(sc.c - gc.c) + Math.abs(sc.r - gc.r), parent: null };
     open.push(startNode);
     openMap.set(sc.c * this.navRows + sc.r, startNode);
 
-    const insertSorted = (node) => {
-      let low = 0;
-      let high = open.length;
-      while (low < high) {
-        const mid = (low + high) >>> 1;
-        if (open[mid].f > node.f) {
-          low = mid + 1;
-        } else {
-          high = mid;
-        }
-      }
-      open.splice(low, 0, node);
-    };
-
     let iterations = 0;
 
     while (open.length > 0) {
       iterations++;
-      if (iterations > 300) {
-        break; // Prevent extreme lag for long or unreachable paths
+      if (iterations > 200) {
+        break;
       }
 
-      const best = open.pop();
+      // Pick lowest-f node without splice-heavy sorted-array maintenance
+      let bestIdx = 0;
+      for (let i = 1; i < open.length; i++) {
+        if (open[i].f < open[bestIdx].f) bestIdx = i;
+      }
+      const best = open[bestIdx];
+      open[bestIdx] = open[open.length - 1];
+      open.pop();
+
       const bestKey = best.c * this.navRows + best.r;
       openMap.delete(bestKey);
       closed.add(bestKey);
@@ -1336,19 +1329,14 @@ export class LevelManager {
         
         if (!openMap.has(nk)) {
           const neighbor = { c: nc, r: nr, g, f, parent: best };
-          insertSorted(neighbor);
+          open.push(neighbor);
           openMap.set(nk, neighbor);
         } else {
           const existing = openMap.get(nk);
           if (existing.g > g) {
-            const idx = open.indexOf(existing);
-            if (idx > -1) {
-              open.splice(idx, 1);
-            }
             existing.g = g;
             existing.f = f;
             existing.parent = best;
-            insertSorted(existing);
           }
         }
       }
@@ -1592,13 +1580,23 @@ export class LevelManager {
     if (this.game.player && this.allObstacles) {
       const px = this.game.player.x;
       const py = this.game.player.y;
-      const distCutoff = (this.game.renderDistance || 1200);
-      const distCutoffSq = distCutoff * distCutoff;
-      this.obstacles = this.allObstacles.filter(obs => {
-        const dx = obs.x - px;
-        const dy = obs.y - py;
-        return (dx * dx + dy * dy) <= distCutoffSq;
-      });
+      const moved = !this._lastObsPx ||
+        Math.abs(px - this._lastObsPx) > 60 ||
+        Math.abs(py - this._lastObsPy) > 60;
+      if (moved || !this.obstacles) {
+        this._lastObsPx = px;
+        this._lastObsPy = py;
+        const distCutoffSq = ((this.game.renderDistance || 1200) + 200) ** 2;
+        if (!this.obstacles) this.obstacles = [];
+        this.obstacles.length = 0;
+        for (const obs of this.allObstacles) {
+          const dx = obs.x - px;
+          const dy = obs.y - py;
+          if (dx * dx + dy * dy <= distCutoffSq) {
+            this.obstacles.push(obs);
+          }
+        }
+      }
     }
 
     // Dynamic enemy unloading and teleportation
@@ -1693,17 +1691,21 @@ export class LevelManager {
       });
     }
 
-    // Uncover fog of war around player
+    // Uncover fog of war around player (only when tile position changes)
     if (this.game.player && this.exploredGrid) {
       const px = Math.floor(this.game.player.x / 40);
       const py = Math.floor(this.game.player.y / 40);
-      const radius = 5; // 5 tiles radius = 200px (explores 1 cell diameter)
-      for (let dx = -radius; dx <= radius; dx++) {
-        for (let dy = -radius; dy <= radius; dy++) {
-          const tx = px + dx;
-          const ty = py + dy;
-          if (tx >= 0 && tx < this.tileWidth && ty >= 0 && ty < this.tileHeight) {
-            this.exploredGrid[tx][ty] = true;
+      if (this._lastFogTx !== px || this._lastFogTy !== py) {
+        this._lastFogTx = px;
+        this._lastFogTy = py;
+        const radius = 5;
+        for (let dx = -radius; dx <= radius; dx++) {
+          for (let dy = -radius; dy <= radius; dy++) {
+            const tx = px + dx;
+            const ty = py + dy;
+            if (tx >= 0 && tx < this.tileWidth && ty >= 0 && ty < this.tileHeight) {
+              this.exploredGrid[tx][ty] = true;
+            }
           }
         }
       }
@@ -1786,13 +1788,17 @@ export class LevelManager {
     if (this.exploredGrid) {
       const px = Math.floor(player.x / 40);
       const py = Math.floor(player.y / 40);
-      const radius = 5;
-      for (let dx = -radius; dx <= radius; dx++) {
-        for (let dy = -radius; dy <= radius; dy++) {
-          const tx = px + dx;
-          const ty = py + dy;
-          if (tx >= 0 && tx < this.tileWidth && ty >= 0 && ty < this.tileHeight) {
-            this.exploredGrid[tx][ty] = true;
+      if (this._lastFogTx !== px || this._lastFogTy !== py) {
+        this._lastFogTx = px;
+        this._lastFogTy = py;
+        const radius = 5;
+        for (let dx = -radius; dx <= radius; dx++) {
+          for (let dy = -radius; dy <= radius; dy++) {
+            const tx = px + dx;
+            const ty = py + dy;
+            if (tx >= 0 && tx < this.tileWidth && ty >= 0 && ty < this.tileHeight) {
+              this.exploredGrid[tx][ty] = true;
+            }
           }
         }
       }
@@ -2518,9 +2524,12 @@ export class LevelManager {
 
     const player = this.game?.player;
     const renderDist = this.game?.renderDistance || 1200;
+    const renderDistSq = renderDist * renderDist;
     const shouldCull = (wx, wy) => {
       if (!player) return false;
-      return Math.hypot(wx - player.x, wy - player.y) > renderDist;
+      const dx = wx - player.x;
+      const dy = wy - player.y;
+      return dx * dx + dy * dy > renderDistSq;
     };
 
     for (let tx = startTx; tx <= endTx; tx++) {
@@ -2528,14 +2537,15 @@ export class LevelManager {
       for (let ty = startTy; ty <= endTy; ty++) {
         const sy = Math.floor(ty / 50);
         const theme = (this.sectorThemes && this.sectorThemes[`${sx},${sy}`]) || 'dungeon';
-        
-        // Render distance check
-        if (shouldCull(tx * tileSize + tileSize / 2, ty * tileSize + tileSize / 2)) continue;
 
         // Draw floor if it's a floor tile (0) or door tile (3 - draws floor under the door object)
         if (this.tileGrid[tx][ty] === 0 || this.tileGrid[tx][ty] === 3) {
           const rx = tx * tileSize - camera.x;
           const ry = ty * tileSize - camera.y;
+
+          // Skip tiles fully off-screen
+          if (rx + tileSize < 0 || rx > canvasWidth || ry + tileSize < 0 || ry > canvasHeight) continue;
+          if (shouldCull(tx * tileSize + tileSize / 2, ty * tileSize + tileSize / 2)) continue;
           
           // Theme coloring & tileset variations to prevent visual uniformity
           const variant = (tx * 7 + ty * 13) % 4;
@@ -2810,9 +2820,12 @@ export class LevelManager {
     
     const player = this.game?.player;
     const renderDist = this.game?.renderDistance || 1200;
+    const renderDistSq = renderDist * renderDist;
     const shouldCull = (wx, wy) => {
       if (!player) return false;
-      return Math.hypot(wx - player.x, wy - player.y) > renderDist;
+      const dx = wx - player.x;
+      const dy = wy - player.y;
+      return dx * dx + dy * dy > renderDistSq;
     };
 
     // Draw outer boundary line
@@ -3255,6 +3268,21 @@ export class LevelManager {
 
   getNearbyTileBounds() {
     if (!this.tileGrid) return null;
+    const tileSize = 40;
+    const pad = 2;
+    const camera = this.game?.camera;
+    const canvas = this.game?.canvas;
+
+    // Tight camera viewport — avoids iterating ~22k tiles per frame
+    if (camera && canvas) {
+      return {
+        startTx: Math.max(0, Math.floor(camera.x / tileSize) - pad),
+        endTx: Math.min(this.tileWidth - 1, Math.ceil((camera.x + canvas.width) / tileSize) + pad),
+        startTy: Math.max(0, Math.floor(camera.y / tileSize) - pad),
+        endTy: Math.min(this.tileHeight - 1, Math.ceil((camera.y + canvas.height) / tileSize) + pad),
+      };
+    }
+
     const player = this.game?.player;
     if (!player) {
       return {
@@ -3265,19 +3293,12 @@ export class LevelManager {
       };
     }
 
-    const sectorSize = 50;
-    const currentSx = Math.max(0, Math.min(this.maxSectorCols - 1, Math.floor(player.x / (sectorSize * 40))));
-    const currentSy = Math.max(0, Math.min(this.maxSectorRows - 1, Math.floor(player.y / (sectorSize * 40))));
-    const startSx = Math.max(0, currentSx - 1);
-    const endSx = Math.min(this.maxSectorCols - 1, currentSx + 1);
-    const startSy = Math.max(0, currentSy - 1);
-    const endSy = Math.min(this.maxSectorRows - 1, currentSy + 1);
-
+    const margin = (this.game?.renderDistance || 1200) + tileSize * 2;
     return {
-      startTx: Math.max(0, startSx * sectorSize),
-      endTx: Math.min(this.tileWidth - 1, ((endSx + 1) * sectorSize) - 1),
-      startTy: Math.max(0, startSy * sectorSize),
-      endTy: Math.min(this.tileHeight - 1, ((endSy + 1) * sectorSize) - 1)
+      startTx: Math.max(0, Math.floor((player.x - margin) / tileSize)),
+      endTx: Math.min(this.tileWidth - 1, Math.ceil((player.x + margin) / tileSize)),
+      startTy: Math.max(0, Math.floor((player.y - margin) / tileSize)),
+      endTy: Math.min(this.tileHeight - 1, Math.ceil((player.y + margin) / tileSize)),
     };
   }
 
