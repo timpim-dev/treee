@@ -513,8 +513,15 @@ export class Game {
       if (lblSettingsRender) lblSettingsRender.innerText = text;
       if (sldSettingsRender) { sldSettingsRender.value = value; updateSliderFill(sldSettingsRender); }
       // Update obstacles filter instantly when render distance changes!
-      if (this.levelManager) {
-        this.levelManager.generateObstacles();
+      if (this.levelManager && this.player && this.levelManager.allObstacles) {
+        const px = this.player.x;
+        const py = this.player.y;
+        const distCutoffSq = this.renderDistance * this.renderDistance;
+        this.levelManager.obstacles = this.levelManager.allObstacles.filter(obs => {
+          const dx = obs.x - px;
+          const dy = obs.y - py;
+          return (dx * dx + dy * dy) <= distCutoffSq;
+        });
       }
       this.saveSettings();
     };
