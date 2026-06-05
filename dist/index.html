@@ -171,29 +171,7 @@
                             Tree (<span id="hud-ap-value">0</span> AP)
                         </button>
                     </div>
-                    <!-- Twitch Status Indicator -->
-                    <div
-                        class="resource-item"
-                        id="hud-twitch-notification"
-                        style="margin-left: 10px; display: none"
-                    >
-                        <div
-                            id="hud-twitch-status-badge"
-                            style="
-                                font-family: var(--font-pixel);
-                                font-size: 7px;
-                                color: #a970ff;
-                                background: rgba(145, 70, 255, 0.15);
-                                border: 2px solid #9146ff;
-                                padding: 4px 8px;
-                                border-radius: 0;
-                                box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
-                            "
-                            title="Connected to Twitch Chat"
-                        >
-                            TWITCH: OFF
-                        </div>
-                    </div>
+
                     <div class="resource-item" id="hud-devtools-notification">
                         <button
                             id="btn-devtools-toggle"
@@ -351,6 +329,36 @@
 
                 <!-- Twitch Chat Overlay (HTML) -->
                 <div id="hud-twitch-chat" class="hidden"></div>
+
+                <!-- Twitch Status Indicator -->
+                <div
+                    id="hud-twitch-notification"
+                    style="
+                        position: absolute;
+                        bottom: 20px;
+                        right: 20px;
+                        z-index: 15;
+                        pointer-events: auto;
+                        display: none;
+                    "
+                >
+                    <div
+                        id="hud-twitch-status-badge"
+                        style="
+                            font-family: var(--font-pixel);
+                            font-size: 7px;
+                            color: #a970ff;
+                            background: rgba(145, 70, 255, 0.15);
+                            border: 4px double #9146ff;
+                            padding: 6px 12px;
+                            border-radius: 0;
+                            box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.7);
+                        "
+                        title="Connected to Twitch Chat"
+                    >
+                        TWITCH: OFF
+                    </div>
+                </div>
             </div>
 
             <!-- UI Overlay Panels -->
