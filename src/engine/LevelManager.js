@@ -3,6 +3,13 @@
  */
 import { RELICS_CATALOG, EQUIPMENT_CATALOG, createScaledLootItem } from '../entities/Player.js';
 
+const A_STAR_DIRS = [
+  { dc: 0,  dr: -1, wall: 'north' },
+  { dc: 0,  dr:  1, wall: 'south' },
+  { dc:  1, dr: 0,  wall: 'east'  },
+  { dc: -1, dr: 0,  wall: 'west'  },
+];
+
 export class LevelManager {
   constructor(game) {
     this.game = game;
@@ -1257,18 +1264,14 @@ export class LevelManager {
     // Same cell — no waypoints needed
     if (sc.c === gc.c && sc.r === gc.r) return [];
 
-    const key = (c, r) => c * this.navRows + r;
-
     // Use sorted array for open set (descending f so pop() is lowest f)
     const open = [];
     const openMap = new Map(); // key -> node
     const closed = new Set();
 
-    const heuristic = (c, r) => Math.abs(c - gc.c) + Math.abs(r - gc.r);
-
-    const startNode = { c: sc.c, r: sc.r, g: 0, f: heuristic(sc.c, sc.r), parent: null };
+    const startNode = { c: sc.c, r: sc.r, g: 0, f: Math.abs(sc.c - gc.c) + Math.abs(sc.r - gc.r), parent: null };
     open.push(startNode);
-    openMap.set(key(sc.c, sc.r), startNode);
+    openMap.set(sc.c * this.navRows + sc.r, startNode);
 
     const insertSorted = (node) => {
       let low = 0;
@@ -1293,8 +1296,9 @@ export class LevelManager {
       }
 
       const best = open.pop();
-      openMap.delete(key(best.c, best.r));
-      closed.add(key(best.c, best.r));
+      const bestKey = best.c * this.navRows + best.r;
+      openMap.delete(bestKey);
+      closed.add(bestKey);
 
       if (best.c === gc.c && best.r === gc.r) {
         // Reconstruct path
@@ -1317,23 +1321,18 @@ export class LevelManager {
 
       // Expand neighbours through open walls
       const cell = this.navCells[best.c][best.r];
-      const dirs = [
-        { dc: 0,  dr: -1, wall: 'north' },
-        { dc: 0,  dr:  1, wall: 'south' },
-        { dc:  1, dr: 0,  wall: 'east'  },
-        { dc: -1, dr: 0,  wall: 'west'  },
-      ];
 
-      for (const { dc, dr, wall } of dirs) {
-        if (cell.walls[wall]) continue; // wall present — not passable
-        const nc = best.c + dc;
-        const nr = best.r + dr;
+      for (let i = 0; i < 4; i++) {
+        const dir = A_STAR_DIRS[i];
+        if (cell.walls[dir.wall]) continue; // wall present — not passable
+        const nc = best.c + dir.dc;
+        const nr = best.r + dir.dr;
         if (nc < 0 || nr < 0 || nc >= this.navCols || nr >= this.navRows) continue;
-        const nk = key(nc, nr);
+        const nk = nc * this.navRows + nr;
         if (closed.has(nk)) continue;
         
         const g = best.g + 1;
-        const f = g + heuristic(nc, nr);
+        const f = g + Math.abs(nc - gc.c) + Math.abs(nr - gc.r);
         
         if (!openMap.has(nk)) {
           const neighbor = { c: nc, r: nr, g, f, parent: best };

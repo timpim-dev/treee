@@ -753,9 +753,9 @@ export class Enemy {
 
     this._pathTimer -= dt;
 
-    if (this._pathTimer <= 0 || this._path.length === 0) {
+    if (this._pathTimer <= 0) {
       this._path = lvl.findPath(this.x, this.y, player.x, player.y);
-      this._pathTimer = PATH_REFRESH;
+      this._pathTimer = PATH_REFRESH + Math.random() * 0.15;
       const goalCell = lvl.worldToCell(player.x, player.y);
       this._lastGoalCell = goalCell;
     }

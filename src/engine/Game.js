@@ -4082,7 +4082,6 @@ export class Game {
             this.particles.createExplosion(item.x, item.y, '#eccc68', 6, 60, 2);
           }
           this.items.splice(i, 1);
-          this.updateHUD();
         }
       }
     }
