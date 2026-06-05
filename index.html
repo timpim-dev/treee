@@ -967,6 +967,40 @@
                     <h1>TWITCH INTEGRATION</h1>
                     <div class="menu-decor"></div>
 
+                    <!-- Master Toggle Checkbox for Streaming Mode -->
+                    <div
+                        class="setting-toggle-group"
+                        style="
+                            justify-content: center;
+                            display: flex;
+                            margin-bottom: 15px;
+                            background: rgba(145, 70, 255, 0.1);
+                            border: 2px dashed #9146ff;
+                            padding: 8px 12px;
+                            width: 100%;
+                            box-sizing: border-box;
+                        "
+                    >
+                        <label
+                            class="setting-toggle"
+                            style="
+                                font-size: 8px;
+                                cursor: pointer;
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                            "
+                        >
+                            <input
+                                type="checkbox"
+                                id="chk-twitch-enabled"
+                                checked
+                            />
+                            <span class="checkbox-custom"></span>
+                            <span style="color: #fff; text-shadow: 0 0 5px #9146ff; letter-spacing: 0.5px;">ENABLE STREAMING MODE (TWITCH)</span>
+                        </label>
+                    </div>
+
                     <!-- Status Indicator -->
                     <div
                         style="
@@ -1601,132 +1635,145 @@
             <!-- 7. RUNIC SHOP PANEL -->
             <div id="panel-shop" class="panel-overlay hidden">
                 <div class="menu-content wide text-center">
-                    <h1 class="text-glow">RUNIC SHOP</h1>
-                    <p class="shop-intro">
-                        Trade shards for upgrades to prepare for the next
-                        onslaught
-                    </p>
+                    <!-- Main Shop Column -->
+                    <div id="shop-main-column" style="flex: 2; display: flex; flex-direction: column; align-items: center; width: 100%;">
+                        <h1 class="text-glow">RUNIC SHOP</h1>
+                        <p class="shop-intro">
+                            Trade shards for upgrades to prepare for the next
+                            onslaught
+                        </p>
 
-                    <div class="shop-shards-display">
-                        Aether Shards:
-                        <canvas
-                            class="inline-icon"
-                            id="icon-shard-shop"
-                            width="12"
-                            height="12"
-                            draggable="false"
-                        ></canvas>
-                        <span id="shop-shards-value">0</span>
+                        <div class="shop-shards-display">
+                            Aether Shards:
+                            <canvas
+                                class="inline-icon"
+                                id="icon-shard-shop"
+                                width="12"
+                                height="12"
+                                draggable="false"
+                            ></canvas>
+                            <span id="shop-shards-value">0</span>
+                        </div>
+
+                        <div class="shop-grid">
+                            <!-- Item 1: HP Potion -->
+                            <div class="shop-item">
+                                <canvas
+                                    class="shop-item-canvas"
+                                    id="shop-canvas-hp"
+                                    width="32"
+                                    height="32"
+                                ></canvas>
+                                <h3>Health Potion</h3>
+                                <p>Restores 50 HP</p>
+                                <button id="btn-buy-hp" class="btn-menu small">
+                                    BUY (15 Shards)
+                                </button>
+                            </div>
+
+                            <!-- Item 2: MP Potion -->
+                            <div class="shop-item">
+                                <canvas
+                                    class="shop-item-canvas"
+                                    id="shop-canvas-mp"
+                                    width="32"
+                                    height="32"
+                                ></canvas>
+                                <h3>Mana Potion</h3>
+                                <p>Restores 30 Mana</p>
+                                <button id="btn-buy-mp" class="btn-menu small">
+                                    BUY (15 Shards)
+                                </button>
+                            </div>
+
+                            <!-- Item 3: Vitality Upgrade -->
+                            <div class="shop-item">
+                                <canvas
+                                    class="shop-item-canvas"
+                                    id="shop-canvas-vit"
+                                    width="32"
+                                    height="32"
+                                ></canvas>
+                                <h3>Runic Heart</h3>
+                                <p>Perm +15 Max HP</p>
+                                <button id="btn-buy-vit" class="btn-menu small">
+                                    BUY (40 Shards)
+                                </button>
+                            </div>
+
+                            <!-- Item 4: Mana Upgrade -->
+                            <div class="shop-item">
+                                <canvas
+                                    class="shop-item-canvas"
+                                    id="shop-canvas-mana"
+                                    width="32"
+                                    height="32"
+                                ></canvas>
+                                <h3>Mana Well</h3>
+                                <p>Perm +10 MP & +0.3/s Regen</p>
+                                <button id="btn-buy-mana" class="btn-menu small">
+                                    BUY (40 Shards)
+                                </button>
+                            </div>
+
+                            <!-- Item 5: Relic Chest -->
+                            <div class="shop-item" style="grid-column: span 2">
+                                <canvas
+                                    class="shop-item-canvas"
+                                    id="shop-canvas-relic"
+                                    width="32"
+                                    height="32"
+                                ></canvas>
+                                <h3>Relic Chest</h3>
+                                <p>Buy a random powerful Relic</p>
+                                <button id="btn-buy-relic" class="btn-menu small">
+                                    BUY (50 Shards)
+                                </button>
+                            </div>
+                        </div>
+
+                        <div
+                            class="menu-buttons"
+                            style="margin-top: 25px; width: auto"
+                        >
+                            <button id="btn-start-next-wave" class="btn-menu">
+                                START NEXT WAVE
+                            </button>
+                            <div
+                                id="shop-twitch-vote-status"
+                                style="
+                                    display: none;
+                                    margin-top: 12px;
+                                    font-family: var(--font-pixel);
+                                    font-size: 8px;
+                                    color: #a970ff;
+                                    text-shadow: 0 0 5px rgba(169, 112, 255, 0.5);
+                                "
+                            >
+                                TWITCH VOTE ACTIVE...
+                            </div>
+                            <div
+                                id="twitch-vote-waiting-msg"
+                                style="
+                                    display: none;
+                                    margin-top: 8px;
+                                    font-family: var(--font-pixel);
+                                    font-size: 8px;
+                                    color: #ff4757;
+                                "
+                            >
+                                Waiting for Twitch vote to finish...
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="shop-grid">
-                        <!-- Item 1: HP Potion -->
-                        <div class="shop-item">
-                            <canvas
-                                class="shop-item-canvas"
-                                id="shop-canvas-hp"
-                                width="32"
-                                height="32"
-                            ></canvas>
-                            <h3>Health Potion</h3>
-                            <p>Restores 50 HP</p>
-                            <button id="btn-buy-hp" class="btn-menu small">
-                                BUY (15 Shards)
-                            </button>
-                        </div>
-
-                        <!-- Item 2: MP Potion -->
-                        <div class="shop-item">
-                            <canvas
-                                class="shop-item-canvas"
-                                id="shop-canvas-mp"
-                                width="32"
-                                height="32"
-                            ></canvas>
-                            <h3>Mana Potion</h3>
-                            <p>Restores 30 Mana</p>
-                            <button id="btn-buy-mp" class="btn-menu small">
-                                BUY (15 Shards)
-                            </button>
-                        </div>
-
-                        <!-- Item 3: Vitality Upgrade -->
-                        <div class="shop-item">
-                            <canvas
-                                class="shop-item-canvas"
-                                id="shop-canvas-vit"
-                                width="32"
-                                height="32"
-                            ></canvas>
-                            <h3>Runic Heart</h3>
-                            <p>Perm +15 Max HP</p>
-                            <button id="btn-buy-vit" class="btn-menu small">
-                                BUY (40 Shards)
-                            </button>
-                        </div>
-
-                        <!-- Item 4: Mana Upgrade -->
-                        <div class="shop-item">
-                            <canvas
-                                class="shop-item-canvas"
-                                id="shop-canvas-mana"
-                                width="32"
-                                height="32"
-                            ></canvas>
-                            <h3>Mana Well</h3>
-                            <p>Perm +10 MP & +0.3/s Regen</p>
-                            <button id="btn-buy-mana" class="btn-menu small">
-                                BUY (40 Shards)
-                            </button>
-                        </div>
-
-                        <!-- Item 5: Relic Chest -->
-                        <div class="shop-item" style="grid-column: span 2">
-                            <canvas
-                                class="shop-item-canvas"
-                                id="shop-canvas-relic"
-                                width="32"
-                                height="32"
-                            ></canvas>
-                            <h3>Relic Chest</h3>
-                            <p>Buy a random powerful Relic</p>
-                            <button id="btn-buy-relic" class="btn-menu small">
-                                BUY (50 Shards)
-                            </button>
-                        </div>
-                    </div>
-
-                    <div
-                        class="menu-buttons"
-                        style="margin-top: 25px; width: auto"
-                    >
-                        <button id="btn-start-next-wave" class="btn-menu">
-                            START NEXT WAVE
-                        </button>
-                        <div
-                            id="shop-twitch-vote-status"
-                            style="
-                                display: none;
-                                margin-top: 12px;
-                                font-family: var(--font-pixel);
-                                font-size: 8px;
-                                color: #a970ff;
-                                text-shadow: 0 0 5px rgba(169, 112, 255, 0.5);
-                            "
-                        >
-                            TWITCH VOTE ACTIVE...
-                        </div>
-                        <div
-                            id="twitch-vote-waiting-msg"
-                            style="
-                                display: none;
-                                margin-top: 8px;
-                                font-family: var(--font-pixel);
-                                font-size: 8px;
-                                color: #ff4757;
-                            "
-                        >
-                            Waiting for Twitch vote to finish...
+                    <!-- Twitch Vote Side Panel -->
+                    <div id="shop-twitch-sidepanel" style="flex: 1; min-width: 240px; border-left: 4px double rgba(145, 70, 255, 0.4); padding-left: 20px; margin-left: 20px; display: none; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; box-sizing: border-box;">
+                        <h2 style="font-family: var(--font-pixel); font-size: 9px; color: #a970ff; text-shadow: 0 0 5px rgba(169, 112, 255, 0.4); margin-bottom: 20px; letter-spacing: 0.5px;">TWITCH VOTE</h2>
+                        <div id="shop-vote-timer" style="font-family: var(--font-pixel); font-size: 16px; color: #fff; margin-bottom: 25px; text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);">00:20</div>
+                        <div style="font-size: 7px; color: #a4b0be; margin-bottom: 20px; line-height: 1.5; font-family: var(--font-pixel);">VOTE FOR THE NEXT SECTOR THEME IN CHAT:</div>
+                        <div id="shop-vote-options-list" style="width: 100%; display: flex; flex-direction: column; gap: 12px;">
+                            <!-- Populated dynamically by Game.js loop -->
                         </div>
                     </div>
                 </div>

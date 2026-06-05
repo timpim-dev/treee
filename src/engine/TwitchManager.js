@@ -54,6 +54,7 @@ export class TwitchManager {
 
     this.enableAnnouncements = true;
     this.isAnonymous = true;
+    this.enabled = true;
 
     // Load settings from localStorage
     this.loadSettings();
@@ -63,6 +64,10 @@ export class TwitchManager {
    * Connect to Twitch IRC
    */
   connect(channelName) {
+    if (!this.enabled) {
+      console.log('[Twitch] Connection blocked because Twitch integration is disabled.');
+      return;
+    }
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.disconnect();
     }
@@ -636,6 +641,7 @@ export class TwitchManager {
       if (saved) {
         const data = JSON.parse(saved);
         if (data.channel) this.channel = data.channel;
+        if (data.enabled !== undefined) this.enabled = data.enabled;
         if (data.enableAnnouncements !== undefined) this.enableAnnouncements = data.enableAnnouncements;
         if (data.chatFontSize !== undefined) this.chatFontSize = data.chatFontSize;
         if (data.voteDuration !== undefined) this.voteDuration = data.voteDuration;
@@ -653,7 +659,7 @@ export class TwitchManager {
             }
           }
         }
-        if (data.autoConnect && data.channel) {
+        if (data.autoConnect && data.channel && this.enabled !== false) {
           // Auto-connect on load
           setTimeout(() => this.connect(data.channel), 1000);
         }
@@ -668,6 +674,7 @@ export class TwitchManager {
       const data = {
         channel: this.channel,
         autoConnect: this.connected,
+        enabled: this.enabled !== false,
         enableAnnouncements: this.enableAnnouncements,
         chatFontSize: this.chatFontSize,
         voteDuration: this.voteDuration,

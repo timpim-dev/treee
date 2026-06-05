@@ -131,7 +131,7 @@ export class Game {
     // Check for Twitch URL parameter ?channel=username
     const urlParams = new URLSearchParams(window.location.search);
     const channelParam = urlParams.get('channel');
-    if (channelParam) {
+    if (channelParam && this.twitchManager.enabled !== false) {
       console.log(`[Twitch] Auto-connecting to channel from URL parameter: ${channelParam}`);
       this.twitchManager.connect(channelParam);
       this.pbClient.getStreamerBySlug(channelParam).then(res => {
@@ -1164,8 +1164,41 @@ export class Game {
     const pbStatusMsg = document.getElementById('pb-status-msg');
 
     const populateTwitchSettingsUI = () => {
+      const chkTwitchEnabled = document.getElementById('chk-twitch-enabled');
+      if (chkTwitchEnabled) {
+        chkTwitchEnabled.checked = this.twitchManager.enabled !== false;
+      }
+
+      const isTwitchActive = this.twitchManager.enabled !== false;
+      
       const chkAnnounce = document.getElementById('chk-twitch-announcements');
-      if (chkAnnounce) chkAnnounce.checked = this.twitchManager.enableAnnouncements;
+      if (chkAnnounce) {
+        chkAnnounce.checked = this.twitchManager.enableAnnouncements;
+        chkAnnounce.disabled = !isTwitchActive;
+        chkAnnounce.parentElement.style.opacity = isTwitchActive ? '1' : '0.5';
+      }
+
+      const inputs = [
+        'twitch-chat-size',
+        'twitch-vote-duration',
+        'twitch-msg-wave',
+        'twitch-msg-vote',
+        'twitch-msg-winner'
+      ];
+      inputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.disabled = !isTwitchActive;
+          el.style.opacity = isTwitchActive ? '1' : '0.5';
+        }
+      });
+      
+      const btnTwitchLoginOauth = document.getElementById('btn-twitch-login-oauth');
+      if (btnTwitchLoginOauth) {
+        btnTwitchLoginOauth.disabled = !isTwitchActive;
+        btnTwitchLoginOauth.style.opacity = isTwitchActive ? '1' : '0.5';
+        btnTwitchLoginOauth.style.pointerEvents = isTwitchActive ? 'auto' : 'none';
+      }
 
       const chatSizeInput = document.getElementById('twitch-chat-size');
       if (chatSizeInput) chatSizeInput.value = this.twitchManager.chatFontSize || 10;
@@ -1186,6 +1219,9 @@ export class Game {
       const listContainer = document.getElementById('twitch-commands-list');
       if (listContainer) {
         listContainer.innerHTML = '';
+        listContainer.style.opacity = isTwitchActive ? '1' : '0.5';
+        listContainer.style.pointerEvents = isTwitchActive ? 'auto' : 'none';
+        
         for (const [cmdName, cmdDef] of Object.entries(this.twitchManager.commands)) {
           const row = document.createElement('div');
           row.className = 'devtools-row';
@@ -1201,12 +1237,12 @@ export class Game {
           row.innerHTML = `
             <span style="width: 80px; font-family: var(--font-mono); color: #fff;">!${cmdName}</span>
             <label class="setting-toggle" style="width: 50px; display: flex; justify-content: center; margin: 0; cursor: pointer;">
-              <input type="checkbox" class="cmd-enabled" data-cmd="${cmdName}" ${cmdDef.enabled ? 'checked' : ''}>
+              <input type="checkbox" class="cmd-enabled" data-cmd="${cmdName}" ${cmdDef.enabled ? 'checked' : ''} ${!isTwitchActive ? 'disabled' : ''}>
               <span class="checkbox-custom"></span>
             </label>
-            <input type="number" class="cmd-cooldown devtools-input" data-cmd="${cmdName}" min="0" max="600" value="${cmdDef.cooldown}" style="width: 60px; text-align: center; margin: 0 5px; padding: 4px; font-size: 8px;">
-            <input type="number" class="cmd-bits devtools-input" data-cmd="${cmdName}" min="0" max="100000" value="${cmdDef.bits || 0}" style="width: 60px; text-align: center; margin: 0 5px; padding: 4px; font-size: 8px;">
-            <input type="text" class="cmd-redeem devtools-input" data-cmd="${cmdName}" value="${cmdDef.redeemId || ''}" placeholder="Reward ID" style="width: 140px; text-align: center; margin-left: 5px; padding: 4px; font-size: 8px;">
+            <input type="number" class="cmd-cooldown devtools-input" data-cmd="${cmdName}" min="0" max="600" value="${cmdDef.cooldown}" ${!isTwitchActive ? 'disabled' : ''} style="width: 60px; text-align: center; margin: 0 5px; padding: 4px; font-size: 8px;">
+            <input type="number" class="cmd-bits devtools-input" data-cmd="${cmdName}" min="0" max="100000" value="${cmdDef.bits || 0}" ${!isTwitchActive ? 'disabled' : ''} style="width: 60px; text-align: center; margin: 0 5px; padding: 4px; font-size: 8px;">
+            <input type="text" class="cmd-redeem devtools-input" data-cmd="${cmdName}" value="${cmdDef.redeemId || ''}" placeholder="Reward ID" ${!isTwitchActive ? 'disabled' : ''} style="width: 140px; text-align: center; margin-left: 5px; padding: 4px; font-size: 8px;">
           `;
           listContainer.appendChild(row);
         }
@@ -1214,7 +1250,12 @@ export class Game {
     };
 
     const updateTwitchUI = () => {
-      if (this.twitchManager.connected) {
+      if (this.twitchManager.enabled === false) {
+        twitchStatusLbl.innerText = "DISABLED";
+        twitchStatusLbl.style.color = '#7f8c8d';
+        twitchStatusLbl.style.textShadow = 'none';
+        if (btnTwitchConnect) btnTwitchConnect.innerText = "CONNECT";
+      } else if (this.twitchManager.connected) {
         twitchStatusLbl.innerText = `CONNECTED TO #${this.twitchManager.channel.toUpperCase()}`;
         twitchStatusLbl.style.color = '#2ecc71';
         twitchStatusLbl.style.textShadow = '0 0 5px rgba(46,204,113,0.5)';
@@ -1252,6 +1293,21 @@ export class Game {
     if (btnTwitchConnect) btnTwitchConnect.style.display = 'none';
     const autoconnectRow = document.getElementById('chk-twitch-autoconnect')?.parentElement?.parentElement;
     if (autoconnectRow) autoconnectRow.style.display = 'none';
+
+    // Hook up chk-twitch-enabled master switch
+    const chkTwitchEnabled = document.getElementById('chk-twitch-enabled');
+    if (chkTwitchEnabled) {
+      chkTwitchEnabled.addEventListener('change', (e) => {
+        const isEnabled = e.target.checked;
+        this.twitchManager.enabled = isEnabled;
+        if (!isEnabled) {
+          this.twitchManager.disconnect();
+        }
+        this.saveTwitchManagerSettings();
+        updateTwitchUI();
+        this.updateTwitchStatus();
+      });
+    }
 
     // Hook up the Login with Twitch OAuth button
     const btnTwitchLoginOauth = document.getElementById('btn-twitch-login-oauth');
@@ -3365,9 +3421,10 @@ export class Game {
     }
 
     if (this.state === 'SHOP') {
+      this.updateShopVoteUI();
       const statusLbl = document.getElementById('shop-twitch-vote-status');
       const waitingMsg = document.getElementById('twitch-vote-waiting-msg');
-      if (this.twitchManager && this.twitchManager.connected && this.twitchManager.voteActive) {
+      if (this.twitchManager && this.twitchManager.enabled !== false && this.twitchManager.connected && this.twitchManager.voteActive) {
         if (statusLbl) {
           statusLbl.style.display = 'block';
           statusLbl.innerText = `TWITCH VOTE ACTIVE... (${Math.ceil(this.twitchManager.voteTimer)}s remaining)`;
@@ -5388,7 +5445,7 @@ export class Game {
     const chatOverlay = document.getElementById('hud-twitch-chat');
     
     if (badge && container) {
-      if (this.twitchManager && this.twitchManager.connected) {
+      if (this.twitchManager && this.twitchManager.enabled !== false && this.twitchManager.connected) {
         container.style.display = 'block';
         badge.innerText = `TWITCH: #${this.twitchManager.channel.toUpperCase()}`;
         badge.style.borderColor = '#9146FF';
@@ -5400,6 +5457,53 @@ export class Game {
         badge.innerText = 'TWITCH: OFF';
         if (chatOverlay) chatOverlay.classList.add('hidden');
       }
+    }
+  }
+
+  updateShopVoteUI() {
+    const sidePanel = document.getElementById('shop-twitch-sidepanel');
+    const shopContent = document.querySelector('#panel-shop .menu-content');
+    
+    if (this.twitchManager && this.twitchManager.enabled !== false && this.twitchManager.connected && this.twitchManager.voteActive) {
+      if (sidePanel) sidePanel.style.display = 'flex';
+      if (shopContent) shopContent.style.flexDirection = 'row';
+      
+      const timerEl = document.getElementById('shop-vote-timer');
+      if (timerEl) {
+        timerEl.innerText = `00:${String(Math.ceil(this.twitchManager.voteTimer)).padStart(2, '0')}`;
+      }
+      
+      const optionsList = document.getElementById('shop-vote-options-list');
+      if (optionsList) {
+        // Calculate total votes to show percentages
+        let totalVotes = 0;
+        for (const count of Object.values(this.twitchManager.votes)) {
+          totalVotes += count;
+        }
+        
+        // Build HTML for options with progress bars using theme-specific coloring
+        let html = '';
+        this.twitchManager.voteOptions.forEach(opt => {
+          const count = this.twitchManager.votes[opt] || 0;
+          const pct = totalVotes > 0 ? (count / totalVotes) * 100 : 0;
+          const themeColors = { dungeon: '#95a5a6', gardens: '#2ecc71', underground: '#e67e22', pool: '#3498db', volcanic: '#e74c3c', void_rift: '#a55eea' };
+          const color = themeColors[opt] || '#9146ff';
+          
+          html += `
+            <div style="border: 2px solid ${color}; background: rgba(10, 11, 22, 0.7); padding: 8px 12px; font-family: var(--font-pixel); font-size: 8px; text-align: left; position: relative; overflow: hidden; height: 34px; display: flex; align-items: center; box-shadow: 2px 2px 0 rgba(0,0,0,0.6);">
+              <div style="position: absolute; top: 0; left: 0; height: 100%; width: ${pct}%; background: ${color}; opacity: 0.25; z-index: 1; transition: width 0.2s ease-out;"></div>
+              <div style="position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <span style="color: #fff; text-shadow: 1px 1px 0 #000; font-family: var(--font-pixel); font-size: 8px;">!vote ${opt}</span>
+                <span style="color: ${color}; font-weight: bold; text-shadow: 1px 1px 0 #000; font-family: var(--font-pixel); font-size: 8px;">${count}</span>
+              </div>
+            </div>
+          `;
+        });
+        optionsList.innerHTML = html;
+      }
+    } else {
+      if (sidePanel) sidePanel.style.display = 'none';
+      if (shopContent) shopContent.style.flexDirection = 'column';
     }
   }
 
