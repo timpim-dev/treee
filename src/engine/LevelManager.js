@@ -3398,8 +3398,9 @@ export class LevelManager {
         const theme =
           (this.sectorThemes && this.sectorThemes[`${sx},${sy}`]) || "dungeon";
 
-        // Draw floor if it's a floor tile (0) or door tile (3 - draws floor under the door object)
-        if (this.tileGrid[tx][ty] === 0 || this.tileGrid[tx][ty] === 3) {
+        // Draw base floor under the tile. Draw for all tile types so angled/partial wall sprites reveal floor beneath.
+        const tileValForBase = this.tileGrid[tx][ty];
+        if (tileValForBase !== 2) { // 2 = runic special floor (handled separately below)
           const rx = tx * tileSize - camera.x;
           const ry = ty * tileSize - camera.y;
 
@@ -3507,6 +3508,7 @@ export class LevelManager {
               ctx.fillRect(rx + 12, ry + 22, 2, 2);
             }
           }
+        }
 
           // ── Rich per-theme floor decorations (visual only) ──────────
           const hash = (tx * 17 + ty * 31) % 100;
