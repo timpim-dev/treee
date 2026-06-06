@@ -47,158 +47,85 @@ const THEME_MAPPING = {
   backrooms: "walls-backrooms",
 };
 
+// Wall autotile mapping copied from examples\tools/path_tileset.tres.
+// The .tres uses 16x16 atlas coordinates and Godot terrain peering bits:
+// top/bottom/left/right sides plus diagonal corner joints only when both
+// adjacent cardinal sides are present.
 const WALL_TILE_COORDS = {
-  fill: [16, 16],
-  top: [16, 0],
-  bottom: [16, 32],
-  left: [0, 16],
-  right: [32, 16],
-  topLeft: [0, 0],
-  topRight: [32, 0],
-  bottomLeft: [0, 32],
-  bottomRight: [32, 32],
-  topleftright: [48, 0],
-  leftright: [16, 48],
-  bottomleftright: [48, 32],
-  lefttopbottom: [0, 48],
-  topbottom: [48, 16],
-  righttopbottom: [32, 48],
-  topottomleftright: [48, 48],
-  topleftJointbottomright: [64, 0],
-  toprightJointbottomleft: [112, 0],
-  topjointbottomright: [80, 0],
-  topjointbottomleft: [96, 0],
-  leftJointbottomright: [64, 16],
-  Jointbottomright: [80, 16],
-  jointbottomleft: [96, 16],
-  rightJointbottomleft: [112, 16],
-  leftJointtopright: [64, 32],
-  Jointtopleft: [80, 32],
-  Jointtopright: [96, 32],
-  rightJointtopleft: [112, 32],
-  bottomleftJointtopright: [64, 48],
-  bottomJointtopright: [80, 48],
-  bottomjointtopleft: [96, 48],
-  bottomrightJointtopleft: [112, 48],
-  leftjointtoprightjointbottomright: [64, 64],
-  jointtoprightjointbottomright: [80, 64],
-  jointtopleftjointbottomleft: [96, 64],
-  rightjointtopleftjointbottomleft: [112, 64],
-  topjointbottomrightjointbottomleft: [128, 0],
-  jointbottomleftjointbottomright: [128, 16],
-  jointtopleftjointtopright: [128, 32],
-  bottomjointtopleftjointtopright: [128, 48],
-  jointtopleftjointbottomright: [144, 0],
-  jointtoprightjointbottomleft: [144, 16],
-  jointtopleftjointtoprightjointbottomleft: [144, 32],
-  jointtopleftjointbottomrightjointbottomleft: [144, 48],
-  jointtopleftjointtoprightjointbottomright: [160, 32],
-  jointtoprightjointbottomleftjointbottomright: [160, 48],
+  "bottom|right|br": [0, 0],
+  "bottom|left|right|bl|br": [16, 0],
+  "bottom|left|bl": [32, 0],
+  "bottom": [48, 0],
+  "bottom|right": [64, 0],
+  "bottom|left|right|bl": [80, 0],
+  "bottom|left|right|br": [96, 0],
+  "bottom|left": [112, 0],
+  "bottom|left|right": [128, 0],
+  "top|bottom|left|right|tl|br": [144, 0],
+  "top|bottom|right|tr|br": [0, 16],
+  "top|bottom|left|right|tl|tr|bl|br": [16, 16],
+  "top|bottom|left|tl|bl": [32, 16],
+  "top|bottom": [48, 16],
+  "top|bottom|right|tr": [64, 16],
+  "top|bottom|left|right|tl|tr|bl": [80, 16],
+  "top|bottom|left|right|tl|tr|br": [96, 16],
+  "top|bottom|left|tl": [112, 16],
+  "top|bottom|left|right|tl|tr": [128, 16],
+  "top|bottom|left|right|tr|bl": [144, 16],
+  "top|right|tr": [0, 32],
+  "top|left|right|tl|tr": [16, 32],
+  "top|left|tl": [32, 32],
+  "top": [48, 32],
+  "top|bottom|right|br": [64, 32],
+  "top|bottom|left|right|tl|bl|br": [80, 32],
+  "top|bottom|left|right|tr|bl|br": [96, 32],
+  "top|bottom|left|bl": [112, 32],
+  "top|bottom|left|right|bl|br": [128, 32],
+  "top|bottom|left|right|br": [144, 32],
+  "top|bottom|left|right|bl": [160, 32],
+  "right": [0, 48],
+  "left|right": [16, 48],
+  "left": [32, 48],
+  "": [48, 48],
+  "top|right": [64, 48],
+  "top|left|right|tl": [80, 48],
+  "top|left|right|tr": [96, 48],
+  "top|left": [112, 48],
+  "top|left|right": [128, 48],
+  "top|bottom|left|right|tr": [144, 48],
+  "top|bottom|left|right|tl": [160, 48],
+  "top|bottom|right": [64, 64],
+  "top|bottom|left|right|tl|bl": [80, 64],
+  "top|bottom|left|right|tr|br": [96, 64],
+  "top|bottom|left": [112, 64],
+  "top|bottom|left|right": [128, 64],
 };
 
+const WALL_TILE_KEY_ORDER = ["top", "bottom", "left", "right", "tl", "tr", "bl", "br"];
+
 function getWallTile(neighbors) {
-  const { top, bottom, left, right, tl, tr, bl, br } = neighbors;
+  const top = !!neighbors.top;
+  const bottom = !!neighbors.bottom;
+  const left = !!neighbors.left;
+  const right = !!neighbors.right;
 
-  // 1. No cardinal neighbors
-  if (!top && !bottom && !left && !right) {
-    return WALL_TILE_COORDS.topottomleftright;
-  }
-  // 2. One cardinal neighbor
-  if (!top && bottom && left && right) return WALL_TILE_COORDS.top;
-  if (top && !bottom && left && right) return WALL_TILE_COORDS.bottom;
-  if (top && bottom && !left && right) return WALL_TILE_COORDS.left;
-  if (top && bottom && left && !right) return WALL_TILE_COORDS.right;
-  // 3. Two cardinal neighbors — opposite
-  if (top && bottom && !left && !right) return WALL_TILE_COORDS.topbottom;
-  if (!top && !bottom && left && right) return WALL_TILE_COORDS.leftright;
+  const keyParts = [];
+  if (top) keyParts.push("top");
+  if (bottom) keyParts.push("bottom");
+  if (left) keyParts.push("left");
+  if (right) keyParts.push("right");
 
-  // 4. Two cardinal neighbors — corners (check diagonal corner for joint)
-  if (!top && bottom && !left && right) {
-    if (!br) return WALL_TILE_COORDS.topleftJointbottomright;
-    return WALL_TILE_COORDS.topLeft;
-  }
-  if (!top && bottom && left && !right) {
-    if (!bl) return WALL_TILE_COORDS.toprightJointbottomleft;
-    return WALL_TILE_COORDS.topRight;
-  }
-  if (top && !bottom && !left && right) {
-    if (!tr) return WALL_TILE_COORDS.bottomleftJointtopright;
-    return WALL_TILE_COORDS.bottomLeft;
-  }
-  if (top && !bottom && left && !right) {
-    if (!tl) return WALL_TILE_COORDS.bottomrightJointtopleft;
-    return WALL_TILE_COORDS.bottomRight;
-  }
+  // Godot's terrain peering corner bits are only meaningful when both
+  // adjacent side bits exist. This prevents stray diagonal walls from
+  // selecting a joint tile that the reference TileSet would never select.
+  if (top && left && neighbors.tl) keyParts.push("tl");
+  if (top && right && neighbors.tr) keyParts.push("tr");
+  if (bottom && left && neighbors.bl) keyParts.push("bl");
+  if (bottom && right && neighbors.br) keyParts.push("br");
 
-  // 5. Three cardinal neighbors (check diagonals for joints)
-  if (!top && bottom && left && right) {
-    if (!bl && !br) return WALL_TILE_COORDS.topjointbottomrightjointbottomleft;
-    if (!bl) return WALL_TILE_COORDS.topjointbottomleft;
-    if (!br) return WALL_TILE_COORDS.topjointbottomright;
-    return WALL_TILE_COORDS.top;
-  }
-  if (top && !bottom && left && right) {
-    if (!tl && !tr) return WALL_TILE_COORDS.bottomjointtopleftjointtopright;
-    if (!tl) return WALL_TILE_COORDS.bottomjointtopleft;
-    if (!tr) return WALL_TILE_COORDS.bottomJointtopright;
-    return WALL_TILE_COORDS.bottom;
-  }
-  if (top && bottom && !left && right) {
-    if (!tr && !br) return WALL_TILE_COORDS.leftjointtoprightjointbottomright;
-    if (!tr) return WALL_TILE_COORDS.leftJointtopright;
-    if (!br) return WALL_TILE_COORDS.leftJointbottomright;
-    return WALL_TILE_COORDS.left;
-  }
-  if (top && bottom && left && !right) {
-    if (!tl && !bl) return WALL_TILE_COORDS.rightjointtopleftjointbottomleft;
-    if (!tl) return WALL_TILE_COORDS.rightJointtopleft;
-    if (!bl) return WALL_TILE_COORDS.rightJointbottomleft;
-    return WALL_TILE_COORDS.right;
-  }
-
-  // 6. All four cardinal neighbors — check diagonals for joints
-  if (top && bottom && left && right) {
-    // No joints
-    if (tl && tr && bl && br) return WALL_TILE_COORDS.fill;
-
-    // One joint
-    if (!tl && tr && bl && br) return WALL_TILE_COORDS.Jointtopleft;
-    if (tl && !tr && bl && br) return WALL_TILE_COORDS.Jointtopright;
-    if (tl && tr && !bl && br) return WALL_TILE_COORDS.jointbottomleft;
-    if (tl && tr && bl && !br) return WALL_TILE_COORDS.Jointbottomright;
-
-    // Two joints — same side
-    if (!tl && !tr && bl && br)
-      return WALL_TILE_COORDS.jointtopleftjointtopright;
-    if (tl && tr && !bl && !br)
-      return WALL_TILE_COORDS.jointbottomleftjointbottomright;
-    if (!tl && tr && !bl && br)
-      return WALL_TILE_COORDS.jointtopleftjointbottomright;
-    if (tl && !tr && bl && !br)
-      return WALL_TILE_COORDS.jointtoprightjointbottomleft;
-
-    // Two joints — opposite diagonals
-    if (tl && !tr && !bl && br)
-      return WALL_TILE_COORDS.jointtoprightjointbottomleft;
-    if (!tl && tr && bl && !br)
-      return WALL_TILE_COORDS.jointtopleftjointbottomright;
-
-    // Three joints
-    if (tl && !tr && !bl && !br)
-      return WALL_TILE_COORDS.jointtoprightjointbottomleftjointbottomright;
-    if (!tl && tr && !bl && !br)
-      return WALL_TILE_COORDS.jointtopleftjointbottomrightjointbottomleft;
-    if (!tl && !tr && bl && !br)
-      return WALL_TILE_COORDS.jointtopleftjointtoprightjointbottomright;
-    if (!tl && !tr && !bl && br)
-      return WALL_TILE_COORDS.jointtopleftjointtoprightjointbottomleft;
-
-    // All four joints
-    if (!tl && !tr && !bl && !br) return WALL_TILE_COORDS.topottomleftright;
-  }
-
-  // Fallback to avoid returning undefined
-  return WALL_TILE_COORDS.fill;
+  keyParts.sort((a, b) => WALL_TILE_KEY_ORDER.indexOf(a) - WALL_TILE_KEY_ORDER.indexOf(b));
+  const key = keyParts.join("|");
+  return WALL_TILE_COORDS[key] || WALL_TILE_COORDS[""];
 }
 
 // Expose variables globally for compatibility and verification
