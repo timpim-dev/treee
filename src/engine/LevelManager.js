@@ -3159,6 +3159,10 @@ export class LevelManager {
           const bottom = ty < this.tileHeight - 1 ? this.tileGrid[tx][ty + 1] === 1 : false;
           const left = tx > 0 ? this.tileGrid[tx - 1][ty] === 1 : false;
           const right = tx < this.tileWidth - 1 ? this.tileGrid[tx + 1][ty] === 1 : false;
+          const N = top;
+          const S = bottom;
+          const W = left;
+          const E = right;
           const theme = (this.sectorThemes && this.sectorThemes[`${Math.floor(tx / 50)},${Math.floor(ty / 50)}`]) || 'dungeon';
 
           const [srcX, srcY] = getWallTile({ top, bottom, left, right });
