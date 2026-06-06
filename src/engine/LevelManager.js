@@ -3508,8 +3508,6 @@ export class LevelManager {
               ctx.fillRect(rx + 12, ry + 22, 2, 2);
             }
           }
-        }
-
           // ── Rich per-theme floor decorations (visual only) ──────────
           const hash = (tx * 17 + ty * 31) % 100;
           const hash2 = (tx * 53 + ty * 11) % 100;
