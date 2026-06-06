@@ -3225,7 +3225,8 @@ export class LevelManager {
             srcY = tile.row * 16;
           }
 
-          const themeName = window.currentTheme || THEME_MAPPING[theme] || 'walls-light';
+          const themeName = THEME_MAPPING[theme] || 'walls-light';
+          window.currentTheme = themeName;
           const sheet = WALL_SHEETS[themeName];
           if (sheet && sheet.complete && sheet.naturalWidth !== 0) {
             // Draw tile scaled to tileSize (40px)

@@ -804,8 +804,8 @@ tr:hover td {
   font-weight: bold;
 }
 
-/* Submit Score Section */
-#leaderboard-submission-box {
+/* Death screen login prompt */
+#deathscreen-login-box {
   width: 100%;
   margin: 15px 0;
   padding: 15px;
@@ -814,33 +814,26 @@ tr:hover td {
   border-radius: 8px;
 }
 
-#leaderboard-submission-box h3 {
+#deathscreen-login-box h3 {
   font-family: var(--font-header);
   font-size: 13px;
   margin-bottom: 10px;
   color: var(--text-primary);
 }
 
-.input-group {
-  display: flex;
-  gap: 10px;
+.deathscreen-login-copy {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin: 0;
 }
 
-#player-name-input {
-  flex-grow: 1;
-  background: rgba(0,0,0,0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  padding: 10px;
-  color: #fff;
-  font-family: var(--font-header);
-  font-size: 14px;
-  outline: none;
-}
-
-#player-name-input:focus {
-  border-color: var(--color-aether);
-  box-shadow: 0 0 5px rgba(125, 95, 255, 0.3);
+.deathscreen-login-note {
+  margin-top: 10px;
+  font-size: 8px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #888;
 }
 
 .btn-menu.small {
@@ -2832,7 +2825,6 @@ tr:hover td {
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
   color: #dfe7ff;
 }
-
 
 
 

@@ -843,6 +843,13 @@ export class Game {
     document.getElementById('btn-go-to-menu').addEventListener('click', () => {
       this.setState('MENU');
     });
+    const btnGameOverAccount = document.getElementById('btn-gameover-account');
+    if (btnGameOverAccount) {
+      btnGameOverAccount.addEventListener('click', () => {
+        this.setState('PLAYER_ACCOUNT');
+        this.updatePlayerAccountUI();
+      });
+    }
 
     // Rebirth Button
     document.getElementById('btn-rebirth').addEventListener('click', () => {
@@ -861,11 +868,6 @@ export class Game {
           this.twitchManager.sendMessage(`[Aetherweaver] Streamer has achieved Rebirth ${this.player.rebirthCount}! Aether reborn! Permanent bonuses unlocked!`);
         }
       }
-    });
-
-    // Score Submission
-    document.getElementById('btn-submit-score').addEventListener('click', () => {
-      this.submitHighScore();
     });
 
     // Runic Shop Buttons
@@ -2670,10 +2672,18 @@ export class Game {
       this.twitchManager.sendMessage(`[Aetherweaver] Run ended! Streamer was defeated on Wave ${this.levelManager.wave} with a final score of ${this.score}. Type !gg to console the wizard!`);
     }
 
-    // Reset submission panel
-    document.getElementById('leaderboard-submission-box').classList.remove('hidden');
-    document.getElementById('submit-status').classList.add('hidden');
-    document.getElementById('player-name-input').value = '';
+    const submitStatus = document.getElementById('submit-status');
+    if (submitStatus) {
+      submitStatus.classList.add('hidden');
+      submitStatus.innerText = '';
+    }
+
+    const loginNote = document.querySelector('#deathscreen-login-box .deathscreen-login-note');
+    if (loginNote) {
+      loginNote.innerText = this.pbClient.isPlayerAuthenticated()
+        ? 'You are logged in. Open Player Account to review your cloud profile.'
+        : 'Google login is coming soon.';
+    }
 
     // Show rebirth panel if player is eligible (level 10+)
     const rebirthPanel = document.getElementById('rebirth-panel');
@@ -3089,27 +3099,16 @@ export class Game {
   // LEADERBOARD INTEGRATION
   // ----------------------------------------------------
   fetchLeaderboard() {
-    fetch('/api/leaderboard')
+    fetch(`${this.pbClient.baseUrl}/api/collections/ag_leaderboard/records?sort=-score&limit=10`)
       .then((res) => res.json())
       .then((data) => {
-        this.renderLeaderboardRows(data);
+        const items = data.items || [];
+        this.renderLeaderboardRows(items);
       })
-      .catch((e) => {
-        console.warn("Could not fetch local leaderboard data, trying PocketBase...", e);
-        fetch(`${this.pbClient.baseUrl}/api/collections/ag_leaderboard/records?sort=-score&limit=10`)
-          .then((res) => {
-            if (!res.ok) throw new Error("PocketBase fetch failed");
-            return res.json();
-          })
-          .then((data) => {
-            const items = data.items || [];
-            this.renderLeaderboardRows(items);
-          })
-          .catch((pbErr) => {
-            console.warn("PocketBase leaderboard error: ", pbErr);
-            const body = document.getElementById('leaderboard-body');
-            body.innerHTML = '<tr><td colspan="5" class="text-center">Leaderboard offline. Play local mode!</td></tr>';
-          });
+      .catch((pbErr) => {
+        console.warn("PocketBase leaderboard error: ", pbErr);
+        const body = document.getElementById('leaderboard-body');
+        body.innerHTML = '<tr><td colspan="5" class="text-center">Leaderboard offline. Please try again later.</td></tr>';
       });
   }
 
@@ -3130,67 +3129,13 @@ export class Game {
   }
 
   submitHighScore() {
-    const input = document.getElementById('player-name-input');
-    const name = input.value.trim();
-    if (!name) {
-      alert("Please enter a Rune Name!");
-      return;
-    }
-
-    const payload = {
-      name: name.substring(0, 15),
-      score: this.score,
-      wave: this.levelManager.wave,
-      level: this.player.level
-    };
-
     const statusEl = document.getElementById('submit-status');
-    statusEl.innerText = "Submitting score to archives...";
-    statusEl.classList.remove('hidden');
-    statusEl.style.color = '#fff';
-    
-    fetch('/api/leaderboard', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Local API failed");
-        return res.json();
-      })
-      .then(() => {
-        statusEl.innerText = "Highscore recorded! Legend saved.";
-        document.getElementById('leaderboard-submission-box').classList.add('hidden');
-        setTimeout(() => {
-          this.setState('LEADERBOARD');
-        }, 1500);
-      })
-      .catch((err) => {
-        console.warn("Local API submission error, trying PocketBase...", err);
-        fetch(`${this.pbClient.baseUrl}/api/collections/ag_leaderboard/records`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        })
-          .then((res) => {
-            if (!res.ok) throw new Error("PocketBase submit failed");
-            return res.json();
-          })
-          .then(() => {
-            statusEl.innerText = "Highscore recorded on cloud! Legend saved.";
-            document.getElementById('leaderboard-submission-box').classList.add('hidden');
-            setTimeout(() => {
-              this.setState('LEADERBOARD');
-            }, 1500);
-          })
-          .catch((pbErr) => {
-            console.warn("PocketBase submission error: ", pbErr);
-            statusEl.innerText = "Error submitting score. Leaderboards are offline.";
-            statusEl.style.color = '#ff4757';
-          });
-      });
+    if (statusEl) {
+      statusEl.classList.remove('hidden');
+      statusEl.style.color = '#f1c40f';
+      statusEl.innerText = 'Open Player Account to log in and sync your legend.';
+    }
+    alert("Open Player Account to log in and sync your legend.");
   }
 
   drawHTMLIcon(canvasId, spriteKey, size = 12) {
