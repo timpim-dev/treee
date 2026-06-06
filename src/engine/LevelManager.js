@@ -1,7 +1,6 @@
 /**
  * LevelManager - Manages arenas, waves, spawns, and dynamic events (Meteors, Storms)
  */
-import { PanelTopBottomDashed } from "lucide-react";
 import {
   RELICS_CATALOG,
   EQUIPMENT_CATALOG,
