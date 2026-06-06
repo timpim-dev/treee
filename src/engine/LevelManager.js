@@ -34,11 +34,65 @@ const THEME_MAPPING = {
   'backrooms': 'walls-light',
 };
 
+// User-editable Autotiling Map: maps neighbor bitmask values (0-15) to { col, row } coordinates on the 16x16 sheet
+// Bitmask calculation: (North ? 1 : 0) + (East ? 2 : 0) + (South ? 4 : 0) + (West ? 8 : 0)
+const TILING_MAP = {
+  0:  { col: 3, row: 3 }, // Isolated
+  1:  { col: 2, row: 2 }, // North only (bottom end of vertical capsule)
+  2:  { col: 0, row: 3 }, // East only (left end of horizontal capsule)
+  3:  { col: 0, row: 2 }, // North + East (bottom-left corner of thick wall)
+  4:  { col: 2, row: 0 }, // South only (top end of vertical capsule)
+  5:  { col: 2, row: 1 }, // North + South (middle of vertical capsule)
+  6:  { col: 0, row: 0 }, // South + East (top-left corner of thick wall)
+  7:  { col: 0, row: 1 }, // North + South + East (vertical left wall edge)
+  8:  { col: 2, row: 3 }, // West only (right end of horizontal capsule)
+  9:  { col: 1, row: 2 }, // North + West (bottom-right corner of thick wall)
+  10: { col: 1, row: 3 }, // East + West (middle of horizontal capsule)
+  11: { col: 4, row: 2 }, // North + East + West (bottom wall edge, straight)
+  12: { col: 1, row: 0 }, // South + West (top-right corner of thick wall)
+  13: { col: 1, row: 1 }, // North + South + West (vertical right wall edge)
+  14: { col: 4, row: 0 }, // South + East + West (top wall edge, straight)
+  15: { col: 4, row: 1 }, // Fully surrounded (solid center wall fill)
+};
+
+// User-editable Variants Map: lists alternative { col, row } choices for each neighbor configuration
+// If multiple choices are defined, a variant will be chosen deterministically based on tile coordinates to prevent flickering.
+const WALL_VARIANTS = {
+  15: [
+    { col: 4, row: 1 }, // Base center wall
+    { col: 7, row: 1 }, // Moss/cracked variant A
+    { col: 8, row: 1 }, // Cracked variant B
+    { col: 9, row: 1 }, // Alternate variant C
+  ],
+  14: [
+    { col: 4, row: 0 }, // Base top wall
+    { col: 7, row: 0 },
+    { col: 8, row: 0 },
+    { col: 9, row: 0 },
+  ],
+  11: [
+    { col: 4, row: 2 }, // Base bottom wall
+    { col: 7, row: 2 },
+    { col: 8, row: 2 },
+    { col: 9, row: 2 },
+  ],
+  7: [
+    { col: 0, row: 1 }, // Base left wall
+    { col: 7, row: 3 },
+  ],
+  13: [
+    { col: 1, row: 1 }, // Base right wall
+    { col: 8, row: 3 },
+  ]
+};
+
 // Expose variables globally for compatibility and verification
 window.WALL_SHEETS = WALL_SHEETS;
 window.THEMES = THEMES;
 window.sheetsLoaded = sheetsLoaded;
 window.currentTheme = currentTheme;
+window.TILING_MAP = TILING_MAP;
+window.WALL_VARIANTS = WALL_VARIANTS;
 window.drawWallTile = function(ctx, col, row, srcX, srcY) {
   const themeName = window.currentTheme || currentTheme;
   const sheet = WALL_SHEETS[themeName];
@@ -3129,41 +3183,46 @@ export class LevelManager {
           const E = (tx < this.tileWidth - 1) ? this.tileGrid[tx + 1][ty] === 1 : true;
           const theme = (this.sectorThemes && this.sectorThemes[`${Math.floor(tx / 50)},${Math.floor(ty / 50)}`]) || 'dungeon';
 
-          // Autotiling rules — check each wall cell's 4 neighbors
+          // Autotiling connection bitmask (N=1, E=2, S=4, W=8)
+          let bitmask = 0;
+          if (N) bitmask += 1;
+          if (E) bitmask += 2;
+          if (S) bitmask += 4;
+          if (W) bitmask += 8;
+
           let srcX = 64;
           let srcY = 16;
 
-          // Check for fully surrounded
-          if (N && S && W && E) {
-            srcX = 16;
-            srcY = 16; // solid wall fill
-          } else if (!N && !W) {
-            srcX = 0;
-            srcY = 0; // top-left corner
-          } else if (!N && !E) {
-            srcX = 112;
-            srcY = 0; // top-right corner
-          } else if (!S && !W) {
-            srcX = 0;
-            srcY = 32; // bottom-left corner
-          } else if (!S && !E) {
-            srcX = 112;
-            srcY = 32; // bottom-right corner
-          } else if (!N) {
-            srcX = 64;
-            srcY = 0; // top wall, straight
-          } else if (!S) {
-            srcX = 64;
-            srcY = 32; // bottom wall, straight
-          } else if (!W) {
-            srcX = 0;
-            srcY = 16; // left wall, vertical
-          } else if (!E) {
-            srcX = 112;
-            srcY = 16; // right wall, vertical
+          // Check for concave (inner) corners first if cardinally surrounded
+          if (bitmask === 15) {
+            const NW = (tx > 0 && ty > 0) ? this.tileGrid[tx - 1][ty - 1] === 1 : true;
+            const NE = (tx < this.tileWidth - 1 && ty > 0) ? this.tileGrid[tx + 1][ty - 1] === 1 : true;
+            const SW = (tx > 0 && ty < this.tileHeight - 1) ? this.tileGrid[tx - 1][ty + 1] === 1 : true;
+            const SE = (tx < this.tileWidth - 1 && ty < this.tileHeight - 1) ? this.tileGrid[tx + 1][ty + 1] === 1 : true;
+
+            if (!SE) {
+              srcX = 6 * 16; srcY = 0 * 16; // bottom-right concave corner
+            } else if (!SW) {
+              srcX = 7 * 16; srcY = 0 * 16; // bottom-left concave corner
+            } else if (!NE) {
+              srcX = 6 * 16; srcY = 1 * 16; // top-right concave corner
+            } else if (!NW) {
+              srcX = 7 * 16; srcY = 1 * 16; // top-left concave corner
+            } else {
+              // Standard fully surrounded tile (with variants)
+              const choices = window.WALL_VARIANTS[15] || [window.TILING_MAP[15]];
+              const variantHash = (tx * 17 + ty * 31) % choices.length;
+              const tile = choices[variantHash];
+              srcX = tile.col * 16;
+              srcY = tile.row * 16;
+            }
           } else {
-            srcX = 64;
-            srcY = 16; // inner wall tile fallback
+            // Standard autotiling using customizable TILING_MAP & WALL_VARIANTS
+            const choices = window.WALL_VARIANTS[bitmask] || [window.TILING_MAP[bitmask]];
+            const variantHash = (tx * 17 + ty * 31) % choices.length;
+            const tile = choices[variantHash];
+            srcX = tile.col * 16;
+            srcY = tile.row * 16;
           }
 
           const themeName = window.currentTheme || THEME_MAPPING[theme] || 'walls-light';
