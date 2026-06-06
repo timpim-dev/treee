@@ -1,0 +1,32 @@
+[
+  {
+    "name": "AetherLord",
+    "score": 25000,
+    "wave": 18,
+    "level": 32
+  },
+  {
+    "name": "RuneSeeker",
+    "score": 18400,
+    "wave": 14,
+    "level": 25
+  },
+  {
+    "name": "SpellWeaver",
+    "score": 12100,
+    "wave": 10,
+    "level": 19
+  },
+  {
+    "name": "ManaBurn",
+    "score": 8500,
+    "wave": 8,
+    "level": 14
+  },
+  {
+    "name": "NoviceMage",
+    "score": 3200,
+    "wave": 4,
+    "level": 8
+  }
+]

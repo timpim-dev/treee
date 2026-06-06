@@ -2524,6 +2524,14 @@ export class LevelManager {
     if (!bounds) return;
     const { startTx, endTx, startTy, endTy } = bounds;
 
+    const zoom = this.game?.gameZoom || 1.0;
+    const cx = canvasWidth / 2;
+    const cy = canvasHeight / 2;
+    const visibleLeftCam = cx - cx / zoom;
+    const visibleRightCam = cx + cx / zoom;
+    const visibleTopCam = cy - cy / zoom;
+    const visibleBottomCam = cy + cy / zoom;
+
     for (let tx = startTx; tx <= endTx; tx++) {
       const sx = Math.floor(tx / 50);
       for (let ty = startTy; ty <= endTy; ty++) {
@@ -2536,7 +2544,7 @@ export class LevelManager {
           const ry = ty * tileSize - camera.y;
 
           // Skip tiles fully off-screen
-          if (rx + tileSize < 0 || rx > canvasWidth || ry + tileSize < 0 || ry > canvasHeight) continue;
+          if (rx + tileSize < visibleLeftCam || rx > visibleRightCam || ry + tileSize < visibleTopCam || ry > visibleBottomCam) continue;
           
           // Theme coloring & tileset variations to prevent visual uniformity
           const variant = (tx * 7 + ty * 13) % 4;
@@ -2786,7 +2794,7 @@ export class LevelManager {
           const ry = ty * tileSize - camera.y;
           
           // Skip tiles fully off-screen
-          if (rx + tileSize < 0 || rx > canvasWidth || ry + tileSize < 0 || ry > canvasHeight) continue;
+          if (rx + tileSize < visibleLeftCam || rx > visibleRightCam || ry + tileSize < visibleTopCam || ry > visibleBottomCam) continue;
 
           // Draw special runic floor
           ctx.fillStyle = '#22153c'; // deep runic purple
@@ -2915,7 +2923,6 @@ export class LevelManager {
     // A. Switch Buttons
     if (this.buttons) {
       this.buttons.forEach(btn => {
-        if (shouldCull(btn.x, btn.y)) return;
         const rx = btn.x - camera.x;
         const ry = btn.y - camera.y;
         
@@ -3247,18 +3254,27 @@ export class LevelManager {
     const pad = 2;
     const camera = this.game?.camera;
     const canvas = this.game?.canvas;
+    const zoom = this.game?.gameZoom || 1.0;
 
     let startTx = 0;
     let endTx = this.tileWidth - 1;
     let startTy = 0;
     let endTy = this.tileHeight - 1;
 
-    // Viewport bounds
+    // Viewport bounds (adjusted for camera zoom)
     if (camera && canvas) {
-      startTx = Math.max(startTx, Math.floor(camera.x / tileSize) - pad);
-      endTx = Math.min(endTx, Math.ceil((camera.x + canvas.width) / tileSize) + pad);
-      startTy = Math.max(startTy, Math.floor(camera.y / tileSize) - pad);
-      endTy = Math.min(endTy, Math.ceil((camera.y + canvas.height) / tileSize) + pad);
+      const halfWidth = canvas.width / 2;
+      const halfHeight = canvas.height / 2;
+      
+      const visibleLeft = camera.x + halfWidth - halfWidth / zoom;
+      const visibleRight = camera.x + halfWidth + halfWidth / zoom;
+      const visibleTop = camera.y + halfHeight - halfHeight / zoom;
+      const visibleBottom = camera.y + halfHeight + halfHeight / zoom;
+
+      startTx = Math.max(startTx, Math.floor(visibleLeft / tileSize) - pad);
+      endTx = Math.min(endTx, Math.ceil(visibleRight / tileSize) + pad);
+      startTy = Math.max(startTy, Math.floor(visibleTop / tileSize) - pad);
+      endTy = Math.min(endTy, Math.ceil(visibleBottom / tileSize) + pad);
     }
 
     return { startTx, endTx, startTy, endTy };
