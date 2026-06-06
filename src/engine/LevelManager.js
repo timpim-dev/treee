@@ -99,89 +99,74 @@ const WALL_TILE_COORDS = {
 function getWallTile(neighbors) {
   const { top, bottom, left, right, tl, tr, bl, br } = neighbors;
 
-  // No neighbors
+  // No cardinal neighbors
   if (!top && !bottom && !left && !right)
     return WALL_TILE_COORDS.topottomleftright;
 
-  // One neighbor
+  // One cardinal neighbor
   if (top && !bottom && !left && !right) return WALL_TILE_COORDS.topbottom;
   if (!top && bottom && !left && !right) return WALL_TILE_COORDS.topbottom;
   if (!top && !bottom && left && !right) return WALL_TILE_COORDS.leftright;
   if (!top && !bottom && !left && right) return WALL_TILE_COORDS.leftright;
 
-  // Two neighbors — opposite
+  // Two cardinal neighbors — opposite
   if (top && bottom && !left && !right) return WALL_TILE_COORDS.topbottom;
   if (!top && !bottom && left && right) return WALL_TILE_COORDS.leftright;
 
-  // Two neighbors — corners
+  // Two cardinal neighbors — corners
   if (!top && bottom && !left && right) return WALL_TILE_COORDS.topLeft;
   if (!top && bottom && left && !right) return WALL_TILE_COORDS.topRight;
   if (top && !bottom && !left && right) return WALL_TILE_COORDS.bottomLeft;
   if (top && !bottom && left && !right) return WALL_TILE_COORDS.bottomRight;
 
-  // Three neighbors
+  // Three cardinal neighbors
   if (!top && bottom && left && right) return WALL_TILE_COORDS.top;
   if (top && !bottom && left && right) return WALL_TILE_COORDS.bottom;
   if (top && bottom && !left && right) return WALL_TILE_COORDS.left;
   if (top && bottom && left && !right) return WALL_TILE_COORDS.right;
-  if (!top && !bottom && !left && !right) return WALL_TILE_COORDS.topleftright; // shouldn't hit
-  if (!top && bottom && !left && !right) return WALL_TILE_COORDS.topleftright; // shouldn't hit
 
-  // All 4 cardinal neighbors — check diagonals for inner corners
+  // All four cardinal neighbors — check diagonals for inner corners
   if (top && bottom && left && right) {
+    // No inner corners
+    if (tl && tr && bl && br) return WALL_TILE_COORDS.fill;
+
+    // One inner corner
+    if (!tl && tr && bl && br) return WALL_TILE_COORDS.Jointtopleft;
+    if (tl && !tr && bl && br) return WALL_TILE_COORDS.Jointtopright;
+    if (tl && tr && !bl && br) return WALL_TILE_COORDS.jointbottomleft;
+    if (tl && tr && bl && !br) return WALL_TILE_COORDS.Jointbottomright;
+
+    // Two inner corners — same side
+    if (!tl && !tr && bl && br)
+      return WALL_TILE_COORDS.jointtopleftjointtopright;
+    if (tl && tr && !bl && !br)
+      return WALL_TILE_COORDS.jointbottomleftjointbottomright;
+    if (!tl && tr && !bl && br)
+      return WALL_TILE_COORDS.jointtopleftjointbottomright;
+    if (tl && !tr && bl && !br)
+      return WALL_TILE_COORDS.jointtoprightjointbottomleft;
+
+    // Two inner corners — opposite diagonals
+    if (tl && !tr && !bl && br)
+      return WALL_TILE_COORDS.jointtoprightjointbottomleft;
+    if (!tl && tr && bl && !br)
+      return WALL_TILE_COORDS.jointtopleftjointbottomleft;
+
+    // Three inner corners
     if (tl && !tr && !bl && !br)
       return WALL_TILE_COORDS.jointtoprightjointbottomleftjointbottomright;
     if (!tl && tr && !bl && !br)
-      return WALL_TILE_COORDS.jointtopleftjointbottomleftjointbottomright; // fix name if needed
+      return WALL_TILE_COORDS.jointtopleftjointbottomleftjointbottomright;
     if (!tl && !tr && bl && !br)
       return WALL_TILE_COORDS.jointtopleftjointtoprightjointbottomright;
     if (!tl && !tr && !bl && br)
       return WALL_TILE_COORDS.jointtopleftjointtoprightjointbottomleft;
 
-    if (!tl && tr && bl && !br)
-      return WALL_TILE_COORDS.jointtopleftjointbottomleft; // opposite diagonals
-    if (tl && !tr && !bl && br)
-      return WALL_TILE_COORDS.jointtoprightjointbottomright; // wait check names
-
-    if (!tl && !tr && bl && br)
-      return WALL_TILE_COORDS.jointtopleftjointtopright;
-    if (tl && tr && !bl && !br)
-      return WALL_TILE_COORDS.jointbottomleftjointbottomright;
-    if (!tl && tr && !bl && br)
-      return WALL_TILE_COORDS.jointtopleftjointbottomright;
-    if (tl && !tr && bl && !br)
-      return WALL_TILE_COORDS.jointtoprightjointbottomleft;
-
-    if (tl && !tr && !bl && !br)
-      return WALL_TILE_COORDS.jointtoprightjointbottomleftjointbottomright;
-    if (!tl && !tr && !bl && !br) return WALL_TILE_COORDS.fill;
-
-    if (!tl && tr && bl && br) return WALL_TILE_COORDS.Jointtopleft;
-    if (tl && !tr && bl && br) return WALL_TILE_COORDS.Jointtopright;
-    if (tl && tr && !bl && br) return WALL_TILE_COORDS.jointbottomleft;
-    if (tl && tr && bl && !br) return WALL_TILE_COORDS.Jointbottomright;
-
-    if (!tl && !tr && bl && br)
-      return WALL_TILE_COORDS.jointtopleftjointtopright;
-    if (tl && tr && !bl && !br)
-      return WALL_TILE_COORDS.jointbottomleftjointbottomright;
-    if (!tl && tr && !bl && br)
-      return WALL_TILE_COORDS.jointtopleftjointbottomright;
-    if (tl && !tr && bl && !br)
-      return WALL_TILE_COORDS.jointtoprightjointbottomleft;
-    if (tl && !tr && !bl && br)
-      return WALL_TILE_COORDS.jointtoprightjointbottomright; // check name
-    if (!tl && tr && bl && !br)
-      return WALL_TILE_COORDS.jointtopleftjointbottomleft; // check name
-
-    if (tl && tr && bl && br) return WALL_TILE_COORDS.fill;
-
-    if (!tl && tr && bl && br) return WALL_TILE_COORDS.Jointtopleft;
-    if (tl && !tr && bl && br) return WALL_TILE_COORDS.Jointtopright;
-    if (tl && tr && !bl && br) return WALL_TILE_COORDS.jointbottomleft;
-    if (tl && tr && bl && !br) return WALL_TILE_COORDS.Jointbottomright;
+    // All four inner corners
+    if (!tl && !tr && !bl && !br) return WALL_TILE_COORDS.topottomleftright;
   }
 
+  // Fallback
   return WALL_TILE_COORDS.fill;
 }
 
@@ -4107,7 +4092,8 @@ export class LevelManager {
           const S = bottom;
           const W = left;
           const E = right;
-          const topLeft = tx > 0 && ty > 0 ? this.tileGrid[tx - 1][ty - 1] === 1 : false;
+          const topLeft =
+            tx > 0 && ty > 0 ? this.tileGrid[tx - 1][ty - 1] === 1 : false;
           const topRight =
             tx < this.tileWidth - 1 && ty > 0
               ? this.tileGrid[tx + 1][ty - 1] === 1
