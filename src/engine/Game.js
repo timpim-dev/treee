@@ -54,6 +54,7 @@ export class Game {
     this.devShowGrid = false;
     this._fpsHistory = [];
     this._lastFpsTime = 0;
+    this._renderFallbackWarned = false;
     
     // Worldmap zoom/drag state
     this.mapZoom = 1.0;
@@ -4310,8 +4311,16 @@ export class Game {
       this.ctx.translate(dx, dy);
     }
 
-    // Render floor details / grid sand texture
-    this.drawFloorGrid();
+    // Render floor details / grid sand texture.
+    // Keep this isolated so a wall-layer issue does not blank the entire frame.
+    try {
+      this.drawFloorGrid();
+    } catch (err) {
+      if (!this._renderFallbackWarned) {
+        console.error('[Render] Floor layer failed, continuing with sprite render:', err);
+      }
+      this._renderFallbackWarned = true;
+    }
 
     // Draw Dev Grid Overlay
     if (this.devShowGrid) {
@@ -4379,7 +4388,14 @@ export class Game {
     });
 
     // Draw Obstacles (Pillars, walls)
-    this.levelManager.draw(this.ctx, this.camera);
+    try {
+      this.levelManager.draw(this.ctx, this.camera);
+    } catch (err) {
+      if (!this._renderFallbackWarned) {
+        console.error('[Render] Obstacle layer failed, continuing with sprite render:', err);
+      }
+      this._renderFallbackWarned = true;
+    }
 
     // Draw Player wizard
     this.player.draw(this.ctx, this.assets, this.frameIndex);
