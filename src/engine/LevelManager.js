@@ -99,74 +99,97 @@ const WALL_TILE_COORDS = {
 function getWallTile(neighbors) {
   const { top, bottom, left, right, tl, tr, bl, br } = neighbors;
 
-  // No cardinal neighbors
-  if (!top && !bottom && !left && !right)
+  // 1. No cardinal neighbors
+  if (!top && !bottom && !left && !right) {
     return WALL_TILE_COORDS.topottomleftright;
+  }
 
-  // One cardinal neighbor
+  // 2. One cardinal neighbor
   if (top && !bottom && !left && !right) return WALL_TILE_COORDS.topbottom;
   if (!top && bottom && !left && !right) return WALL_TILE_COORDS.topbottom;
   if (!top && !bottom && left && !right) return WALL_TILE_COORDS.leftright;
   if (!top && !bottom && !left && right) return WALL_TILE_COORDS.leftright;
 
-  // Two cardinal neighbors — opposite
+  // 3. Two cardinal neighbors — opposite
   if (top && bottom && !left && !right) return WALL_TILE_COORDS.topbottom;
   if (!top && !bottom && left && right) return WALL_TILE_COORDS.leftright;
 
-  // Two cardinal neighbors — corners
-  if (!top && bottom && !left && right) return WALL_TILE_COORDS.topLeft;
-  if (!top && bottom && left && !right) return WALL_TILE_COORDS.topRight;
-  if (top && !bottom && !left && right) return WALL_TILE_COORDS.bottomLeft;
-  if (top && !bottom && left && !right) return WALL_TILE_COORDS.bottomRight;
+  // 4. Two cardinal neighbors — corners (check diagonal corner for joint)
+  if (!top && bottom && !left && right) {
+    if (!br) return WALL_TILE_COORDS.topleftJointbottomright;
+    return WALL_TILE_COORDS.topLeft;
+  }
+  if (!top && bottom && left && !right) {
+    if (!bl) return WALL_TILE_COORDS.toprightJointbottomleft;
+    return WALL_TILE_COORDS.topRight;
+  }
+  if (top && !bottom && !left && right) {
+    if (!tr) return WALL_TILE_COORDS.bottomleftJointtopright;
+    return WALL_TILE_COORDS.bottomLeft;
+  }
+  if (top && !bottom && left && !right) {
+    if (!tl) return WALL_TILE_COORDS.bottomrightJointtopleft;
+    return WALL_TILE_COORDS.bottomRight;
+  }
 
-  // Three cardinal neighbors
-  if (!top && bottom && left && right) return WALL_TILE_COORDS.top;
-  if (top && !bottom && left && right) return WALL_TILE_COORDS.bottom;
-  if (top && bottom && !left && right) return WALL_TILE_COORDS.left;
-  if (top && bottom && left && !right) return WALL_TILE_COORDS.right;
+  // 5. Three cardinal neighbors (check diagonals for joints)
+  if (!top && bottom && left && right) {
+    if (!bl && !br) return WALL_TILE_COORDS.topjointbottomrightjointbottomleft;
+    if (!bl) return WALL_TILE_COORDS.topjointbottomleft;
+    if (!br) return WALL_TILE_COORDS.topjointbottomright;
+    return WALL_TILE_COORDS.top;
+  }
+  if (top && !bottom && left && right) {
+    if (!tl && !tr) return WALL_TILE_COORDS.bottomjointtopleftjointtopright;
+    if (!tl) return WALL_TILE_COORDS.bottomjointtopleft;
+    if (!tr) return WALL_TILE_COORDS.bottomJointtopright;
+    return WALL_TILE_COORDS.bottom;
+  }
+  if (top && bottom && !left && right) {
+    if (!tr && !br) return WALL_TILE_COORDS.leftjointtoprightjointbottomright;
+    if (!tr) return WALL_TILE_COORDS.leftJointtopright;
+    if (!br) return WALL_TILE_COORDS.leftJointbottomright;
+    return WALL_TILE_COORDS.left;
+  }
+  if (top && bottom && left && !right) {
+    if (!tl && !bl) return WALL_TILE_COORDS.rightjointtopleftjointbottomleft;
+    if (!tl) return WALL_TILE_COORDS.rightJointtopleft;
+    if (!bl) return WALL_TILE_COORDS.rightJointbottomleft;
+    return WALL_TILE_COORDS.right;
+  }
 
-  // All four cardinal neighbors — check diagonals for inner corners
+  // 6. All four cardinal neighbors — check diagonals for joints
   if (top && bottom && left && right) {
-    // No inner corners
+    // No joints
     if (tl && tr && bl && br) return WALL_TILE_COORDS.fill;
 
-    // One inner corner
+    // One joint
     if (!tl && tr && bl && br) return WALL_TILE_COORDS.Jointtopleft;
     if (tl && !tr && bl && br) return WALL_TILE_COORDS.Jointtopright;
     if (tl && tr && !bl && br) return WALL_TILE_COORDS.jointbottomleft;
     if (tl && tr && bl && !br) return WALL_TILE_COORDS.Jointbottomright;
 
-    // Two inner corners — same side
-    if (!tl && !tr && bl && br)
-      return WALL_TILE_COORDS.jointtopleftjointtopright;
-    if (tl && tr && !bl && !br)
-      return WALL_TILE_COORDS.jointbottomleftjointbottomright;
-    if (!tl && tr && !bl && br)
-      return WALL_TILE_COORDS.jointtopleftjointbottomright;
-    if (tl && !tr && bl && !br)
-      return WALL_TILE_COORDS.jointtoprightjointbottomleft;
+    // Two joints — same side
+    if (!tl && !tr && bl && br) return WALL_TILE_COORDS.jointtopleftjointtopright;
+    if (tl && tr && !bl && !br) return WALL_TILE_COORDS.jointbottomleftjointbottomright;
+    if (!tl && tr && !bl && br) return WALL_TILE_COORDS.jointtopleftjointbottomright;
+    if (tl && !tr && bl && !br) return WALL_TILE_COORDS.jointtoprightjointbottomleft;
 
-    // Two inner corners — opposite diagonals
-    if (tl && !tr && !bl && br)
-      return WALL_TILE_COORDS.jointtoprightjointbottomleft;
-    if (!tl && tr && bl && !br)
-      return WALL_TILE_COORDS.jointtopleftjointbottomleft;
+    // Two joints — opposite diagonals
+    if (tl && !tr && !bl && br) return WALL_TILE_COORDS.jointtoprightjointbottomleft;
+    if (!tl && tr && bl && !br) return WALL_TILE_COORDS.jointtopleftjointbottomright;
 
-    // Three inner corners
-    if (tl && !tr && !bl && !br)
-      return WALL_TILE_COORDS.jointtoprightjointbottomleftjointbottomright;
-    if (!tl && tr && !bl && !br)
-      return WALL_TILE_COORDS.jointtopleftjointbottomleftjointbottomright;
-    if (!tl && !tr && bl && !br)
-      return WALL_TILE_COORDS.jointtopleftjointtoprightjointbottomright;
-    if (!tl && !tr && !bl && br)
-      return WALL_TILE_COORDS.jointtopleftjointtoprightjointbottomleft;
+    // Three joints
+    if (tl && !tr && !bl && !br) return WALL_TILE_COORDS.jointtoprightjointbottomleftjointbottomright;
+    if (!tl && tr && !bl && !br) return WALL_TILE_COORDS.jointtopleftjointbottomrightjointbottomleft;
+    if (!tl && !tr && bl && !br) return WALL_TILE_COORDS.jointtopleftjointtoprightjointbottomright;
+    if (!tl && !tr && !bl && br) return WALL_TILE_COORDS.jointtopleftjointtoprightjointbottomleft;
 
-    // All four inner corners
+    // All four joints
     if (!tl && !tr && !bl && !br) return WALL_TILE_COORDS.topottomleftright;
   }
 
-  // Fallback
+  // Fallback to avoid returning undefined
   return WALL_TILE_COORDS.fill;
 }
 
