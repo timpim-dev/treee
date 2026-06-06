@@ -507,25 +507,6 @@ export class Game {
       this.saveSettings();
     };
 
-    const setRenderDistanceUI = (value) => {
-      this.renderDistance = parseInt(value);
-      const text = `${this.renderDistance}px`;
-      if (lblSettingsRender) lblSettingsRender.innerText = text;
-      if (sldSettingsRender) { sldSettingsRender.value = value; updateSliderFill(sldSettingsRender); }
-      // Update obstacles filter instantly when render distance changes!
-      if (this.levelManager && this.player && this.levelManager.allObstacles) {
-        const px = this.player.x;
-        const py = this.player.y;
-        const distCutoffSq = this.renderDistance * this.renderDistance;
-        this.levelManager.obstacles = this.levelManager.allObstacles.filter(obs => {
-          const dx = obs.x - px;
-          const dy = obs.y - py;
-          return (dx * dx + dy * dy) <= distCutoffSq;
-        });
-      }
-      this.saveSettings();
-    };
-
     // Bind event listeners
     if (sldSettingsMusic) {
       sldSettingsMusic.addEventListener('input', (e) => setMusicVolumeUI(e.target.value));
@@ -534,7 +515,7 @@ export class Game {
       sldSettingsSfx.addEventListener('input', (e) => setSfxVolumeUI(e.target.value));
     }
     if (sldSettingsRender) {
-      sldSettingsRender.addEventListener('input', (e) => setRenderDistanceUI(e.target.value));
+      sldSettingsRender.addEventListener('input', (e) => this.setRenderDistance(e.target.value));
     }
 
     // Checkboxes bindings
@@ -616,7 +597,7 @@ export class Game {
       const boxes = document.querySelectorAll('.volume-controls-box');
       boxes.forEach(box => box.classList.toggle('muted', this.audio.isMuted));
     }
-    setRenderDistanceUI(this.renderDistance || 1200);
+    this.setRenderDistance(this.renderDistance || 1200);
     updateCheckboxesUI();
 
     // Minecraft-style Settings Tabs Switching
@@ -1675,8 +1656,7 @@ export class Game {
     } else if (normalizedPath === 'state') {
       this.setState(String(value));
     } else if (normalizedPath === 'renderDistance') {
-      this.saveSettings();
-      if (this.levelManager) this.levelManager.generateObstacles();
+      this.setRenderDistance(value);
       this.updateHUD();
     } else if (normalizedPath === 'showSpellTrails') {
       this.saveSettings();
@@ -5244,6 +5224,45 @@ export class Game {
 
     this.setState('MENU');
     this.updateHUD();
+  }
+
+  setRenderDistance(value) {
+    this.renderDistance = parseInt(value);
+    
+    // Update HTML elements if they exist
+    const lblSettingsRender = document.getElementById('lbl-settings-render-val');
+    const sldSettingsRender = document.getElementById('sld-settings-render');
+    
+    if (lblSettingsRender) {
+      lblSettingsRender.innerText = `${this.renderDistance}px`;
+    }
+    if (sldSettingsRender) {
+      sldSettingsRender.value = value;
+      // Update slider fill track visual background color
+      const min = sldSettingsRender.min || 0;
+      const max = sldSettingsRender.max || 100;
+      const percentage = (value - min) / (max - min) * 100;
+      sldSettingsRender.style.background = `linear-gradient(to right, var(--color-aether) ${percentage}%, #080a14 ${percentage}%)`;
+    }
+
+    // Update obstacles filter instantly when render distance changes!
+    if (this.levelManager && this.player && this.levelManager.allObstacles) {
+      const px = this.player.x;
+      const py = this.player.y;
+      const distCutoffSq = (this.renderDistance + 200) ** 2;
+      this.levelManager.obstacles = this.levelManager.allObstacles.filter(obs => {
+        const dx = obs.x - px;
+        const dy = obs.y - py;
+        return (dx * dx + dy * dy) <= distCutoffSq;
+      });
+    }
+
+    // Redraw if game is active but state is SETTINGS/PAUSED/PLAYING
+    if (this.player && this.levelManager) {
+      this.draw();
+    }
+
+    this.saveSettings();
   }
 
   saveSettings() {

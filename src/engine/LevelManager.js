@@ -1174,7 +1174,7 @@ export class LevelManager {
       const px = this.game.player.x;
       const py = this.game.player.y;
       const distCutoff = (this.game.renderDistance || 1200);
-      const distCutoffSq = distCutoff * distCutoff;
+      const distCutoffSq = (distCutoff + 200) ** 2;
       this.obstacles = this.allObstacles.filter(obs => {
         const dx = obs.x - px;
         const dy = obs.y - py;
@@ -1583,9 +1583,11 @@ export class LevelManager {
       const moved = !this._lastObsPx ||
         Math.abs(px - this._lastObsPx) > 60 ||
         Math.abs(py - this._lastObsPy) > 60;
-      if (moved || !this.obstacles) {
+      const renderDistanceChanged = this.game.renderDistance !== this._lastRenderDistance;
+      if (moved || renderDistanceChanged || !this.obstacles) {
         this._lastObsPx = px;
         this._lastObsPy = py;
+        this._lastRenderDistance = this.game.renderDistance;
         const distCutoffSq = ((this.game.renderDistance || 1200) + 200) ** 2;
         if (!this.obstacles) this.obstacles = [];
         this.obstacles.length = 0;
@@ -2791,10 +2793,14 @@ export class LevelManager {
             }
           }
         } else if (this.tileGrid[tx][ty] === 2) {
-          // Draw special runic floor
           const rx = tx * tileSize - camera.x;
           const ry = ty * tileSize - camera.y;
           
+          // Skip tiles fully off-screen
+          if (rx + tileSize < 0 || rx > canvasWidth || ry + tileSize < 0 || ry > canvasHeight) continue;
+          if (shouldCull(tx * tileSize + tileSize / 2, ty * tileSize + tileSize / 2)) continue;
+
+          // Draw special runic floor
           ctx.fillStyle = '#22153c'; // deep runic purple
           ctx.fillRect(rx, ry, tileSize, tileSize);
           
@@ -3272,34 +3278,31 @@ export class LevelManager {
     const pad = 2;
     const camera = this.game?.camera;
     const canvas = this.game?.canvas;
-
-    // Tight camera viewport — avoids iterating ~22k tiles per frame
-    if (camera && canvas) {
-      return {
-        startTx: Math.max(0, Math.floor(camera.x / tileSize) - pad),
-        endTx: Math.min(this.tileWidth - 1, Math.ceil((camera.x + canvas.width) / tileSize) + pad),
-        startTy: Math.max(0, Math.floor(camera.y / tileSize) - pad),
-        endTy: Math.min(this.tileHeight - 1, Math.ceil((camera.y + canvas.height) / tileSize) + pad),
-      };
-    }
-
     const player = this.game?.player;
-    if (!player) {
-      return {
-        startTx: 0,
-        endTx: Math.min(this.tileWidth - 1, 149),
-        startTy: 0,
-        endTy: Math.min(this.tileHeight - 1, 149)
-      };
+
+    let startTx = 0;
+    let endTx = this.tileWidth - 1;
+    let startTy = 0;
+    let endTy = this.tileHeight - 1;
+
+    // Viewport bounds
+    if (camera && canvas) {
+      startTx = Math.max(startTx, Math.floor(camera.x / tileSize) - pad);
+      endTx = Math.min(endTx, Math.ceil((camera.x + canvas.width) / tileSize) + pad);
+      startTy = Math.max(startTy, Math.floor(camera.y / tileSize) - pad);
+      endTy = Math.min(endTy, Math.ceil((camera.y + canvas.height) / tileSize) + pad);
     }
 
-    const margin = (this.game?.renderDistance || 1200) + tileSize * 2;
-    return {
-      startTx: Math.max(0, Math.floor((player.x - margin) / tileSize)),
-      endTx: Math.min(this.tileWidth - 1, Math.ceil((player.x + margin) / tileSize)),
-      startTy: Math.max(0, Math.floor((player.y - margin) / tileSize)),
-      endTy: Math.min(this.tileHeight - 1, Math.ceil((player.y + margin) / tileSize)),
-    };
+    // Render distance bounds (intersected)
+    if (player) {
+      const margin = (this.game?.renderDistance || 1200) + tileSize * 2;
+      startTx = Math.max(startTx, Math.floor((player.x - margin) / tileSize));
+      endTx = Math.min(endTx, Math.ceil((player.x + margin) / tileSize));
+      startTy = Math.max(startTy, Math.floor((player.y - margin) / tileSize));
+      endTy = Math.min(endTy, Math.ceil((player.y + margin) / tileSize));
+    }
+
+    return { startTx, endTx, startTy, endTy };
   }
 
   transitionToNewArea(door) {
