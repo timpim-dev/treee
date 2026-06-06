@@ -34,69 +34,47 @@ const THEME_MAPPING = {
   'backrooms': 'walls-light',
 };
 
-// User-editable Autotiling Map: maps neighbor bitmask values (0-15) to { col, row } coordinates on the 16x16 sheet
-// Bitmask calculation: (North ? 1 : 0) + (East ? 2 : 0) + (South ? 4 : 0) + (West ? 8 : 0)
-const TILING_MAP = {
-  0:  { col: 3, row: 3 }, // Isolated
-  1:  { col: 2, row: 2 }, // North only (bottom end of vertical capsule)
-  2:  { col: 0, row: 3 }, // East only (left end of horizontal capsule)
-  3:  { col: 0, row: 2 }, // North + East (bottom-left corner of thick wall)
-  4:  { col: 2, row: 0 }, // South only (top end of vertical capsule)
-  5:  { col: 2, row: 1 }, // North + South (middle of vertical capsule)
-  6:  { col: 0, row: 0 }, // South + East (top-left corner of thick wall)
-  7:  { col: 0, row: 1 }, // North + South + East (vertical left wall edge)
-  8:  { col: 2, row: 3 }, // West only (right end of horizontal capsule)
-  9:  { col: 1, row: 2 }, // North + West (bottom-right corner of thick wall)
-  10: { col: 1, row: 3 }, // East + West (middle of horizontal capsule)
-  11: { col: 4, row: 2 }, // North + East + West (bottom wall edge, straight)
-  12: { col: 1, row: 0 }, // South + West (top-right corner of thick wall)
-  13: { col: 1, row: 1 }, // North + South + West (vertical right wall edge)
-  14: { col: 4, row: 0 }, // South + East + West (top wall edge, straight)
-  15: { col: 4, row: 1 }, // Fully surrounded (solid center wall fill)
+const WALL_TILE_COORDS = {
+  fill: [16, 16],
+  top: [64, 0],
+  bottom: [64, 32],
+  left: [0, 16],
+  right: [112, 16],
+  topLeft: [0, 0],
+  topRight: [112, 0],
+  bottomLeft: [0, 32],
+  bottomRight: [112, 32],
+  archTop: [48, 0],
+  archBase: [48, 32],
+  floor: [0, 64],
 };
 
-// User-editable Variants Map: lists alternative { col, row } choices for each neighbor configuration
-// If multiple choices are defined, a variant will be chosen deterministically based on tile coordinates to prevent flickering.
-const WALL_VARIANTS = {
-  15: [
-    { col: 4, row: 1 }, // Base center wall
-    { col: 7, row: 1 }, // Moss/cracked variant A
-    { col: 8, row: 1 }, // Cracked variant B
-    { col: 9, row: 1 }, // Alternate variant C
-  ],
-  14: [
-    { col: 4, row: 0 }, // Base top wall
-    { col: 7, row: 0 },
-    { col: 8, row: 0 },
-    { col: 9, row: 0 },
-  ],
-  11: [
-    { col: 4, row: 2 }, // Base bottom wall
-    { col: 7, row: 2 },
-    { col: 8, row: 2 },
-    { col: 9, row: 2 },
-  ],
-  7: [
-    { col: 0, row: 1 }, // Base left wall
-    { col: 7, row: 3 },
-  ],
-  13: [
-    { col: 1, row: 1 }, // Base right wall
-    { col: 8, row: 3 },
-  ]
-};
+function getWallTile(neighbors) {
+  const { top, bottom, left, right } = neighbors;
+  if (top && bottom && left && right) return WALL_TILE_COORDS.fill;
+  if (!top && bottom && left && right) return WALL_TILE_COORDS.top;
+  if (top && !bottom && left && right) return WALL_TILE_COORDS.bottom;
+  if (top && bottom && !left && right) return WALL_TILE_COORDS.left;
+  if (top && bottom && left && !right) return WALL_TILE_COORDS.right;
+  if (!top && bottom && !left && right) return WALL_TILE_COORDS.topLeft;
+  if (!top && bottom && left && !right) return WALL_TILE_COORDS.topRight;
+  if (top && !bottom && !left && right) return WALL_TILE_COORDS.bottomLeft;
+  if (top && !bottom && left && !right) return WALL_TILE_COORDS.bottomRight;
+  return WALL_TILE_COORDS.fill;
+}
 
 // Expose variables globally for compatibility and verification
 window.WALL_SHEETS = WALL_SHEETS;
 window.THEMES = THEMES;
 window.sheetsLoaded = sheetsLoaded;
 window.currentTheme = currentTheme;
-window.TILING_MAP = TILING_MAP;
-window.WALL_VARIANTS = WALL_VARIANTS;
-window.drawWallTile = function(ctx, col, row, srcX, srcY) {
+window.WALL_TILE_COORDS = WALL_TILE_COORDS;
+window.getWallTile = getWallTile;
+window.drawWallTile = function(ctx, col, row, neighbors) {
   const themeName = window.currentTheme || currentTheme;
   const sheet = WALL_SHEETS[themeName];
   if (!sheet) return;
+  const [srcX, srcY] = getWallTile(neighbors);
   ctx.drawImage(sheet, srcX, srcY, 16, 16, col * 16, row * 16, 16, 16);
 };
 
@@ -3177,53 +3155,13 @@ export class LevelManager {
           const ry = ty * tileSize - camera.y;
           
           // Check neighbors
-          const N = (ty > 0) ? this.tileGrid[tx][ty - 1] === 1 : true;
-          const S = (ty < this.tileHeight - 1) ? this.tileGrid[tx][ty + 1] === 1 : true;
-          const W = (tx > 0) ? this.tileGrid[tx - 1][ty] === 1 : true;
-          const E = (tx < this.tileWidth - 1) ? this.tileGrid[tx + 1][ty] === 1 : true;
+          const top = ty > 0 ? this.tileGrid[tx][ty - 1] === 1 : false;
+          const bottom = ty < this.tileHeight - 1 ? this.tileGrid[tx][ty + 1] === 1 : false;
+          const left = tx > 0 ? this.tileGrid[tx - 1][ty] === 1 : false;
+          const right = tx < this.tileWidth - 1 ? this.tileGrid[tx + 1][ty] === 1 : false;
           const theme = (this.sectorThemes && this.sectorThemes[`${Math.floor(tx / 50)},${Math.floor(ty / 50)}`]) || 'dungeon';
 
-          // Autotiling connection bitmask (N=1, E=2, S=4, W=8)
-          let bitmask = 0;
-          if (N) bitmask += 1;
-          if (E) bitmask += 2;
-          if (S) bitmask += 4;
-          if (W) bitmask += 8;
-
-          let srcX = 64;
-          let srcY = 16;
-
-          // Check for concave (inner) corners first if cardinally surrounded
-          if (bitmask === 15) {
-            const NW = (tx > 0 && ty > 0) ? this.tileGrid[tx - 1][ty - 1] === 1 : true;
-            const NE = (tx < this.tileWidth - 1 && ty > 0) ? this.tileGrid[tx + 1][ty - 1] === 1 : true;
-            const SW = (tx > 0 && ty < this.tileHeight - 1) ? this.tileGrid[tx - 1][ty + 1] === 1 : true;
-            const SE = (tx < this.tileWidth - 1 && ty < this.tileHeight - 1) ? this.tileGrid[tx + 1][ty + 1] === 1 : true;
-
-            if (!SE) {
-              srcX = 6 * 16; srcY = 0 * 16; // bottom-right concave corner
-            } else if (!SW) {
-              srcX = 7 * 16; srcY = 0 * 16; // bottom-left concave corner
-            } else if (!NE) {
-              srcX = 6 * 16; srcY = 1 * 16; // top-right concave corner
-            } else if (!NW) {
-              srcX = 7 * 16; srcY = 1 * 16; // top-left concave corner
-            } else {
-              // Standard fully surrounded tile (with variants)
-              const choices = window.WALL_VARIANTS[15] || [window.TILING_MAP[15]];
-              const variantHash = (tx * 17 + ty * 31) % choices.length;
-              const tile = choices[variantHash];
-              srcX = tile.col * 16;
-              srcY = tile.row * 16;
-            }
-          } else {
-            // Standard autotiling using customizable TILING_MAP & WALL_VARIANTS
-            const choices = window.WALL_VARIANTS[bitmask] || [window.TILING_MAP[bitmask]];
-            const variantHash = (tx * 17 + ty * 31) % choices.length;
-            const tile = choices[variantHash];
-            srcX = tile.col * 16;
-            srcY = tile.row * 16;
-          }
+          const [srcX, srcY] = getWallTile({ top, bottom, left, right });
 
           const themeName = THEME_MAPPING[theme] || 'walls-light';
           window.currentTheme = themeName;
