@@ -1,4 +1,8 @@
 import { Game } from './engine/Game.js';
+import { inject } from '@vercel/analytics';
+
+// Initialize Vercel Web Analytics
+inject();
 
 window.addEventListener('DOMContentLoaded', () => {
   // Detect mobile devices (via user agent or screen size)
