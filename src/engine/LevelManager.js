@@ -4107,6 +4107,19 @@ export class LevelManager {
           const S = bottom;
           const W = left;
           const E = right;
+          const topLeft = tx > 0 && ty > 0 ? this.tileGrid[tx - 1][ty - 1] === 1 : false;
+          const topRight =
+            tx < this.tileWidth - 1 && ty > 0
+              ? this.tileGrid[tx + 1][ty - 1] === 1
+              : false;
+          const bottomLeft =
+            tx > 0 && ty < this.tileHeight - 1
+              ? this.tileGrid[tx - 1][ty + 1] === 1
+              : false;
+          const bottomRight =
+            tx < this.tileWidth - 1 && ty < this.tileHeight - 1
+              ? this.tileGrid[tx + 1][ty + 1] === 1
+              : false;
           const theme =
             (this.sectorThemes &&
               this.sectorThemes[
