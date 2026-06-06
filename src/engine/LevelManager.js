@@ -2524,16 +2524,6 @@ export class LevelManager {
     if (!bounds) return;
     const { startTx, endTx, startTy, endTy } = bounds;
 
-    const player = this.game?.player;
-    const renderDist = this.game?.renderDistance || 1200;
-    const renderDistSq = renderDist * renderDist;
-    const shouldCull = (wx, wy) => {
-      if (!player) return false;
-      const dx = wx - player.x;
-      const dy = wy - player.y;
-      return dx * dx + dy * dy > renderDistSq;
-    };
-
     for (let tx = startTx; tx <= endTx; tx++) {
       const sx = Math.floor(tx / 50);
       for (let ty = startTy; ty <= endTy; ty++) {
@@ -2547,7 +2537,6 @@ export class LevelManager {
 
           // Skip tiles fully off-screen
           if (rx + tileSize < 0 || rx > canvasWidth || ry + tileSize < 0 || ry > canvasHeight) continue;
-          if (shouldCull(tx * tileSize + tileSize / 2, ty * tileSize + tileSize / 2)) continue;
           
           // Theme coloring & tileset variations to prevent visual uniformity
           const variant = (tx * 7 + ty * 13) % 4;
@@ -2798,7 +2787,6 @@ export class LevelManager {
           
           // Skip tiles fully off-screen
           if (rx + tileSize < 0 || rx > canvasWidth || ry + tileSize < 0 || ry > canvasHeight) continue;
-          if (shouldCull(tx * tileSize + tileSize / 2, ty * tileSize + tileSize / 2)) continue;
 
           // Draw special runic floor
           ctx.fillStyle = '#22153c'; // deep runic purple
@@ -2842,7 +2830,6 @@ export class LevelManager {
     // Draw Door portals (3 blocks wide)
     if (this.doors) {
       this.doors.forEach(door => {
-        if (shouldCull(door.x, door.y)) return;
         const rx = door.x - camera.x;
         const ry = door.y - camera.y;
         const isHorizontal = (door.dir === 'North' || door.dir === 'South');
@@ -2878,7 +2865,6 @@ export class LevelManager {
 
     // Draw Shrines
     this.shrines.forEach((shrine) => {
-      if (shouldCull(shrine.x, shrine.y)) return;
       const rx = shrine.x - camera.x;
       const ry = shrine.y - camera.y;
       
@@ -2898,9 +2884,8 @@ export class LevelManager {
       }
     });
 
-    // Draw Chests
+    // Draw Chests (locked/unlocked)
     this.chests.forEach((chest) => {
-      if (shouldCull(chest.x, chest.y)) return;
       const rx = chest.x - camera.x;
       const ry = chest.y - camera.y;
       
@@ -2951,7 +2936,6 @@ export class LevelManager {
     // B. Locked Doors
     this.allObstacles.forEach(obs => {
       if (obs.type === 'door' && obs.closed) {
-        if (shouldCull(obs.x, obs.y)) return;
         const rx = obs.x - camera.x;
         const ry = obs.y - camera.y;
         
@@ -2972,7 +2956,6 @@ export class LevelManager {
     // C. Teleporters
     if (this.teleporters) {
       this.teleporters.forEach(tp => {
-        if (shouldCull(tp.x, tp.y)) return;
         const rx = tp.x - camera.x;
         const ry = tp.y - camera.y;
         
@@ -2989,7 +2972,6 @@ export class LevelManager {
     // D. Valves
     if (this.valves) {
       this.valves.forEach(valve => {
-        if (shouldCull(valve.x, valve.y)) return;
         const rx = valve.x - camera.x;
         const ry = valve.y - camera.y;
         
@@ -3024,7 +3006,6 @@ export class LevelManager {
     // E. Lava Vents
     if (this.lavaVents) {
       this.lavaVents.forEach(vent => {
-        if (shouldCull(vent.x, vent.y)) return;
         const rx = vent.x - camera.x;
         const ry = vent.y - camera.y;
         
@@ -3042,36 +3023,32 @@ export class LevelManager {
 
     // F. Exit Portal
     if (this.exitPortal) {
-      if (!shouldCull(this.exitPortal.x, this.exitPortal.y)) {
-        const rx = this.exitPortal.x - camera.x;
-        const ry = this.exitPortal.y - camera.y;
-        
-        const pulse = 16 + Math.sin(Date.now() / 100) * 4;
-        ctx.fillStyle = 'rgba(236, 204, 104, 0.35)';
-        this.game.drawCircle(ctx, rx, ry, pulse, 'rgba(236, 204, 104, 0.35)', '#eccc68', 2);
-        this.game.drawCircle(ctx, rx, ry, pulse - 6, 'rgba(255, 255, 255, 0.45)');
-        
-        ctx.fillStyle = '#eccc68';
-        ctx.font = 'bold 9px monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('EXIT', rx, ry);
-      }
+      const rx = this.exitPortal.x - camera.x;
+      const ry = this.exitPortal.y - camera.y;
+      
+      const pulse = 16 + Math.sin(Date.now() / 100) * 4;
+      ctx.fillStyle = 'rgba(236, 204, 104, 0.35)';
+      this.game.drawCircle(ctx, rx, ry, pulse, 'rgba(236, 204, 104, 0.35)', '#eccc68', 2);
+      this.game.drawCircle(ctx, rx, ry, pulse - 6, 'rgba(255, 255, 255, 0.45)');
+      
+      ctx.fillStyle = '#eccc68';
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('EXIT', rx, ry);
     }
 
     // G. Battery Companion
     if (this.chapterBatteryCompanion) {
-      if (!shouldCull(this.chapterBatteryCompanion.x, this.chapterBatteryCompanion.y)) {
-        const rx = this.chapterBatteryCompanion.x - camera.x;
-        const ry = this.chapterBatteryCompanion.y - camera.y;
-        
-        ctx.fillStyle = 'rgba(112, 161, 255, 0.04)';
-        this.game.drawCircle(ctx, rx, ry, 160, 'rgba(112, 161, 255, 0.04)');
-        this.game.drawCircle(ctx, rx, ry, 40, 'rgba(112, 161, 255, 0.12)', '#70a1ff', 1);
+      const rx = this.chapterBatteryCompanion.x - camera.x;
+      const ry = this.chapterBatteryCompanion.y - camera.y;
+      
+      ctx.fillStyle = 'rgba(112, 161, 255, 0.04)';
+      this.game.drawCircle(ctx, rx, ry, 160, 'rgba(112, 161, 255, 0.04)');
+      this.game.drawCircle(ctx, rx, ry, 40, 'rgba(112, 161, 255, 0.12)', '#70a1ff', 1);
 
-        ctx.fillStyle = '#ffffff';
-        this.game.drawCircle(ctx, rx, ry, 6, '#ffffff', '#70a1ff', 2);
-      }
+      ctx.fillStyle = '#ffffff';
+      this.game.drawCircle(ctx, rx, ry, 6, '#ffffff', '#70a1ff', 2);
     }
 
     // Draw wall tiles (connected textures) and explosive barrels
@@ -3084,10 +3061,6 @@ export class LevelManager {
     for (let tx = startTx; tx <= endTx; tx++) {
       for (let ty = startTy; ty <= endTy; ty++) {
         if (this.tileGrid[tx][ty] === 1) {
-          const tileWorldX = tx * tileSize + tileSize / 2;
-          const tileWorldY = ty * tileSize + tileSize / 2;
-          if (shouldCull(tileWorldX, tileWorldY)) continue;
-
           const rx = tx * tileSize - camera.x;
           const ry = ty * tileSize - camera.y;
           // Check if there is floor below this wall
@@ -3103,10 +3076,6 @@ export class LevelManager {
     for (let tx = startTx; tx <= endTx; tx++) {
       for (let ty = startTy; ty <= endTy; ty++) {
         if (this.tileGrid[tx][ty] === 1) {
-          const tileWorldX = tx * tileSize + tileSize / 2;
-          const tileWorldY = ty * tileSize + tileSize / 2;
-          if (shouldCull(tileWorldX, tileWorldY)) continue;
-
           const rx = tx * tileSize - camera.x;
           const ry = ty * tileSize - camera.y;
           
@@ -3278,7 +3247,6 @@ export class LevelManager {
     const pad = 2;
     const camera = this.game?.camera;
     const canvas = this.game?.canvas;
-    const player = this.game?.player;
 
     let startTx = 0;
     let endTx = this.tileWidth - 1;
@@ -3291,15 +3259,6 @@ export class LevelManager {
       endTx = Math.min(endTx, Math.ceil((camera.x + canvas.width) / tileSize) + pad);
       startTy = Math.max(startTy, Math.floor(camera.y / tileSize) - pad);
       endTy = Math.min(endTy, Math.ceil((camera.y + canvas.height) / tileSize) + pad);
-    }
-
-    // Render distance bounds (intersected)
-    if (player) {
-      const margin = (this.game?.renderDistance || 1200) + tileSize * 2;
-      startTx = Math.max(startTx, Math.floor((player.x - margin) / tileSize));
-      endTx = Math.min(endTx, Math.ceil((player.x + margin) / tileSize));
-      startTy = Math.max(startTy, Math.floor((player.y - margin) / tileSize));
-      endTy = Math.min(endTy, Math.ceil((player.y + margin) / tileSize));
     }
 
     return { startTx, endTx, startTy, endTy };
