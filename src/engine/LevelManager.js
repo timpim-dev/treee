@@ -10,6 +10,42 @@ const A_STAR_DIRS = [
   { dc: -1, dr: 0,  wall: 'west'  },
 ];
 
+const WALL_SHEETS = {};
+const THEMES = ['walls-light', 'walls-dark', 'walls-lava', 'walls-Garden', 'walls-void'];
+let sheetsLoaded = 0;
+THEMES.forEach(name => {
+  const img = new Image();
+  img.src = `${name}.png`;
+  img.onload = () => {
+    sheetsLoaded++;
+    window.sheetsLoaded = sheetsLoaded;
+  };
+  WALL_SHEETS[name] = img;
+});
+let currentTheme = 'walls-light';
+
+const THEME_MAPPING = {
+  'dungeon': 'walls-light',
+  'underground': 'walls-dark',
+  'volcanic': 'walls-lava',
+  'gardens': 'walls-Garden',
+  'void_rift': 'walls-void',
+  'pool': 'walls-light',
+  'backrooms': 'walls-light',
+};
+
+// Expose variables globally for compatibility and verification
+window.WALL_SHEETS = WALL_SHEETS;
+window.THEMES = THEMES;
+window.sheetsLoaded = sheetsLoaded;
+window.currentTheme = currentTheme;
+window.drawWallTile = function(ctx, col, row, srcX, srcY) {
+  const themeName = window.currentTheme || currentTheme;
+  const sheet = WALL_SHEETS[themeName];
+  if (!sheet) return;
+  ctx.drawImage(sheet, srcX, srcY, 16, 16, col * 16, row * 16, 16, 16);
+};
+
 export class LevelManager {
   constructor(game) {
     this.game = game;
@@ -3092,92 +3128,137 @@ export class LevelManager {
           const W = (tx > 0) ? this.tileGrid[tx - 1][ty] === 1 : true;
           const E = (tx < this.tileWidth - 1) ? this.tileGrid[tx + 1][ty] === 1 : true;
           const theme = (this.sectorThemes && this.sectorThemes[`${Math.floor(tx / 50)},${Math.floor(ty / 50)}`]) || 'dungeon';
-          
-          let wallBase = '#3f4756';
-          let wallMortar = '#1c202a';
-          let wallHighlight = '#5c677c';
-          let wallShadow = '#161922';
-          
-          if (theme === 'gardens') {
-            wallBase = '#1e5f33'; // shrub leafy green
-            wallMortar = '#0e3e20';
-            wallHighlight = '#2ecc71';
-            wallShadow = '#0f3d1e';
-          } else if (theme === 'underground') {
-            wallBase = '#634427'; // cavern rock
-            wallMortar = '#331e0b';
-            wallHighlight = '#7d5b3c';
-            wallShadow = '#2d1c0a';
-          } else if (theme === 'pool') {
-            wallBase = '#e0f7fa'; // white/teal clean tiles
-            wallMortar = '#b2ebf2';
-            wallHighlight = '#ffffff';
-            wallShadow = '#80deea';
-          } else if (theme === 'volcanic') {
-            wallBase = '#4a1b1b'; // dark volcanic rock
-            wallMortar = '#2c0f0f';
-            wallHighlight = '#e74c3c'; // red highlights
-            wallShadow = '#1c0a0a';
-          } else if (theme === 'void_rift') {
-            wallBase = '#11052c'; // void obsidian
-            wallMortar = '#0d0221';
-            wallHighlight = '#9b59b6'; // magenta highlights
-            wallShadow = '#070114';
-          } else if (theme === 'backrooms') {
-            wallBase = '#ffeaa7'; // yellow mono wallpaper
-            wallMortar = '#d1b87a';
-            wallHighlight = '#fff9db';
-            wallShadow = '#b89e5c';
-          }
-          
-          ctx.fillStyle = wallBase;
-          ctx.fillRect(rx, ry, tileSize, tileSize);
-          
-          if (theme === 'backrooms') {
-            // Vertical wallpaper stripes
-            ctx.fillStyle = '#e8d090';
-            ctx.fillRect(rx + 10, ry, 1, tileSize);
-            ctx.fillRect(rx + 20, ry, 1, tileSize);
-            ctx.fillRect(rx + 30, ry, 1, tileSize);
-            // Subtle horizontal seam
-            ctx.fillStyle = '#d4c07a';
-            ctx.fillRect(rx, ry + 20, tileSize, 1);
-            // Baseboard if floor below
-            if (!S) {
-              ctx.fillStyle = '#8f773b';
-              ctx.fillRect(rx, ry + tileSize - 5, tileSize, 5);
-              ctx.fillStyle = '#6d5a2e';
-              ctx.fillRect(rx, ry + tileSize - 6, tileSize, 1);
-            }
+
+          // Autotiling rules — check each wall cell's 4 neighbors
+          let srcX = 64;
+          let srcY = 16;
+
+          // Check for fully surrounded
+          if (N && S && W && E) {
+            srcX = 16;
+            srcY = 16; // solid wall fill
+          } else if (!N && !W) {
+            srcX = 0;
+            srcY = 0; // top-left corner
+          } else if (!N && !E) {
+            srcX = 112;
+            srcY = 0; // top-right corner
+          } else if (!S && !W) {
+            srcX = 0;
+            srcY = 32; // bottom-left corner
+          } else if (!S && !E) {
+            srcX = 112;
+            srcY = 32; // bottom-right corner
+          } else if (!N) {
+            srcX = 64;
+            srcY = 0; // top wall, straight
+          } else if (!S) {
+            srcX = 64;
+            srcY = 32; // bottom wall, straight
+          } else if (!W) {
+            srcX = 0;
+            srcY = 16; // left wall, vertical
+          } else if (!E) {
+            srcX = 112;
+            srcY = 16; // right wall, vertical
           } else {
-            // Draw procedural horizontal brick line textures
-            const xStart = W ? rx : rx + 4;
-            const xEnd = E ? rx + tileSize : rx + tileSize - 4;
-            ctx.fillStyle = wallMortar;
-            ctx.fillRect(xStart, ry + 13, xEnd - xStart, 2);
-            ctx.fillRect(xStart, ry + 26, xEnd - xStart, 2);
-            
-            // Draw vertical joints deterministically for brick look
-            const hash = (tx * 19 + ty * 23) % 100;
-            if (hash < 50) {
-              ctx.fillRect(rx + 20, ry, 2, 13);
-              ctx.fillRect(rx + 10, ry + 13, 2, 13);
-              ctx.fillRect(rx + 30, ry + 26, 2, 14);
-            } else {
-              ctx.fillRect(rx + 10, ry, 2, 13);
-              ctx.fillRect(rx + 30, ry + 13, 2, 13);
-              ctx.fillRect(rx + 20, ry + 26, 2, 14);
-            }
+            srcX = 64;
+            srcY = 16; // inner wall tile fallback
           }
-          
-          // Connected highlights (top/left) and shadows (bottom/right)
-          ctx.fillStyle = wallHighlight;
-          if (!N) ctx.fillRect(rx, ry, tileSize, 3);
-          if (!W) ctx.fillRect(rx, ry, 3, tileSize);
-          
-          ctx.fillStyle = wallShadow;
-          if (!S) ctx.fillRect(rx, ry + tileSize - 3, tileSize, 3);
-          if (!E) ctx.fillRect(rx + tileSize - 3, ry, 3, tileSize);
+
+          const themeName = window.currentTheme || THEME_MAPPING[theme] || 'walls-light';
+          const sheet = WALL_SHEETS[themeName];
+          if (sheet && sheet.complete && sheet.naturalWidth !== 0) {
+            // Draw tile scaled to tileSize (40px)
+            ctx.drawImage(sheet, srcX, srcY, 16, 16, rx, ry, tileSize, tileSize);
+          } else {
+            // Procedural fallback
+            let wallBase = '#3f4756';
+            let wallMortar = '#1c202a';
+            let wallHighlight = '#5c677c';
+            let wallShadow = '#161922';
+            
+            if (theme === 'gardens') {
+              wallBase = '#1e5f33'; // shrub leafy green
+              wallMortar = '#0e3e20';
+              wallHighlight = '#2ecc71';
+              wallShadow = '#0f3d1e';
+            } else if (theme === 'underground') {
+              wallBase = '#634427'; // cavern rock
+              wallMortar = '#331e0b';
+              wallHighlight = '#7d5b3c';
+              wallShadow = '#2d1c0a';
+            } else if (theme === 'pool') {
+              wallBase = '#e0f7fa'; // white/teal clean tiles
+              wallMortar = '#b2ebf2';
+              wallHighlight = '#ffffff';
+              wallShadow = '#80deea';
+            } else if (theme === 'volcanic') {
+              wallBase = '#4a1b1b'; // dark volcanic rock
+              wallMortar = '#2c0f0f';
+              wallHighlight = '#e74c3c'; // red highlights
+              wallShadow = '#1c0a0a';
+            } else if (theme === 'void_rift') {
+              wallBase = '#11052c'; // void obsidian
+              wallMortar = '#0d0221';
+              wallHighlight = '#9b59b6'; // magenta highlights
+              wallShadow = '#070114';
+            } else if (theme === 'backrooms') {
+              wallBase = '#ffeaa7'; // yellow mono wallpaper
+              wallMortar = '#d1b87a';
+              wallHighlight = '#fff9db';
+              wallShadow = '#b89e5c';
+            }
+            
+            ctx.fillStyle = wallBase;
+            ctx.fillRect(rx, ry, tileSize, tileSize);
+            
+            if (theme === 'backrooms') {
+              // Vertical wallpaper stripes
+              ctx.fillStyle = '#e8d090';
+              ctx.fillRect(rx + 10, ry, 1, tileSize);
+              ctx.fillRect(rx + 20, ry, 1, tileSize);
+              ctx.fillRect(rx + 30, ry, 1, tileSize);
+              // Subtle horizontal seam
+              ctx.fillStyle = '#d4c07a';
+              ctx.fillRect(rx, ry + 20, tileSize, 1);
+              // Baseboard if floor below
+              if (!S) {
+                ctx.fillStyle = '#8f773b';
+                ctx.fillRect(rx, ry + tileSize - 5, tileSize, 5);
+                ctx.fillStyle = '#6d5a2e';
+                ctx.fillRect(rx, ry + tileSize - 6, tileSize, 1);
+              }
+            } else {
+              // Draw procedural horizontal brick line textures
+              const xStart = W ? rx : rx + 4;
+              const xEnd = E ? rx + tileSize : rx + tileSize - 4;
+              ctx.fillStyle = wallMortar;
+              ctx.fillRect(xStart, ry + 13, xEnd - xStart, 2);
+              ctx.fillRect(xStart, ry + 26, xEnd - xStart, 2);
+              
+              // Draw vertical joints deterministically for brick look
+              const hash = (tx * 19 + ty * 23) % 100;
+              if (hash < 50) {
+                ctx.fillRect(rx + 20, ry, 2, 13);
+                ctx.fillRect(rx + 10, ry + 13, 2, 13);
+                ctx.fillRect(rx + 30, ry + 26, 2, 14);
+              } else {
+                ctx.fillRect(rx + 10, ry, 2, 13);
+                ctx.fillRect(rx + 30, ry + 13, 2, 13);
+                ctx.fillRect(rx + 20, ry + 26, 2, 14);
+              }
+            }
+            
+            // Connected highlights (top/left) and shadows (bottom/right)
+            ctx.fillStyle = wallHighlight;
+            if (!N) ctx.fillRect(rx, ry, tileSize, 3);
+            if (!W) ctx.fillRect(rx, ry, 3, tileSize);
+            
+            ctx.fillStyle = wallShadow;
+            if (!S) ctx.fillRect(rx, ry + tileSize - 3, tileSize, 3);
+            if (!E) ctx.fillRect(rx + tileSize - 3, ry, 3, tileSize);
+          }
         }
       }
     }
