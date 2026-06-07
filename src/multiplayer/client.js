@@ -12,6 +12,9 @@ export class MultiplayerManager {
     this.ws = null;
     this.peers = new Map(); // peerId -> { pc, dc }
 
+    this.ably = null;
+    this.ablyChannel = null;
+
     this.onStateSnapshot = opts.onStateSnapshot || (() => {});
     this.onPeerJoin = opts.onPeerJoin || (() => {});
     this.onPeerLeave = opts.onPeerLeave || (() => {});
@@ -19,6 +22,15 @@ export class MultiplayerManager {
   }
 
   async reserveCode(code, ttl = 1800) {
+    // Try Ably presence-based reservation first (if available on Vercel token endpoint)
+    try {
+      const ablyToken = await this._fetchAblyToken();
+      if (ablyToken && typeof Ably !== 'undefined') {
+        // but Ably is not globally imported — attempt dynamic import
+      }
+    } catch (e) { /* ignore, fallback to HTTP */ }
+
+    // Fallback: server reserve endpoint
     const url = this.signalingUrl.replace(/\/+$/, '') + '/api/rooms/reserve';
     try {
       const res = await fetch(url, {
@@ -91,6 +103,12 @@ export class MultiplayerManager {
 
   async _connectWS() {
     if (!this.roomCode) throw new Error('no room code');
+    // Prefer Ably realtime channel for signaling if available
+    if (await this._tryInitAblyChannel(this.roomCode)) {
+      this.onStatusChange({ type: 'signaling', transport: 'ably' });
+      return;
+    }
+
     const wsUrl = (this.signalingUrl.replace(/^http/, 'ws') ) + `/?room=${encodeURIComponent(this.roomCode)}`;
     this.ws = new WebSocket(wsUrl);
     this.ws.addEventListener('open', () => {
@@ -113,11 +131,18 @@ export class MultiplayerManager {
   }
 
   sendWS(msg) {
+    if (this.ablyChannel) {
+      try { this.ablyChannel.publish('signal', msg); } catch (e) { console.warn('ably publish failed', e); }
+      return;
+    }
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     this.ws.send(JSON.stringify(msg));
   }
 
   async _handleWSMessage(msg) {
+    // If using Ably channel, messages come via _handleAblyMessage
+    if (this.ablyChannel) return;
+
     const { type } = msg;
     if (type === 'WS_CONNECTED') {
       this.clientId = msg.clientId;
@@ -182,7 +207,9 @@ export class MultiplayerManager {
 
     pc.onicecandidate = (ev) => {
       if (ev.candidate) {
-        this.sendWS({ type: 'ICE', to: peerId, p: { cand: ev.candidate } });
+        // route via Ably if available
+        if (this.ablyChannel) this.ablyChannel.publish('signal', { type: 'ICE', to: peerId, p: { cand: ev.candidate } });
+        else this.sendWS({ type: 'ICE', to: peerId, p: { cand: ev.candidate } });
       }
     };
 
@@ -234,7 +261,6 @@ export class MultiplayerManager {
 
   async _createOfferForHost() {
     // create pc with wildcard peerId 'host' until answer arrives from host with from==hostClientId
-    // But server will set msg.from when host replies; we'll use one anonymous pc keyed by host when ANSWER arrives with from.
     const tempPeerId = 'HOST';
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     const dc = pc.createDataChannel('game');
@@ -243,7 +269,10 @@ export class MultiplayerManager {
     this._installDataChannelHandlers(dc, tempPeerId);
 
     pc.onicecandidate = (ev) => {
-      if (ev.candidate) this.sendWS({ type: 'ICE', p: { cand: ev.candidate } });
+      if (ev.candidate) {
+        if (this.ablyChannel) this.ablyChannel.publish('signal', { type: 'ICE', p: { cand: ev.candidate } });
+        else this.sendWS({ type: 'ICE', p: { cand: ev.candidate } });
+      }
     };
 
     pc.onconnectionstatechange = () => {
@@ -253,7 +282,8 @@ export class MultiplayerManager {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     // Broadcast OFFER (host will respond with ANSWER targeted to our clientId)
-    this.sendWS({ type: 'OFFER', p: { sdp: pc.localDescription.sdp } });
+    if (this.ablyChannel) this.ablyChannel.publish('signal', { type: 'OFFER', p: { sdp: pc.localDescription.sdp } });
+    else this.sendWS({ type: 'OFFER', p: { sdp: pc.localDescription.sdp } });
   }
 
   // Send game-level message to all connected datachannels
@@ -262,6 +292,101 @@ export class MultiplayerManager {
     for (const [peerId, entry] of this.peers) {
       if (entry.dc && entry.dc.readyState === 'open') entry.dc.send(s);
     }
+  }
+
+  // ---------------- ABLY INTEGRATION ----------------
+  async _fetchAblyToken() {
+   try {
+     const res = await fetch('/api/ably/token', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+     if (!res.ok) return null;
+     const tokenRequest = await res.json();
+     return tokenRequest;
+   } catch (e) { console.warn('fetchAblyToken failed', e); return null; }
+  }
+
+  async _tryInitAblyChannel(code) {
+   // attempt to initialize Ably realtime channel for this room code
+   try {
+     const tokenRequest = await this._fetchAblyToken();
+     if (!tokenRequest) return false;
+     const Ably = (await import('ably')).Realtime;
+     this.ably = new Ably({ token: tokenRequest.token });
+     const channelName = `rooms:${code}`;
+     this.ablyChannel = this.ably.channels.get(channelName);
+
+     // subscribe to signaling messages
+     this.ablyChannel.subscribe('signal', (msg) => {
+       try { this._handleAblyMessage(msg.data); } catch (e) { console.warn('handle ably signal failed', e); }
+     });
+
+     // presence handling
+     const members = await new Promise((resolve) => this.ablyChannel.presence.get((err, members) => resolve(members)));
+     // if there is an owner present, we consider room reserved
+     const ownerPresent = members && members.find && members.find(m => (m.data && m.data.owner));
+     if (!ownerPresent && this.isHost) {
+       // enter presence as owner
+       this.ablyChannel.presence.enter({ owner: true, createdAt: Date.now(), clientId: tokenRequest.clientId || null }, (err) => { if (err) console.warn('presence enter failed', err); });
+     }
+
+     // subscribe to presence updates
+     this.ablyChannel.presence.subscribe((presMsg) => {
+       // presMsg.action: enter/leave/update
+       this.onStatusChange({ type: 'presence', action: presMsg.action, member: presMsg });
+     });
+
+     // subscribe to generic messages for relay
+     this.ablyChannel.subscribe((msg) => {
+       // ignore non-signal messages
+     });
+
+     // publish WS_CONNECTED equivalent for client flow
+     this.onStatusChange({ type: 'ABLY_CONNECTED', channel: channelName });
+     return true;
+   } catch (e) {
+     console.warn('init ably failed', e);
+     this.ably = null;
+     this.ablyChannel = null;
+     return false;
+   }
+  }
+
+  _handleAblyMessage(data) {
+   // data is the payload sent by another peer
+   // emulate _handleWSMessage flow for Ably-based signaling
+   const msg = data;
+   const type = msg.type;
+   if (type === 'OFFER') {
+     if (!this.isHost) return;
+     const from = msg.from || null;
+     const sdp = msg.p && msg.p.sdp;
+     const pc = this._createPeerConnection(from || `peer-${Date.now()}`);
+     (async () => {
+       try {
+         await pc.setRemoteDescription({ type: 'offer', sdp });
+         const answer = await pc.createAnswer();
+         await pc.setLocalDescription(answer);
+         this.ablyChannel.publish('signal', { type: 'ANSWER', to: from, p: { sdp: pc.localDescription.sdp } });
+       } catch (e) { console.warn('offer handling failed', e); }
+     })();
+     return;
+   }
+
+   if (type === 'ANSWER') {
+     if (this.isHost) return;
+     const sdp = msg.p && msg.p.sdp;
+     const from = msg.from;
+     const entry = this.peers.get(from);
+     if (entry && entry.pc) entry.pc.setRemoteDescription({ type: 'answer', sdp }).catch(e => console.warn('setRemoteDescription failed', e));
+     return;
+   }
+
+   if (type === 'ICE') {
+     const candidate = msg.p && msg.p.cand;
+     const from = msg.from;
+     const entry = this.peers.get(from);
+     if (entry && entry.pc && candidate) entry.pc.addIceCandidate(candidate).catch(e => console.warn('addIce failed', e));
+     return;
+   }
   }
 
   // Save minimal room state to file

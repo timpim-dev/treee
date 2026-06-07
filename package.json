@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
+    "ably": "^1.2.22",
     "cors": "^2.8.5",
     "express": "^4.19.2"
   },
