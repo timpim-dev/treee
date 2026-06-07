@@ -200,8 +200,9 @@ export class MultiplayerManager {
     // Other application-layer messages can be broadcast via datachannels; ignore here
   }
 
-  _createPeerConnection(peerId) {
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+  async _createPeerConnection(peerId) {
+    const iceServers = await this._getIceServers();
+    const pc = new RTCPeerConnection({ iceServers: iceServers || [{ urls: 'stun:stun.l.google.com:19302' }] });
     const entry = { pc, dc: null };
     this.peers.set(peerId, entry);
 
@@ -262,7 +263,8 @@ export class MultiplayerManager {
   async _createOfferForHost() {
     // create pc with wildcard peerId 'host' until answer arrives from host with from==hostClientId
     const tempPeerId = 'HOST';
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    const iceServers = await this._getIceServers();
+    const pc = new RTCPeerConnection({ iceServers: iceServers || [{ urls: 'stun:stun.l.google.com:19302' }] });
     const dc = pc.createDataChannel('game');
     const entry = { pc, dc };
     this.peers.set(tempPeerId, entry);
@@ -387,6 +389,18 @@ export class MultiplayerManager {
      if (entry && entry.pc && candidate) entry.pc.addIceCandidate(candidate).catch(e => console.warn('addIce failed', e));
      return;
    }
+  }
+
+  async _getIceServers() {
+    try {
+      const res = await fetch('/api/turn');
+      if (!res.ok) return null;
+      const j = await res.json();
+      return j.iceServers || null;
+    } catch (e) {
+      console.warn('fetch /api/turn failed', e);
+      return null;
+    }
   }
 
   // Save minimal room state to file
