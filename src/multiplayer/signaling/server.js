@@ -44,6 +44,84 @@ app.post('/api/rooms/reserve', (req, res) => {
   return res.json({ ok: true, roomId });
 });
 
+// Reserve-for-streamer: idempotent reservation for streamer slug/code
+app.post('/api/rooms/reserve-for-streamer', (req, res) => {
+  const { code, ttl = 3600, owner } = req.body || {};
+  if (!code || typeof code !== 'string' || code.length === 0) return res.status(400).json({ ok: false, reason: 'invalid_code' });
+  const upCode = code.toUpperCase();
+  const now = Date.now();
+  const existing = reservations.get(upCode);
+  if (existing && existing.expiresAt > now) {
+    // if owner matches, extend TTL; otherwise report conflict
+    if (owner && existing.owner === owner) {
+      existing.expiresAt = now + ttl * 1000;
+      reservations.set(upCode, existing);
+      console.log(`[reserve-for-streamer] extended code=${upCode} roomId=${existing.roomId} owner=${owner}`);
+      return res.json({ ok: true, roomId: existing.roomId, extended: true });
+    }
+    return res.json({ ok: false, reason: 'conflict', roomId: existing.roomId, owner: existing.owner });
+  }
+
+  const roomId = `r_${uuidv4().slice(0,8)}`;
+  reservations.set(upCode, { roomId, owner: owner || null, expiresAt: now + ttl * 1000 });
+  console.log(`[reserve-for-streamer] reserved code=${upCode} roomId=${roomId} owner=${owner}`);
+  return res.json({ ok: true, roomId });
+});
+
+// Ensure endpoint: reserve and optionally notify a webhook to create host room
+app.post('/api/rooms/ensure', async (req, res) => {
+  const { code, ttl = 3600, owner, webhook } = req.body || {};
+  if (!code || typeof code !== 'string' || code.length === 0) return res.status(400).json({ ok: false, reason: 'invalid_code' });
+  const upCode = code.toUpperCase();
+  const now = Date.now();
+  const existing = reservations.get(upCode);
+
+  if (existing && existing.expiresAt > now) {
+    // Already reserved
+    // If owner matches, extend TTL
+    if (owner && existing.owner === owner) {
+      existing.expiresAt = now + ttl * 1000;
+      reservations.set(upCode, existing);
+      console.log(`[ensure] extended existing reservation code=${upCode} owner=${owner}`);
+      // Still notify webhook if provided
+      if (webhook) notifyWebhook(webhook, { event: 'ensure_extended', code: upCode, roomId: existing.roomId, owner });
+      return res.json({ ok: true, roomId: existing.roomId, existed: true });
+    }
+    // Conflict
+    console.log(`[ensure] conflict for code=${upCode} owner=${owner}, existing owner=${existing.owner}`);
+    if (webhook) notifyWebhook(webhook, { event: 'ensure_conflict', code: upCode, roomId: existing.roomId, owner: existing.owner });
+    return res.json({ ok: false, reason: 'conflict', roomId: existing.roomId, owner: existing.owner });
+  }
+
+  const roomId = `r_${uuidv4().slice(0,8)}`;
+  reservations.set(upCode, { roomId, owner: owner || null, expiresAt: now + ttl * 1000, needsHost: true });
+  console.log(`[ensure] reserved code=${upCode} roomId=${roomId} owner=${owner}`);
+
+  if (webhook) {
+    // Notify asynchronously
+    notifyWebhook(webhook, { event: 'ensure_requested', code: upCode, roomId, owner }).catch(e => console.warn('webhook notify failed', e));
+  }
+
+  return res.json({ ok: true, roomId, notified: !!webhook });
+});
+
+async function notifyWebhook(url, payload) {
+  // Use node's fetch if available; otherwise attempt require('node-fetch')
+  let fetchFn = global.fetch;
+  if (typeof fetchFn !== 'function') {
+    try { fetchFn = require('node-fetch'); } catch (e) { fetchFn = null; }
+  }
+  if (!fetchFn) {
+    console.warn('No fetch available to notify webhook');
+    return;
+  }
+  try {
+    await fetchFn(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  } catch (e) {
+    console.warn('notifyWebhook error', e);
+  }
+});
+
 app.post('/api/rooms/release', (req, res) => {
   const { code } = req.body || {};
   if (!code) return res.status(400).json({ ok: false });

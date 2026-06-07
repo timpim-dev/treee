@@ -24,11 +24,43 @@ client.on('message', async (channel, tags, message, self) => {
   const msg = (message || '').trim();
   if (!msg) return;
   if (msg.toLowerCase() === '!join') {
-    // Respond with a join URL for the streamer (use streamer slug = channel name)
-    // The game expects ?join=slug where slug is the streamer's slug/identifier
     const slug = (channel.replace('#','') || CHANNEL);
-    const url = `${GAME_BASE_URL}/?join=${encodeURIComponent(slug)}`;
-    const safe = `Join ${slug}'s room: ${url}`;
+    const joinUrl = `${GAME_BASE_URL}/?join=${encodeURIComponent(slug)}`;
+
+    // Attempt to ensure room on signaling server before replying so join link is reliable
+    const SIGNALING_URL = process.env.SIGNALING_URL || 'http://localhost:8081';
+    // optional webhook to notify streamer client/runner to create host room
+    const WEBHOOK = process.env.HOST_WEBHOOK || null;
+
+    // Ensure fetch exists (Node 18+ has global fetch)
+    let nodeFetch = global.fetch;
+    if (typeof nodeFetch !== 'function') {
+      try { nodeFetch = require('node-fetch'); } catch (e) { nodeFetch = null; }
+    }
+
+    if (nodeFetch) {
+      try {
+        const code = (slug || '').toUpperCase();
+        const body = { code, owner: slug, ttl: 3600 };
+        if (WEBHOOK) body.webhook = WEBHOOK;
+        const res = await nodeFetch(SIGNALING_URL.replace(/\/+$/, '') + '/api/rooms/ensure', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        });
+        if (res) {
+          const j = await res.json().catch(() => null);
+          // proceed regardless of outcome; if conflict, room likely exists
+          const safe = `Join ${slug}'s room: ${joinUrl}`;
+          await client.say(channel, safe);
+          return;
+        }
+      } catch (e) {
+        console.warn('signaling ensure attempt failed', e);
+        // Fall through and still send join URL
+      }
+    }
+
+    // Fallback: just reply with URL
+    const safe = `Join ${slug}'s room: ${joinUrl}`;
     try {
       await client.say(channel, safe);
     } catch (e) {

@@ -15,6 +15,7 @@ export class MultiplayerManager {
     this.onStateSnapshot = opts.onStateSnapshot || (() => {});
     this.onPeerJoin = opts.onPeerJoin || (() => {});
     this.onPeerLeave = opts.onPeerLeave || (() => {});
+    this.onStatusChange = opts.onStatusChange || (() => {}); // status updates for UI
   }
 
   async reserveCode(code, ttl = 1800) {
@@ -43,6 +44,7 @@ export class MultiplayerManager {
       if (r.ok) {
         this.roomCode = tryCode.toUpperCase();
         this.isHost = true;
+        this.onStatusChange({ type: 'room_created', code: this.roomCode, roomId: r.roomId });
         await this._connectWS();
         // Host ready
         console.log('[multiplayer] room created', this.roomCode, r.roomId);
@@ -60,6 +62,7 @@ export class MultiplayerManager {
     if (!code) return { ok: false, reason: 'missing_code' };
     this.roomCode = code.toUpperCase();
     this.isHost = false;
+    this.onStatusChange({ type: 'joining', code: this.roomCode });
     await this._connectWS();
     // After WS connected, create offer to establish P2P with host (host will reply)
     // Peer will create a peer connection and datachannel, then createOffer and broadcast.
@@ -90,13 +93,23 @@ export class MultiplayerManager {
     if (!this.roomCode) throw new Error('no room code');
     const wsUrl = (this.signalingUrl.replace(/^http/, 'ws') ) + `/?room=${encodeURIComponent(this.roomCode)}`;
     this.ws = new WebSocket(wsUrl);
-    this.ws.addEventListener('open', () => console.log('[multiplayer] ws open'));
+    this.ws.addEventListener('open', () => {
+      console.log('[multiplayer] ws open');
+      this.onStatusChange({ type: 'ws_open', code: this.roomCode, isHost: this.isHost });
+    });
     this.ws.addEventListener('message', async (ev) => {
       let msg;
       try { msg = JSON.parse(ev.data); } catch (e) { return; }
       await this._handleWSMessage(msg);
     });
-    this.ws.addEventListener('close', () => console.log('[multiplayer] ws closed'));
+    this.ws.addEventListener('close', () => {
+      console.log('[multiplayer] ws closed');
+      this.onStatusChange({ type: 'ws_closed', code: this.roomCode });
+    });
+    this.ws.addEventListener('error', (e) => {
+      console.warn('[multiplayer] ws error', e);
+      this.onStatusChange({ type: 'ws_error', error: e });
+    });
   }
 
   sendWS(msg) {
@@ -184,10 +197,12 @@ export class MultiplayerManager {
       if (pc.connectionState === 'connected') {
         console.log('[multiplayer] peer connected', peerId);
         this.onPeerJoin(peerId);
+        this.onStatusChange({ type: 'peer_connected', peerId });
       } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'closed' || pc.connectionState === 'failed') {
         console.log('[multiplayer] peer left', peerId);
         this.peers.delete(peerId);
         this.onPeerLeave(peerId);
+        this.onStatusChange({ type: 'peer_disconnected', peerId });
       }
     };
 
