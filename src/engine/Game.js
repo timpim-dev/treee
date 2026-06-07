@@ -945,6 +945,17 @@ export class Game {
       });
     }
 
+    const btnStartMultiplayer = document.getElementById('btn-start-multiplayer');
+    if (btnStartMultiplayer) {
+      btnStartMultiplayer.addEventListener('click', () => {
+        // Ensure multiplayer UI initialized
+        if (!this._openMultiplayerModal) {
+          try { this.initMultiplayerUI(); } catch(e) { console.warn('initMultiplayerUI failed', e); }
+        }
+        if (this._openMultiplayerModal) this._openMultiplayerModal();
+      });
+    }
+
     // Customize Selector Buttons
     const presets = [
       { name: 'Aether Blue', hue: 0 },
