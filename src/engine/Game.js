@@ -285,6 +285,27 @@ export class Game {
     this.initTwitchUIListeners();
     this.updateTwitchStatus();
 
+    // Add debug handler for START MULTIPLAYER menu button to help trace click issues
+    try {
+      const _btnStartMp = document.getElementById('btn-start-multiplayer');
+      if (_btnStartMp) {
+        _btnStartMp.addEventListener('click', () => {
+          console.log('[Game] btn-start-multiplayer clicked');
+          try {
+            if (!this._openMultiplayerModal) {
+              this.initMultiplayerUI?.();
+            }
+          } catch (e) { console.warn('initMultiplayerUI error', e); }
+          if (this._openMultiplayerModal) {
+            this._openMultiplayerModal();
+          } else {
+            console.warn('[Game] _openMultiplayerModal not defined');
+            try { alert('Multiplayer init failed — check console for details'); } catch(e){}
+          }
+        });
+      }
+    } catch (e) { console.warn('btn-start-multiplayer debug attach failed', e); }
+
     // Check for Twitch URL parameter ?channel=username and ?join=slug
     const urlParams = new URLSearchParams(window.location.search);
     const channelParam = urlParams.get('channel');
