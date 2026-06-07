@@ -252,10 +252,14 @@ export class MultiplayerManager {
     } else if (t === 'INPUT') {
       // host will receive inputs from peers
       if (this.isHost) {
-        // apply/queue inputs (integration with game loop needed)
-        // For MVP just log
-        // TODO: validate inputs and apply to authoritative state
-        console.log('[multiplayer] input from', peerId, p);
+        // integration with game loop: forward to game for validation/queueing
+        try {
+          if (this.game && typeof this.game._onRemoteInput === 'function') {
+            this.game._onRemoteInput(peerId, p);
+          } else {
+            console.log('[multiplayer] input from', peerId, p);
+          }
+        } catch (e) { console.warn('forward input failed', e); }
       }
     }
   }

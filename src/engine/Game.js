@@ -48,6 +48,11 @@ export class Game {
     this.nextThemeOverride = null;
     this.frameCount = 0;
     
+    // Multiplayer helpers
+    this.remotePlayers = new Map(); // other players seen from snapshots
+    this._mpHostInterval = null;
+    this._remoteInputQueue = []; // inputs received by host from peers (to be applied in host game loop)
+
     // Dev overlay flags
     this.devShowHitboxes = false;
     this.devShowPaths = false;
@@ -244,12 +249,15 @@ export class Game {
           const url = location.origin + '/?join=' + encodeURIComponent(s.code.toLowerCase());
           this._setMpLink(url);
           this._setMpStatus('Room created: ' + s.code);
+          // If we are host, start broadcasting snapshots
+          if (this.multiplayer && this.multiplayer.isHost) this._startHostBroadcast();
         } else if (s.type === 'joining') {
           this._setMpStatus('Joining ' + (s.code || '')); 
         } else if (s.type === 'ws_open') {
           this._setMpStatus('Connected to signaling');
         } else if (s.type === 'ws_closed') {
           this._setMpStatus('Signaling disconnected', '#f66');
+          this._stopHostBroadcast();
         } else if (s.type === 'ws_error') {
           this._setMpStatus('Signaling error', '#f66');
         } else if (s.type === 'peer_connected') {
@@ -259,6 +267,11 @@ export class Game {
           const peers = Array.from(this.multiplayer.peers.keys());
           this._setMpPeers(peers);
         }
+      };
+
+      // receive authoritative snapshots from host (client-side)
+      this.multiplayer.onStateSnapshot = (snap) => {
+        try { this._applySnapshot(snap); } catch (e) { console.warn('apply snapshot failed', e); }
       };
     };
 
@@ -398,6 +411,10 @@ export class Game {
 
       const key = rawKey.toLowerCase();
       this.keys[key] = true;
+      // send local input to host if in multiplayer
+      if (this.state === 'PLAYING' && this.multiplayer) {
+        try { this._sendLocalInput({ type: 'key', key, down: true, ts: Date.now() }); } catch (e) {}
+      }
       
       // Debug cheats
       if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
@@ -548,7 +565,11 @@ export class Game {
     });
 
     window.addEventListener('keyup', (e) => {
-      this.keys[e.key.toLowerCase()] = false;
+      const k = e.key.toLowerCase();
+      this.keys[k] = false;
+      if (this.state === 'PLAYING' && this.multiplayer) {
+        try { this._sendLocalInput({ type: 'key', key: k, down: false, ts: Date.now() }); } catch (e) {}
+      }
     });
 
     // Add blur listener to reset input keys so player doesn't stick move on focus lose
@@ -569,11 +590,17 @@ export class Game {
       if (this.state !== 'PLAYING') return;
       if (e.button === 0) this.isLeftMouseDown = true;
       if (e.button === 2) this.isRightMouseDown = true;
+      if (this.multiplayer) {
+        try { this._sendLocalInput({ type: 'mouse', button: e.button, down: true, x: this.mouseX, y: this.mouseY, ts: Date.now() }); } catch (err) {}
+      }
     });
 
     window.addEventListener('mouseup', (e) => {
       if (e.button === 0) this.isLeftMouseDown = false;
       if (e.button === 2) this.isRightMouseDown = false;
+      if (this.multiplayer) {
+        try { this._sendLocalInput({ type: 'mouse', button: e.button, down: false, x: this.mouseX, y: this.mouseY, ts: Date.now() }); } catch (err) {}
+      }
     });
 
     // Disable context menu on right click inside game screen
@@ -3112,6 +3139,82 @@ export class Game {
     });
   }
 
+  // Multiplayer host broadcasting and client input helpers
+  _startHostBroadcast(intervalMs = 200) {
+    if (this._mpHostInterval) return;
+    this._mpHostInterval = setInterval(() => {
+      if (!this.multiplayer || !this.multiplayer.isHost) return;
+      if (this.state !== 'PLAYING') return;
+      // Build minimal authoritative snapshot
+      const snap = {
+        t: Date.now(),
+        player: { x: this.player.x, y: this.player.y, hp: this.player.hp, mp: this.player.mp },
+        players: Array.from(this.remotePlayers.entries()).map(([id, pl]) => ({ id, x: pl.x, y: pl.y, hp: pl.hp || null })),
+        enemies: this.enemies.slice(0, 100).map(e => ({ id: e.id || null, x: e.x, y: e.y, hp: e.hp || null })),
+        projectiles: this.projectiles.slice(0, 200).map(p => ({ id: p.id || null, x: p.x, y: p.y, vx: p.vx, vy: p.vy }))
+      };
+      try { this.multiplayer.broadcastData({ t: 'STATE_SNAPSHOT', p: snap }); } catch (e) { console.warn('broadcast snapshot failed', e); }
+    }, intervalMs);
+  }
+
+  _stopHostBroadcast() {
+    if (this._mpHostInterval) { clearInterval(this._mpHostInterval); this._mpHostInterval = null; }
+  }
+
+  _applySnapshot(snap) {
+    if (!snap) return;
+    // Update remote players
+    if (snap.player) {
+      // single-host snapshot; store host as "host" entry
+      this.remotePlayers.set('host', snap.player);
+    }
+    // Update players positions (other players) for visualization
+    if (Array.isArray(snap.players)) {
+      for (const sp of snap.players) {
+        if (!sp || !sp.id) continue;
+        const existing = this.remotePlayers.get(sp.id) || {};
+        existing.x = sp.x; existing.y = sp.y; existing.hp = sp.hp !== undefined ? sp.hp : existing.hp;
+        existing.lastSeen = Date.now();
+        this.remotePlayers.set(sp.id, existing);
+      }
+    }
+
+    // Update enemies positions locally for visualization (non-authoritative client-side interpolation could be added)
+    if (Array.isArray(snap.enemies)) {
+      for (const se of snap.enemies) {
+        const existing = this.enemies.find(e => e.id === se.id);
+        if (existing) {
+          existing.x = se.x; existing.y = se.y; if (se.hp !== undefined) existing.hp = se.hp;
+        } else {
+          // lightweight enemy placeholder if not present
+          this.enemies.push({ id: se.id || `e${Date.now()}`, x: se.x, y: se.y, hp: se.hp || 0, draw: () => {} });
+        }
+      }
+    }
+    // Projectiles: naive sync
+    if (Array.isArray(snap.projectiles)) {
+      // Replace local projectiles with snapshot for now (could be improved)
+      this.projectiles = snap.projectiles.map(p => ({ id: p.id || null, x: p.x, y: p.y, vx: p.vx, vy: p.vy, life: 1 }));
+    }
+  }
+
+  _onRemoteInput(peerId, inp) {
+    // Host: validate and queue remote inputs for processing in game update loop
+    if (!this.multiplayer || !this.multiplayer.isHost) return;
+    try {
+      // Simple validation: ensure peerId exists and input has type
+      if (!peerId || !inp || !inp.type) return;
+      this._remoteInputQueue.push({ peerId, inp, recvTs: Date.now() });
+    } catch (e) { console.warn('queue remote input failed', e); }
+  }
+
+  _sendLocalInput(payload) {
+    try {
+      if (!this.multiplayer) return;
+      this.multiplayer.broadcastData({ t: 'INPUT', p: payload });
+    } catch (e) { console.warn('send input failed', e); }
+  }
+
   drawShopItems() {
     const drawItem = (canvasId, assetKey) => {
       const canvas = document.getElementById(canvasId);
@@ -3782,6 +3885,32 @@ export class Game {
   update(dt) {
     this.frameCount++;
     this.pathfindsThisFrame = 0;
+
+    // If host, process queued remote inputs and update remote player placeholders
+    if (this.multiplayer && this.multiplayer.isHost && this._remoteInputQueue && this._remoteInputQueue.length) {
+      const items = this._remoteInputQueue.splice(0, this._remoteInputQueue.length);
+      for (const it of items) {
+        const peerId = it.peerId;
+        const inp = it.inp;
+        if (!inp || !peerId) continue;
+        if (inp.type === 'mouse') {
+          // Convert client canvas coords to world coords
+          const cx = inp.x || 0;
+          const cy = inp.y || 0;
+          const worldX = (cx - (this.canvas.width / 2)) / this.gameZoom + (this.canvas.width / 2) + this.camera.x;
+          const worldY = (cy - (this.canvas.height / 2)) / this.gameZoom + (this.canvas.height / 2) + this.camera.y;
+          const prev = this.remotePlayers.get(peerId) || {};
+          this.remotePlayers.set(peerId, { x: worldX, y: worldY, hp: prev.hp || null, lastSeen: Date.now() });
+        } else if (inp.type === 'key') {
+          // Simple tracking: record last key for peer
+          const prev = this.remotePlayers.get(peerId) || {};
+          prev.lastKey = inp.key;
+          prev.lastKeyDown = !!inp.down;
+          prev.lastSeen = Date.now();
+          this.remotePlayers.set(peerId, prev);
+        }
+      }
+    }
     // Check Chrono Shift speed dilation (Slows enemies/projectiles by 80%)
     let enemyDt = dt;
     if (this.timeDilationTimer > 0) {
