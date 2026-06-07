@@ -3163,19 +3163,37 @@ export class Game {
 
   _applySnapshot(snap) {
     if (!snap) return;
-    // Update remote players
+    const now = Date.now();
+    // Update remote players (host)
     if (snap.player) {
-      // single-host snapshot; store host as "host" entry
-      this.remotePlayers.set('host', snap.player);
+      // single-host snapshot; store host as "host" entry with interpolation fields
+      const prev = this.remotePlayers.get('host') || {};
+      const prevX = prev.targetX !== undefined ? prev.targetX : (prev.x !== undefined ? prev.x : snap.player.x);
+      const prevY = prev.targetY !== undefined ? prev.targetY : (prev.y !== undefined ? prev.y : snap.player.y);
+      this.remotePlayers.set('host', {
+        prevX, prevY,
+        targetX: snap.player.x, targetY: snap.player.y,
+        hp: snap.player.hp,
+        startTs: now,
+        duration: 220,
+        lastSeen: now
+      });
     }
-    // Update players positions (other players) for visualization
+    // Update players positions (other players) for visualization with simple interpolation
     if (Array.isArray(snap.players)) {
       for (const sp of snap.players) {
         if (!sp || !sp.id) continue;
         const existing = this.remotePlayers.get(sp.id) || {};
-        existing.x = sp.x; existing.y = sp.y; existing.hp = sp.hp !== undefined ? sp.hp : existing.hp;
-        existing.lastSeen = Date.now();
-        this.remotePlayers.set(sp.id, existing);
+        const prevX = existing.targetX !== undefined ? existing.targetX : (existing.x !== undefined ? existing.x : sp.x);
+        const prevY = existing.targetY !== undefined ? existing.targetY : (existing.y !== undefined ? existing.y : sp.y);
+        this.remotePlayers.set(sp.id, {
+          prevX, prevY,
+          targetX: sp.x, targetY: sp.y,
+          hp: sp.hp !== undefined ? sp.hp : existing.hp,
+          startTs: now,
+          duration: 220,
+          lastSeen: now
+        });
       }
     }
 
@@ -4763,6 +4781,38 @@ export class Game {
 
     // Draw Player wizard
     this.player.draw(this.ctx, this.assets, this.frameIndex);
+
+    // Draw remote players (other peers)
+    try {
+      const fIdx = Math.floor(this.frameIndex * 3) % 2;
+      for (const [pid, pl] of this.remotePlayers.entries()) {
+        if (!pl) continue;
+        if (this.multiplayer && pid === this.multiplayer.localId) continue; // don't draw local player as remote
+        // determine interpolated position
+        let drawX = (pl.x !== undefined) ? pl.x : (pl.targetX !== undefined ? pl.targetX : null);
+        let drawY = (pl.y !== undefined) ? pl.y : (pl.targetY !== undefined ? pl.targetY : null);
+        if (pl.targetX !== undefined && pl.prevX !== undefined) {
+          const nowT = Date.now();
+          const elapsed = nowT - (pl.startTs || 0);
+          const dur = pl.duration || 220;
+          const t = Math.min(1, Math.max(0, elapsed / dur));
+          drawX = pl.prevX + (pl.targetX - pl.prevX) * t;
+          drawY = pl.prevY + (pl.targetY - pl.prevY) * t;
+        }
+        if (drawX === null || drawY === null) continue;
+        if ((drawX - playerX) ** 2 + (drawY - playerY) ** 2 > renderDistanceSq) continue;
+        const rx = drawX - this.camera.x;
+        const ry = drawY - this.camera.y;
+        // simple shadow
+        this.ctx.fillStyle = 'rgba(0,0,0,0.22)';
+        this.ctx.fillRect(rx - 10, ry + 10, 20, 4);
+        // draw base player sprite
+        this.assets.draw(this.ctx, 'player', rx, ry, 32, fIdx, 0);
+      }
+    } catch (e) {
+      // Non-fatal: don't break render loop on remote draw errors
+      console.warn('draw remote players failed', e);
+    }
 
     // Draw Enemies AI characters
     this.enemies.forEach((enemy) => {
