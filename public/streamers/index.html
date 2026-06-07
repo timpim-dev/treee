@@ -687,7 +687,7 @@
             </div>
           </div>
           <div class="streamer-actions">
-            <a href="../?channel=${encodeURIComponent(streamer.slug)}" class="btn-card btn-play">PLAY</a>
+            <a href="${(streamer.is_live||streamer.live||streamer.online||streamer.streaming||streamer.stream_online) ? ('../?join='+encodeURIComponent(streamer.slug)) : ('../?channel='+encodeURIComponent(streamer.slug))}" class="btn-card btn-play">${(streamer.is_live||streamer.live||streamer.online||streamer.streaming||streamer.stream_online) ? 'JOIN' : 'PLAY'}</a>
             <a href="https://twitch.tv/${encodeURIComponent(streamer.twitch_name)}" target="_blank" class="btn-card btn-watch">WATCH</a>
           </div>
         `;

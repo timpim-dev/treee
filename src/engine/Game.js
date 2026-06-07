@@ -5,6 +5,7 @@ import { AssetManager } from './AssetManager.js';
 import { ParticleSystem } from './ParticleSystem.js';
 import { AbilityTree } from './AbilityTree.js';
 import { LevelManager } from './LevelManager.js';
+import { MultiplayerManager } from '../multiplayer/client.js';
 import { AudioManager } from './AudioManager.js';
 import { Player, RELICS_CATALOG, EQUIPMENT_CATALOG } from '../entities/Player.js';
 import { Enemy } from '../entities/Enemy.js';
@@ -119,6 +120,86 @@ export class Game {
     this.initUIListeners();
     this.updateHUD();
     this.initDevtoolsUI();
+    // Multiplayer UI helpers
+    this.initMultiplayerUI = function() {
+      // Create a simple multiplayer button in HUD
+      const hudRight = document.getElementById('hud-right-controls');
+      if (!hudRight) return;
+      const btn = document.createElement('button');
+      btn.id = 'btn-multiplayer';
+      btn.className = 'hud-btn';
+      btn.innerText = 'Multiplayer';
+      btn.addEventListener('click', () => this._openMultiplayerModal());
+      hudRight.appendChild(btn);
+
+      // Modal container
+      const modal = document.createElement('div');
+      modal.id = 'mp-modal';
+      modal.style.display = 'none';
+      modal.style.position = 'fixed';
+      modal.style.left = '50%';
+      modal.style.top = '50%';
+      modal.style.transform = 'translate(-50%, -50%)';
+      modal.style.background = 'rgba(20,20,28,0.95)';
+      modal.style.border = '1px solid #333';
+      modal.style.padding = '12px';
+      modal.style.zIndex = 9999;
+      modal.style.minWidth = '320px';
+      modal.innerHTML = `
+        <h3 style="margin:6px 0 8px 0; font-size:14px;">Multiplayer</h3>
+        <div style="display:flex; gap:6px; margin-bottom:8px;">
+          <input id="mp-code-input" placeholder="Room code (optional)" style="flex:1; padding:6px; font-size:12px;">
+          <button id="mp-create-btn" style="padding:6px;">Create</button>
+        </div>
+        <div style="display:flex; gap:6px; margin-bottom:8px;">
+          <input id="mp-join-input" placeholder="Enter room code" style="flex:1; padding:6px; font-size:12px;">
+          <button id="mp-join-btn" style="padding:6px;">Join</button>
+        </div>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <button id="mp-save-btn" style="padding:6px;">Save Room</button>
+          <input id="mp-load-file" type="file" style="display:inline-block;">
+          <button id="mp-close-btn" style="margin-left:auto; padding:6px;">Close</button>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      this._openMultiplayerModal = () => { modal.style.display = 'block'; };
+      this._closeMultiplayerModal = () => { modal.style.display = 'none'; };
+
+      // Buttons
+      modal.querySelector('#mp-close-btn').addEventListener('click', () => this._closeMultiplayerModal());
+      modal.querySelector('#mp-create-btn').addEventListener('click', async () => {
+        const code = modal.querySelector('#mp-code-input').value || null;
+        const r = await this.multiplayer.createRoom(code);
+        if (r.ok) {
+          alert('Room created: ' + r.code);
+        } else {
+          alert('Failed to create: ' + (r.reason || 'unknown'));
+        }
+      });
+      modal.querySelector('#mp-join-btn').addEventListener('click', async () => {
+        const code = modal.querySelector('#mp-join-input').value;
+        if (!code) return alert('Enter room code');
+        const r = await this.multiplayer.joinRoom(code);
+        if (r.ok) {
+          alert('Joined room ' + code);
+        } else {
+          alert('Failed to join: ' + (r.reason || 'unknown'));
+        }
+      });
+      modal.querySelector('#mp-save-btn').addEventListener('click', () => {
+        this.multiplayer.saveRoomToFile();
+      });
+      const loadFile = modal.querySelector('#mp-load-file');
+      loadFile.addEventListener('change', async (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (!f) return;
+        const res = await this.multiplayer.loadRoomFromFile(f);
+        if (res.ok) alert('Loaded room file: ' + JSON.stringify(res.data));
+        else alert('Failed to parse room file');
+      });
+    };
+
     
     this.treeCanvas = document.getElementById('tree-canvas');
     this.treeCtx = this.treeCanvas.getContext('2d');
@@ -129,7 +210,7 @@ export class Game {
     this.initTwitchUIListeners();
     this.updateTwitchStatus();
 
-    // Check for Twitch URL parameter ?channel=username
+    // Check for Twitch URL parameter ?channel=username and ?join=slug
     const urlParams = new URLSearchParams(window.location.search);
     const channelParam = urlParams.get('channel');
     if (channelParam && this.twitchManager.enabled !== false) {
@@ -164,10 +245,31 @@ export class Game {
       });
     }
 
+    // Auto-join multiplayer room via ?join=slug (streamer URLs map to room codes)
+    const joinParam = urlParams.get('join');
+    if (joinParam && this.multiplayer) {
+      try {
+        const roomCode = joinParam.toUpperCase();
+        console.log(`[Multiplayer] Auto-joining room from URL parameter: ${joinParam} -> ${roomCode}`);
+        this.multiplayer.joinRoom(roomCode).then(res => {
+          if (!res.ok) console.warn('Auto-join failed', res);
+        }).catch(e => console.warn('Auto-join error', e));
+      } catch (e) {
+        console.warn('Failed to process join URL param', e);
+      }
+    }
+
     this.initKeybinds();
     this.initPlayerAccountUI();
     this.initLevelBuilderUI();
     this.initStoryModeUI();
+    // Multiplayer manager (lazy: uses default signaling host on same origin:8081)
+    try {
+      this.multiplayer = new MultiplayerManager(this, { signalingUrl: (window.__SIGNALING_URL || (location.protocol + '//' + location.hostname + ':8081')) });
+      this.initMultiplayerUI();
+    } catch (e) {
+      console.warn('Multiplayer init failed', e);
+    }
     this.parseTwitchOAuthHash();
     this.parsePlayerOAuthRedirect();
 
