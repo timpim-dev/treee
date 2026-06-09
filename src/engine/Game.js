@@ -425,7 +425,8 @@ export class Game {
     // Multiplayer manager — init before URL auto-join
     try {
       this.multiplayer = new MultiplayerManager(this, {
-        signalingUrl: window.__SIGNALING_URL || (location.origin),
+        // Use environment-specific signaling URL or default to port 8081 on same host
+        signalingUrl: window.__SIGNALING_URL || `${location.protocol}//${location.hostname}${location.port ? ':' + location.port : ''}`,
       });
       this.initMultiplayerUI();
     } catch (e) {

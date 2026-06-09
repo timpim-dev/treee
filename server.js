@@ -98,14 +98,15 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-const server = createServer(app);
+const server = http.createServer(app);
 
 // WebSocket proxy — forward /ws?room=... connections to the signaling server
 // This lets the browser connect to the same origin instead of a different port (which browsers block via CORS)
 const wss = new WebSocketServer({ server, path: '/ws' });
 
 wss.on('connection', (clientWs, req) => {
-  const query = req.url.replace('/ws', '');
+  // req.url already has path stripped by WebSocketServer, only query remains
+  const query = req.url.startsWith('/') ? req.url : '/' + req.url;
   const targetUrl = `ws://${SIGNALING_HOST}:${SIGNALING_PORT}${query}`;
   console.log(`[WS Proxy] new connection → ${targetUrl}`);
 

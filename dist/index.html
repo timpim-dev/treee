@@ -60,7 +60,7 @@
             href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap"
             rel="stylesheet"
         />
-      <script type="module" crossorigin src="/assets/main-LOlZ0Rad.js"></script>
+      <script type="module" crossorigin src="/assets/main-BCb61Udd.js"></script>
       <link rel="stylesheet" crossorigin href="/assets/main-DlEOkV-7.css">
     </head>
     <body>
@@ -963,497 +963,130 @@
             <div id="panel-twitch" class="panel-overlay hidden">
                 <div
                     class="menu-content text-center"
-                    style="max-width: 650px; max-height: 90vh; overflow-y: auto"
+                    style="max-width: 580px; max-height: 90vh; overflow-y: auto"
                 >
                     <h1>TWITCH INTEGRATION</h1>
                     <div class="menu-decor"></div>
+                    <div style="font-family: var(--font-pixel); font-size: 8px; color: #a970ff; margin-bottom: 16px;">FOR STREAMERS ONLY — regular players use Player Account</div>
 
-                    <!-- Master Toggle Checkbox for Streaming Mode -->
-                    <div
-                        class="setting-toggle-group"
-                        style="
-                            justify-content: center;
-                            display: flex;
-                            margin-bottom: 15px;
-                            background: rgba(145, 70, 255, 0.1);
-                            border: 2px dashed #9146ff;
-                            padding: 8px 12px;
-                            width: 100%;
-                            box-sizing: border-box;
-                        "
-                    >
-                        <label
-                            class="setting-toggle"
-                            style="
-                                font-size: 8px;
-                                cursor: pointer;
-                                display: flex;
-                                align-items: center;
-                                gap: 8px;
-                            "
-                        >
-                            <input
-                                type="checkbox"
-                                id="chk-twitch-enabled"
-                                checked
-                            />
+                    <!-- Master Toggle -->
+                    <div style="display: flex; justify-content: center; margin-bottom: 15px; background: rgba(145, 70, 255, 0.1); border: 2px dashed #9146ff; padding: 8px 12px; width: 100%; box-sizing: border-box;">
+                        <label class="setting-toggle" style="font-size: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="chk-twitch-enabled" checked />
                             <span class="checkbox-custom"></span>
-                            <span style="color: #fff; text-shadow: 0 0 5px #9146ff; letter-spacing: 0.5px;">ENABLE STREAMING MODE (TWITCH)</span>
+                            <span style="color: #fff; text-shadow: 0 0 5px #9146ff; letter-spacing: 0.5px;">ENABLE STREAMING MODE</span>
                         </label>
                     </div>
 
-                    <!-- Status Indicator -->
-                    <div
-                        style="
-                            margin-bottom: 15px;
-                            font-size: 10px;
-                            font-family: var(--font-pixel);
-                        "
-                    >
-                        STATUS:
-                        <span
-                            id="twitch-status-lbl"
-                            style="
-                                color: #ff6b6b;
-                                text-shadow: 0 0 5px rgba(255, 107, 107, 0.5);
-                            "
-                            >DISCONNECTED</span
-                        >
+                    <!-- Status -->
+                    <div style="margin-bottom: 15px; font-size: 10px; font-family: var(--font-pixel);">
+                        STATUS: <span id="twitch-status-lbl" style="color: #ff6b6b; text-shadow: 0 0 5px rgba(255,107,107,0.5);">DISCONNECTED</span>
                     </div>
 
                     <div class="menu-buttons" style="width: 100%">
-                        <!-- Twitch Login Button (OAuth) -->
+                        <!-- OAuth Login -->
                         <div style="margin-bottom: 15px; width: 100%">
-                            <button
-                                id="btn-twitch-login-oauth"
-                                class="btn-menu"
-                                style="
-                                    background: #9146ff;
-                                    border-color: #a970ff;
-                                    box-shadow: 4px 4px 0 #6441a5;
-                                    color: #fff;
-                                    margin: 0 auto 10px;
-                                "
-                            >
+                            <button id="btn-twitch-login-oauth" class="btn-menu" style="background: #9146ff; border-color: #a970ff; box-shadow: 4px 4px 0 #6441a5; color: #fff; margin: 0 auto 10px;">
                                 LOG IN WITH TWITCH
                             </button>
-                            <div
-                                style="
-                                    font-size: 7px;
-                                    color: #a970ff;
-                                    line-height: 1.4;
-                                    margin-bottom: 10px;
-                                "
-                            >
-                                Automated token connection &amp; chat sync
-                            </div>
+                            <div style="font-size: 7px; color: #a970ff; line-height: 1.4; margin-bottom: 10px;">Automated token connection &amp; chat sync</div>
 
-                            <!-- Bot Announcements Toggle & Chat Settings -->
-                            <div
-                                class="setting-toggle-group"
-                                style="
-                                    justify-content: center;
-                                    display: flex;
-                                    margin-bottom: 10px;
-                                "
-                            >
-                                <label
-                                    class="setting-toggle"
-                                    style="
-                                        font-size: 9px;
-                                        cursor: pointer;
-                                        display: flex;
-                                        align-items: center;
-                                        gap: 8px;
-                                    "
-                                >
-                                    <input
-                                        type="checkbox"
-                                        id="chk-twitch-announcements"
-                                        checked
-                                    />
+                            <div class="setting-toggle-group" style="justify-content: center; display: flex; margin-bottom: 10px;">
+                                <label class="setting-toggle" style="font-size: 9px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                                    <input type="checkbox" id="chk-twitch-announcements" checked />
                                     <span class="checkbox-custom"></span>
                                     <span>ENABLE BOT ANNOUNCEMENTS</span>
                                 </label>
                             </div>
                         </div>
 
-                        <div
-                            style="
-                                border-top: 1px dashed rgba(255, 255, 255, 0.15);
-                                margin: 10px 0;
-                                padding-top: 10px;
-                                width: 100%;
-                            "
-                        ></div>
+                        <div style="border-top: 1px dashed rgba(255,255,255,0.15); margin: 10px 0; padding-top: 10px; width: 100%;"></div>
 
-                        <!-- Customizable Fields (Font size, Vote duration) -->
-                        <div
-                            style="
-                                display: grid;
-                                grid-template-columns: 1fr 1fr;
-                                gap: 10px;
-                                margin-bottom: 15px;
-                                text-align: left;
-                            "
-                        >
-                            <div
-                                class="devtools-row"
-                                style="margin: 0; width: 100%"
-                            >
-                                <label
-                                    class="devtools-label"
-                                    for="twitch-chat-size"
-                                    style="min-width: 120px; font-size: 8px"
-                                    >CHAT FONT SIZE</label
-                                >
-                                <input
-                                    type="number"
-                                    id="twitch-chat-size"
-                                    min="8"
-                                    max="24"
-                                    value="10"
-                                    class="devtools-input"
-                                    style="
-                                        padding: 6px 10px;
-                                        font-size: 10px;
-                                        flex: 1;
-                                    "
-                                />
+                        <!-- Settings grid -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; text-align: left;">
+                            <div class="devtools-row" style="margin: 0; width: 100%">
+                                <label class="devtools-label" for="twitch-chat-size" style="min-width: 120px; font-size: 8px">CHAT FONT SIZE</label>
+                                <input type="number" id="twitch-chat-size" min="8" max="24" value="10" class="devtools-input" style="padding: 6px 10px; font-size: 10px; flex: 1;" />
                             </div>
-                            <div
-                                class="devtools-row"
-                                style="margin: 0; width: 100%"
-                            >
-                                <label
-                                    class="devtools-label"
-                                    for="twitch-vote-duration"
-                                    style="min-width: 120px; font-size: 8px"
-                                    >VOTE TIMER (S)</label
-                                >
-                                <input
-                                    type="number"
-                                    id="twitch-vote-duration"
-                                    min="5"
-                                    max="120"
-                                    value="20"
-                                    class="devtools-input"
-                                    style="
-                                        padding: 6px 10px;
-                                        font-size: 10px;
-                                        flex: 1;
-                                    "
-                                />
+                            <div class="devtools-row" style="margin: 0; width: 100%">
+                                <label class="devtools-label" for="twitch-vote-duration" style="min-width: 120px; font-size: 8px">VOTE TIMER (S)</label>
+                                <input type="number" id="twitch-vote-duration" min="5" max="120" value="20" class="devtools-input" style="padding: 6px 10px; font-size: 10px; flex: 1;" />
                             </div>
                         </div>
 
-                        <!-- Customizable Announcement Messages -->
-                        <div
-                            style="
-                                border-top: 1px dashed rgba(255, 255, 255, 0.15);
-                                margin: 10px 0;
-                                padding-top: 10px;
-                                text-align: left;
-                                width: 100%;
-                            "
-                        >
-                            <div
-                                style="
-                                    font-size: 8px;
-                                    font-family: var(--font-pixel);
-                                    margin-bottom: 10px;
-                                    color: #a970ff;
-                                "
-                            >
-                                CUSTOM ANNOUNCEMENT TEMPLATES
+                        <!-- Announcement templates -->
+                        <div style="border-top: 1px dashed rgba(255,255,255,0.15); margin: 10px 0; padding-top: 10px; text-align: left; width: 100%;">
+                            <div style="font-size: 8px; font-family: var(--font-pixel); margin-bottom: 10px; color: #a970ff;">ANNOUNCEMENT TEMPLATES</div>
+                            <div class="devtools-row" style="margin-bottom: 8px; width: 100%">
+                                <label class="devtools-label" for="twitch-msg-wave" style="min-width: 120px; font-size: 7px">WAVE START MSG</label>
+                                <input type="text" id="twitch-msg-wave" class="devtools-input" style="padding: 6px 10px; font-size: 8px; flex: 1;" />
                             </div>
-                            <div
-                                class="devtools-row"
-                                style="margin-bottom: 8px; width: 100%"
-                            >
-                                <label
-                                    class="devtools-label"
-                                    for="twitch-msg-wave"
-                                    style="min-width: 120px; font-size: 7px"
-                                    >WAVE START MSG</label
-                                >
-                                <input
-                                    type="text"
-                                    id="twitch-msg-wave"
-                                    class="devtools-input"
-                                    style="
-                                        padding: 6px 10px;
-                                        font-size: 8px;
-                                        flex: 1;
-                                    "
-                                />
+                            <div class="devtools-row" style="margin-bottom: 8px; width: 100%">
+                                <label class="devtools-label" for="twitch-msg-vote" style="min-width: 120px; font-size: 7px">VOTE START MSG</label>
+                                <input type="text" id="twitch-msg-vote" class="devtools-input" style="padding: 6px 10px; font-size: 8px; flex: 1;" />
                             </div>
-                            <div
-                                class="devtools-row"
-                                style="margin-bottom: 8px; width: 100%"
-                            >
-                                <label
-                                    class="devtools-label"
-                                    for="twitch-msg-vote"
-                                    style="min-width: 120px; font-size: 7px"
-                                    >VOTE START MSG</label
-                                >
-                                <input
-                                    type="text"
-                                    id="twitch-msg-vote"
-                                    class="devtools-input"
-                                    style="
-                                        padding: 6px 10px;
-                                        font-size: 8px;
-                                        flex: 1;
-                                    "
-                                />
-                            </div>
-                            <div
-                                class="devtools-row"
-                                style="margin-bottom: 8px; width: 100%"
-                            >
-                                <label
-                                    class="devtools-label"
-                                    for="twitch-msg-winner"
-                                    style="min-width: 120px; font-size: 7px"
-                                    >VOTE END MSG</label
-                                >
-                                <input
-                                    type="text"
-                                    id="twitch-msg-winner"
-                                    class="devtools-input"
-                                    style="
-                                        padding: 6px 10px;
-                                        font-size: 8px;
-                                        flex: 1;
-                                    "
-                                />
+                            <div class="devtools-row" style="margin-bottom: 8px; width: 100%">
+                                <label class="devtools-label" for="twitch-msg-winner" style="min-width: 120px; font-size: 7px">VOTE END MSG</label>
+                                <input type="text" id="twitch-msg-winner" class="devtools-input" style="padding: 6px 10px; font-size: 8px; flex: 1;" />
                             </div>
                         </div>
 
-                        <!-- Customizable Commands List Grid -->
-                        <div
-                            style="
-                                border-top: 1px dashed rgba(255, 255, 255, 0.15);
-                                margin: 15px 0;
-                                padding-top: 15px;
-                                text-align: left;
-                                width: 100%;
-                            "
-                        >
-                            <div
-                                style="
-                                    font-size: 8px;
-                                    font-family: var(--font-pixel);
-                                    margin-bottom: 8px;
-                                    color: #a970ff;
-                                "
-                             >
-                                COMMAND CONFIGURATIONS
-                            </div>
+                        <!-- Commands list -->
+                        <div style="border-top: 1px dashed rgba(255,255,255,0.15); margin: 15px 0; padding-top: 15px; text-align: left; width: 100%;">
+                            <div style="font-size: 8px; font-family: var(--font-pixel); margin-bottom: 8px; color: #a970ff;">COMMAND CONFIGURATIONS</div>
                             <div style="font-size: 7px; font-family: var(--font-pixel); color: #dfe7ff; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
-                                <span>LAST DETECTED REDEMPTION ID:</span>
-                                <input type="text" id="twitch-last-redeem-id" readonly placeholder="No redemptions yet" style="background: rgba(0,0,0,0.5); border: 1px solid rgba(145, 70, 255, 0.4); color: #2ecc71; font-family: Courier New, monospace; font-size: 8px; padding: 4px; width: 280px; text-align: center; outline: none;" onclick="this.select(); document.execCommand('copy');" title="Click to copy">
+                                <span>LAST REDEMPTION ID:</span>
+                                <input type="text" id="twitch-last-redeem-id" readonly placeholder="No redemptions yet" style="background: rgba(0,0,0,0.5); border: 1px solid rgba(145,70,255,0.4); color: #2ecc71; font-family: Courier New, monospace; font-size: 8px; padding: 4px; width: 260px; text-align: center; outline: none;" onclick="this.select(); document.execCommand('copy');" title="Click to copy" />
                             </div>
-                            <div
-                                style="
-                                    max-height: 200px;
-                                    overflow-y: auto;
-                                    padding-right: 5px;
-                                    border: 2px dashed rgba(125, 95, 255, 0.2);
-                                    background: rgba(10, 11, 22, 0.4);
-                                    padding: 8px;
-                                "
-                            >
-                                <div
-                                    class="devtools-row"
-                                    style="
-                                        border-bottom: 1px solid
-                                            rgba(255, 255, 255, 0.15);
-                                        padding-bottom: 4px;
-                                        margin-bottom: 8px;
-                                        font-size: 7px;
-                                        color: var(--text-secondary);
-                                        flex-wrap: nowrap;
-                                        justify-content: space-between;
-                                    "
-                                >
-                                    <span style="width: 80px; text-align: left"
-                                        >COMMAND</span
-                                    >
-                                    <span
-                                        style="width: 50px; text-align: center"
-                                        >ENABLE</span
-                                    >
-                                    <span
-                                        style="
-                                            width: 60px;
-                                            text-align: center;
-                                            margin: 0 5px;
-                                        "
-                                        >COOLDOWN (S)</span
-                                    >
-                                    <span
-                                        style="
-                                            width: 60px;
-                                            text-align: center;
-                                            margin: 0 5px;
-                                        "
-                                        >BITS COST</span
-                                    >
-                                    <span
-                                        style="
-                                            width: 140px;
-                                            text-align: center;
-                                            margin-left: 5px;
-                                        "
-                                        >REDEEM ID</span
-                                    >
+                            <div style="max-height: 200px; overflow-y: auto; border: 2px dashed rgba(125,95,255,0.2); background: rgba(10,11,22,0.4); padding: 8px;">
+                                <div class="devtools-row" style="border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 4px; margin-bottom: 8px; font-size: 7px; color: var(--text-secondary); flex-wrap: nowrap; justify-content: space-between;">
+                                    <span style="width: 80px; text-align: left">COMMAND</span>
+                                    <span style="width: 50px; text-align: center">ENABLE</span>
+                                    <span style="width: 60px; text-align: center; margin: 0 5px;">COOLDOWN (S)</span>
+                                    <span style="width: 60px; text-align: center; margin: 0 5px;">BITS COST</span>
+                                    <span style="width: 140px; text-align: center; margin-left: 5px;">REDEEM ID</span>
                                 </div>
-                                <div id="twitch-commands-list">
-                                    <!-- Injected dynamically by initTwitchUIListeners -->
-                                </div>
+                                <div id="twitch-commands-list"><!-- Injected dynamically --></div>
                             </div>
                         </div>
 
-                        <div
-                            style="
-                                border-top: 1px dashed rgba(255, 255, 255, 0.15);
-                                margin: 15px 0;
-                                padding-top: 15px;
-                                width: 100%;
-                            "
-                        >
-                            <h3
-                                style="
-                                    font-size: 10px;
-                                    color: #7d5fff;
-                                    margin-bottom: 12px;
-                                    font-family: var(--font-pixel);
-                                "
-                            >
-                                STREAMER AUTH (POCKETBASE)
-                            </h3>
-
-                            <!-- PocketBase Streamer login inputs -->
+                        <!-- Streamer cloud save (PocketBase) -->
+                        <div style="border-top: 1px dashed rgba(255,255,255,0.15); margin: 15px 0; padding-top: 15px; width: 100%;">
+                            <h3 style="font-size: 10px; color: #7d5fff; margin-bottom: 12px; font-family: var(--font-pixel);">SAVE STREAMER SETTINGS</h3>
                             <div id="pb-login-section" style="width: 100%">
-                                <div
-                                    class="devtools-row"
-                                    style="margin-bottom: 8px; width: 100%"
-                                >
-                                    <label
-                                        class="devtools-label"
-                                        for="pb-username"
-                                        style="min-width: 90px; font-size: 8px"
-                                        >IDENTITY</label
-                                    >
-                                    <input
-                                        type="text"
-                                        id="pb-username"
-                                        placeholder="Username/Email"
-                                        class="devtools-input"
-                                        style="
-                                            padding: 6px 10px;
-                                            font-size: 10px;
-                                            flex: 1;
-                                        "
-                                    />
+                                <div class="devtools-row" style="margin-bottom: 8px; width: 100%">
+                                    <label class="devtools-label" for="pb-username" style="min-width: 90px; font-size: 8px">IDENTITY</label>
+                                    <input type="text" id="pb-username" placeholder="Username/Email" class="devtools-input" style="padding: 6px 10px; font-size: 10px; flex: 1;" />
                                 </div>
-                                <div
-                                    class="devtools-row"
-                                    style="margin-bottom: 12px; width: 100%"
-                                >
-                                    <label
-                                        class="devtools-label"
-                                        for="pb-password"
-                                        style="min-width: 90px; font-size: 8px"
-                                        >PASSWORD</label
-                                    >
-                                    <input
-                                        type="password"
-                                        id="pb-password"
-                                        placeholder="••••••••"
-                                        class="devtools-input"
-                                        style="
-                                            padding: 6px 10px;
-                                            font-size: 10px;
-                                            flex: 1;
-                                        "
-                                    />
+                                <div class="devtools-row" style="margin-bottom: 12px; width: 100%">
+                                    <label class="devtools-label" for="pb-password" style="min-width: 90px; font-size: 8px">PASSWORD</label>
+                                    <input type="password" id="pb-password" placeholder="••••••••" class="devtools-input" style="padding: 6px 10px; font-size: 10px; flex: 1;" />
                                 </div>
-                                <button
-                                    id="btn-pb-login"
-                                    class="btn-menu small"
-                                    style="margin-bottom: 8px; width: 100%"
-                                >
-                                    LOGIN TO PERSIST SETTINGS
-                                </button>
+                                <button id="btn-pb-login" class="btn-menu small" style="margin-bottom: 8px; width: 100%">LOGIN TO PERSIST SETTINGS</button>
                             </div>
-
-                            <div
-                                id="pb-logged-in-section"
-                                class="hidden"
-                                style="width: 100%"
-                            >
-                                <div style="margin-bottom:8px;">
+                            <div id="pb-logged-in-section" class="hidden" style="width: 100%">
+                                <div style="margin-bottom: 8px;">
                                     <label style="font-size:8px; margin-right:8px;">Allow viewers to join (Multiplayer)</label>
-                                    <label class="setting-toggle" style="display:inline-flex; align-items:center; gap:6px;"> 
-                                      <input type="checkbox" id="chk-twitch-allow-joins">
-                                      <span style="font-size:8px; color:var(--color-text-muted);">Enable !join command</span>
+                                    <label class="setting-toggle" style="display:inline-flex; align-items:center; gap:6px;">
+                                        <input type="checkbox" id="chk-twitch-allow-joins">
+                                        <span style="font-size:8px; color:var(--color-text-muted);">Enable !join command</span>
                                     </label>
                                 </div>
                                 <div id="mp-join-mode-row" style="margin-bottom:8px; display:none;">
                                     <label style="font-size:8px; display:block; margin-bottom:4px;">!join mode</label>
                                     <select id="sel-multiplayer-join-mode" style="width:100%; padding:4px; font-size:10px;">
-                                      <option value="free">Free — instant room link in chat</option>
-                                      <option value="whitelist">Whitelist — you approve each viewer</option>
+                                        <option value="free">Free — instant room link in chat</option>
+                                        <option value="whitelist">Whitelist — you approve each viewer</option>
                                     </select>
                                 </div>
-                                <div
-                                    style="
-                                        font-size: 8px;
-                                        margin-bottom: 10px;
-                                        color: var(--text-secondary);
-                                    "
-                                >
-                                    Logged in as
-                                    <strong id="pb-logged-in-username"
-                                        >Streamer</strong
-                                    >
-                                </div>
-                                <button
-                                    id="btn-pb-save-settings"
-                                    class="btn-menu small"
-                                    style="margin-bottom: 8px; width: 100%"
-                                >
-                                    SAVE SETTINGS TO CLOUD
-                                </button>
-                                <button
-                                    id="btn-pb-logout"
-                                    class="btn-menu small secondary"
-                                    style="width: 100%"
-                                >
-                                    LOGOUT
-                                </button>
+                                <div style="font-size: 8px; margin-bottom: 10px; color: var(--text-secondary);">Logged in as <strong id="pb-logged-in-username">Streamer</strong></div>
+                                <button id="btn-pb-save-settings" class="btn-menu small" style="margin-bottom: 8px; width: 100%">SAVE SETTINGS TO CLOUD</button>
+                                <button id="btn-pb-logout" class="btn-menu small secondary" style="width: 100%">LOGOUT</button>
                             </div>
-                            <div
-                                id="pb-status-msg"
-                                style="
-                                    font-size: 8px;
-                                    margin-top: 8px;
-                                    color: #f1c40f;
-                                "
-                            ></div>
+                            <div id="pb-status-msg" style="font-size: 8px; margin-top: 8px; color: #f1c40f;"></div>
                         </div>
 
-                        <button
-                            id="btn-close-twitch"
-                            class="btn-menu secondary"
-                            style="margin-top: 10px"
-                        >
-                            BACK
-                        </button>
+                        <button id="btn-close-twitch" class="btn-menu secondary" style="margin-top: 10px">BACK</button>
                     </div>
                 </div>
             </div>
