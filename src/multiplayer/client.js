@@ -7,17 +7,17 @@ export class MultiplayerManager {
     this.roomCode = null;
     this.clientId = null;
     this.isHost = false;
-    this.connected = false; // true once WS/Ably signaling is up
+    this.connected = false;
 
     this.ws = null;
-    this.peers = new Map(); // peerId -> { pc, dc, meta }
+    this.peers = new Map();
 
     this.ably = null;
     this.ablyChannel = null;
 
-    this.peerMeta = new Map(); // peerId -> { displayName, twitchUser, joinedAt }
-    this.bannedUsers = new Set(); // lowercase twitch usernames
-    this.pendingJoinRequests = new Map(); // requestId -> { username, ts }
+    this.peerMeta = new Map();
+    this.bannedUsers = new Set();
+    this.pendingJoinRequests = new Map();
 
     this.onStateSnapshot = opts.onStateSnapshot || (() => {});
     this.onPeerJoin = opts.onPeerJoin || (() => {});
@@ -25,6 +25,27 @@ export class MultiplayerManager {
     this.onStatusChange = opts.onStatusChange || (() => {});
     this.onJoinRequest = opts.onJoinRequest || (() => {});
     this.onPeerMetaUpdate = opts.onPeerMetaUpdate || (() => {});
+
+    // Expose debug handle on window for browser devtools inspection
+    window.__mpDebug = {
+      get manager() { return game.multiplayer; },
+      get state() {
+        const m = game.multiplayer;
+        return {
+          signalingUrl: m.signalingUrl,
+          roomCode: m.roomCode,
+          clientId: m.clientId,
+          isHost: m.isHost,
+          connected: m.connected,
+          wsState: m.ws ? ['CONNECTING','OPEN','CLOSING','CLOSED'][m.ws.readyState] : 'null',
+          ablyConnected: !!(m.ably && m.ablyChannel),
+          peers: m.peers.size,
+          peerIds: Array.from(m.peers.keys()),
+        };
+      },
+      dump() { console.table(this.state); },
+    };
+    console.log('[MP] MultiplayerManager created. Debug via window.__mpDebug.dump()');
   }
 
   /** Allow multiplayer for all players. Twitch connection only required in streaming mode. */
@@ -34,38 +55,48 @@ export class MultiplayerManager {
 
   async reserveCode(code, ttl = 1800) {
     const url = this.signalingUrl.replace(/\/+$/, '') + '/api/rooms/reserve';
+    console.log(`[MP] reserveCode → POST ${url}`, { code, ttl });
     try {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, ttl, owner: this.clientId || null }),
       });
-      return await res.json();
+      const json = await res.json();
+      console.log(`[MP] reserveCode ← HTTP ${res.status}`, json);
+      return json;
     } catch (e) {
-      console.warn('reserve failure', e);
+      console.error('[MP] reserveCode failed (network/parse error)', e);
       return { ok: false, reason: 'network' };
     }
   }
 
   async createRoom(code = null) {
     code = code || this._generateCode(6);
+    console.log(`[MP] createRoom — signalingUrl: ${this.signalingUrl}`);
     const attemptLimit = 8;
     for (let attempt = 0; attempt < attemptLimit; attempt++) {
       const tryCode = attempt === 0 ? code : this._generateCode(6);
+      console.log(`[MP] createRoom attempt ${attempt + 1}/${attemptLimit} — code: ${tryCode}`);
       const r = await this.reserveCode(tryCode);
       if (r.ok) {
         this.roomCode = tryCode.toUpperCase();
         this.isHost = true;
+        console.log(`[MP] createRoom reserved OK — code: ${this.roomCode}, roomId: ${r.roomId}`);
         this.onStatusChange({ type: 'room_created', code: this.roomCode, roomId: r.roomId });
+        console.log('[MP] createRoom → _connectWS...');
         await this._connectWS();
-        console.log('[multiplayer] room created', this.roomCode, r.roomId);
+        console.log('[MP] createRoom complete');
         return { ok: true, code: this.roomCode, roomId: r.roomId };
       } else if (r.reason === 'conflict') {
+        console.warn(`[MP] createRoom conflict on ${tryCode}, retrying...`);
         continue;
       } else {
+        console.error(`[MP] createRoom failed — reason: ${r.reason}`);
         return { ok: false, reason: r.reason };
       }
     }
+    console.error('[MP] createRoom exhausted all attempts');
     return { ok: false, reason: 'no_code' };
   }
 
@@ -73,9 +104,12 @@ export class MultiplayerManager {
     if (!code) return { ok: false, reason: 'missing_code' };
     this.roomCode = code.toUpperCase();
     this.isHost = false;
-    this._joinMeta = meta; // { displayName, twitchUser }
+    this._joinMeta = meta;
+    console.log(`[MP] joinRoom — code: ${this.roomCode}, meta:`, meta);
     this.onStatusChange({ type: 'joining', code: this.roomCode });
+    console.log('[MP] joinRoom → _connectWS...');
     await this._connectWS();
+    console.log('[MP] joinRoom _connectWS returned');
     return { ok: true };
   }
 
@@ -171,32 +205,43 @@ export class MultiplayerManager {
 
   async _connectWS() {
     if (!this.roomCode) throw new Error('no room code');
+    console.log(`[MP] _connectWS — room: ${this.roomCode}, isHost: ${this.isHost}`);
+
+    console.log('[MP] _connectWS → trying Ably...');
     if (await this._tryInitAblyChannel(this.roomCode)) {
       this.connected = true;
+      console.log('[MP] _connectWS — using Ably transport');
       this.onStatusChange({ type: 'signaling', transport: 'ably' });
-      if (this.isHost) this.sendWS({ type: 'CLAIM_HOST' });
-      else await this._createOfferForHost();
+      if (this.isHost) {
+        console.log('[MP] _connectWS — CLAIM_HOST via Ably');
+        this.sendWS({ type: 'CLAIM_HOST' });
+      } else {
+        console.log('[MP] _connectWS — creating offer for host via Ably');
+        await this._createOfferForHost();
+      }
       return;
     }
 
     const wsUrl = (this.signalingUrl.replace(/^http/, 'ws')) + `/?room=${encodeURIComponent(this.roomCode)}`;
+    console.log(`[MP] _connectWS — Ably unavailable, falling back to WebSocket: ${wsUrl}`);
     this.ws = new WebSocket(wsUrl);
     this.ws.addEventListener('open', () => {
-      console.log('[multiplayer] ws open');
+      console.log('[MP] ws open');
       this.onStatusChange({ type: 'ws_open', code: this.roomCode, isHost: this.isHost });
     });
     this.ws.addEventListener('message', async (ev) => {
       let msg;
       try { msg = JSON.parse(ev.data); } catch (e) { return; }
+      console.log('[MP] ws ←', msg.type, msg);
       await this._handleWSMessage(msg);
     });
-    this.ws.addEventListener('close', () => {
-      console.log('[multiplayer] ws closed');
+    this.ws.addEventListener('close', (ev) => {
+      console.warn(`[MP] ws closed — code: ${ev.code}, reason: "${ev.reason}", clean: ${ev.wasClean}`);
       this.connected = false;
       this.onStatusChange({ type: 'ws_closed', code: this.roomCode });
     });
     this.ws.addEventListener('error', (e) => {
-      console.warn('[multiplayer] ws error', e);
+      console.error('[MP] ws error', e);
       this.onStatusChange({ type: 'ws_error', error: e });
     });
   }
@@ -220,10 +265,11 @@ export class MultiplayerManager {
     if (type === 'WS_CONNECTED') {
       this.clientId = msg.clientId;
       this.connected = true;
-      console.log('[multiplayer] assigned clientId', this.clientId);
+      console.log('[MP] WS_CONNECTED — clientId:', this.clientId, '| isHost:', this.isHost);
       if (this.isHost) {
         this.sendWS({ type: 'CLAIM_HOST' });
       } else {
+        console.log('[MP] WS_CONNECTED — creating offer for host...');
         await this._createOfferForHost();
       }
       return;
@@ -247,19 +293,21 @@ export class MultiplayerManager {
       const sdp = msg.p && msg.p.sdp;
       const displayName = (msg.p && msg.p.displayName) || from;
       const twitchUser = (msg.p && msg.p.twitchUser) || null;
+      console.log(`[MP] OFFER from ${from} — displayName: ${displayName}`);
       if (twitchUser && this.isBanned(twitchUser)) {
+        console.warn(`[MP] OFFER rejected — banned user: ${twitchUser}`);
         this.sendWS({ type: 'JOIN_REJECT', to: from, p: { reason: 'banned' } });
         return;
       }
-      console.log('[multiplayer] OFFER from', from);
       const pc = this._createPeerConnection(from);
       this.peerMeta.set(from, { displayName, twitchUser, joinedAt: Date.now() });
       try {
         await pc.setRemoteDescription({ type: 'offer', sdp });
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
+        console.log(`[MP] ANSWER → ${from}`);
         this.sendWS({ type: 'ANSWER', to: from, p: { sdp: pc.localDescription.sdp } });
-      } catch (e) { console.warn('offer handling failed', e); }
+      } catch (e) { console.error('[MP] offer handling failed', e); }
       return;
     }
 
@@ -267,15 +315,15 @@ export class MultiplayerManager {
       if (this.isHost) return;
       const sdp = msg.p && msg.p.sdp;
       const from = msg.from;
-      console.log('[multiplayer] ANSWER from', from);
+      console.log(`[MP] ANSWER from ${from}`);
       const entry = this._getPeerEntry(from);
       if (entry && entry.pc) {
         await entry.pc.setRemoteDescription({ type: 'answer', sdp });
-        // Migrate HOST key to actual host clientId
         if (this.peers.has('HOST') && from !== 'HOST') {
           const hostEntry = this.peers.get('HOST');
           this.peers.delete('HOST');
           this.peers.set(from, hostEntry);
+          console.log(`[MP] migrated HOST → ${from}`);
         }
       }
       return;
@@ -284,9 +332,10 @@ export class MultiplayerManager {
     if (type === 'ICE') {
       const candidate = msg.p && msg.p.cand;
       const from = msg.from;
+      console.log(`[MP] ICE from ${from}`, candidate && candidate.type);
       const entry = this._getPeerEntry(from);
       if (entry && entry.pc && candidate) {
-        try { await entry.pc.addIceCandidate(candidate); } catch (e) { console.warn('addIce failed', e); }
+        try { await entry.pc.addIceCandidate(candidate); } catch (e) { console.warn('[MP] addIceCandidate failed', e); }
       }
       return;
     }
@@ -300,37 +349,43 @@ export class MultiplayerManager {
 
   async _createPeerConnection(peerId) {
     const iceServers = await this._getIceServers();
+    console.log(`[MP] _createPeerConnection — peerId: ${peerId}`);
     const pc = new RTCPeerConnection({ iceServers: iceServers || [{ urls: 'stun:stun.l.google.com:19302' }] });
     const entry = { pc, dc: null, meta: {} };
     this.peers.set(peerId, entry);
 
     pc.onicecandidate = (ev) => {
       if (ev.candidate) {
+        console.log(`[MP] ICE candidate → ${peerId}`, ev.candidate.type, ev.candidate.protocol);
         this.sendWS({ type: 'ICE', to: peerId, p: { cand: ev.candidate } });
+      } else {
+        console.log(`[MP] ICE gathering complete for ${peerId}`);
       }
     };
 
+    pc.onicegatheringstatechange = () => console.log(`[MP] ICE gathering state: ${pc.iceGatheringState} (${peerId})`);
+    pc.oniceconnectionstatechange = () => console.log(`[MP] ICE connection state: ${pc.iceConnectionState} (${peerId})`);
+    pc.onsignalingstatechange = () => console.log(`[MP] signaling state: ${pc.signalingState} (${peerId})`);
+
     pc.ondatachannel = (ev) => {
-      console.log('[multiplayer] ondatachannel from', peerId);
+      console.log('[MP] ondatachannel from', peerId);
       const dc = ev.channel;
       entry.dc = dc;
       this._installDataChannelHandlers(dc, peerId);
     };
 
     pc.onconnectionstatechange = () => {
+      console.log(`[MP] connection state: ${pc.connectionState} (${peerId})`);
       if (pc.connectionState === 'connected') {
-        console.log('[multiplayer] peer connected', peerId);
         this.onPeerJoin(peerId);
         this.onPeerMetaUpdate(this.getPeerList());
         this.onStatusChange({ type: 'peer_connected', peerId });
-        // Send ban list to new peer
         if (this.isHost) {
           this._sendToPeer(peerId, { t: 'BAN_SYNC', p: { banned: Array.from(this.bannedUsers) } });
-          // Send world sync request trigger
           this._sendToPeer(peerId, { t: 'SYNC_REQUEST', p: {} });
         }
       } else if (['disconnected', 'closed', 'failed'].includes(pc.connectionState)) {
-        console.log('[multiplayer] peer left', peerId);
+        console.warn(`[MP] peer ${peerId} left (${pc.connectionState})`);
         this._closePeer(peerId);
         this.onPeerMetaUpdate(this.getPeerList());
       }
@@ -395,6 +450,7 @@ export class MultiplayerManager {
 
   async _createOfferForHost() {
     const tempPeerId = 'HOST';
+    console.log('[MP] _createOfferForHost — creating RTCPeerConnection...');
     const iceServers = await this._getIceServers();
     const pc = new RTCPeerConnection({ iceServers: iceServers || [{ urls: 'stun:stun.l.google.com:19302' }] });
     const dc = pc.createDataChannel('game');
@@ -404,13 +460,19 @@ export class MultiplayerManager {
 
     pc.onicecandidate = (ev) => {
       if (ev.candidate) {
+        console.log('[MP] ICE candidate → HOST', ev.candidate.type, ev.candidate.protocol);
         this.sendWS({ type: 'ICE', p: { cand: ev.candidate } });
+      } else {
+        console.log('[MP] ICE gathering complete for HOST');
       }
     };
 
+    pc.onicegatheringstatechange = () => console.log(`[MP] ICE gathering state: ${pc.iceGatheringState} (HOST)`);
+    pc.oniceconnectionstatechange = () => console.log(`[MP] ICE connection state: ${pc.iceConnectionState} (HOST)`);
+
     pc.onconnectionstatechange = () => {
+      console.log(`[MP] connection state: ${pc.connectionState} (HOST)`);
       if (pc.connectionState === 'connected') {
-        console.log('[multiplayer] connected to host');
         this.onStatusChange({ type: 'host_connected' });
         if (this.game && typeof this.game._onJoinedAsViewer === 'function') {
           this.game._onJoinedAsViewer();
@@ -419,8 +481,10 @@ export class MultiplayerManager {
     };
 
     const meta = this._joinMeta || {};
+    console.log('[MP] _createOfferForHost — creating offer...');
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
+    console.log('[MP] _createOfferForHost — offer created, sending to host');
     this.sendWS({ type: 'OFFER', p: { sdp: pc.localDescription.sdp, displayName: meta.displayName, twitchUser: meta.twitchUser } });
   }
 
@@ -482,25 +546,39 @@ export class MultiplayerManager {
   }
 
   async _fetchAblyToken() {
+    console.log('[MP] _fetchAblyToken → POST /api/ably/token');
     try {
       const res = await fetch('/api/ably/token', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      console.log(`[MP] _fetchAblyToken ← HTTP ${res.status}`);
       if (!res.ok) return null;
-      return await res.json();
-    } catch (e) { console.warn('fetchAblyToken failed', e); return null; }
+      const json = await res.json();
+      console.log('[MP] _fetchAblyToken — token payload keys:', Object.keys(json));
+      return json;
+    } catch (e) {
+      console.error('[MP] _fetchAblyToken failed', e);
+      return null;
+    }
   }
 
   async _tryInitAblyChannel(code) {
+    console.log('[MP] _tryInitAblyChannel — fetching token from /api/ably/token...');
     try {
       const tokenRequest = await this._fetchAblyToken();
-      if (!tokenRequest) return false;
+      if (!tokenRequest) {
+        console.warn('[MP] _tryInitAblyChannel — no token returned, Ably unavailable');
+        return false;
+      }
+      console.log('[MP] _tryInitAblyChannel — token received, importing Ably...');
       const Ably = (await import('ably')).Realtime;
       this.ably = new Ably({ token: tokenRequest.token });
       const channelName = `rooms:${code}`;
       this.ablyChannel = this.ably.channels.get(channelName);
       this.clientId = tokenRequest.clientId || `ably_${Date.now()}`;
+      console.log(`[MP] _tryInitAblyChannel — Ably channel: ${channelName}, clientId: ${this.clientId}`);
 
       this.ablyChannel.subscribe('signal', (msg) => {
-        try { this._handleAblyMessage(msg.data); } catch (e) { console.warn('handle ably signal failed', e); }
+        console.log('[MP] ably signal ←', msg.data && msg.data.type, msg.data);
+        try { this._handleAblyMessage(msg.data); } catch (e) { console.warn('[MP] handle ably signal failed', e); }
       });
 
       if (this.isHost) {
@@ -509,9 +587,10 @@ export class MultiplayerManager {
 
       this.connected = true;
       this.onStatusChange({ type: 'ABLY_CONNECTED', channel: channelName, clientId: this.clientId });
+      console.log('[MP] _tryInitAblyChannel — Ably ready');
       return true;
     } catch (e) {
-      console.warn('init ably failed', e);
+      console.error('[MP] _tryInitAblyChannel failed', e);
       this.ably = null;
       this.ablyChannel = null;
       return false;
@@ -523,13 +602,16 @@ export class MultiplayerManager {
   }
 
   async _getIceServers() {
+    console.log('[MP] _getIceServers → GET /api/turn');
     try {
       const res = await fetch('/api/turn');
+      console.log(`[MP] _getIceServers ← HTTP ${res.status}`);
       if (!res.ok) return null;
       const j = await res.json();
+      console.log('[MP] _getIceServers — servers:', j.iceServers);
       return j.iceServers || null;
     } catch (e) {
-      console.warn('fetch /api/turn failed', e);
+      console.warn('[MP] _getIceServers failed, using fallback STUN', e);
       return null;
     }
   }
