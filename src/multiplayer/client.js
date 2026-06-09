@@ -222,7 +222,7 @@ export class MultiplayerManager {
       return;
     }
 
-    const wsUrl = (this.signalingUrl.replace(/^http/, 'ws')) + `/?room=${encodeURIComponent(this.roomCode)}`;
+    const wsUrl = (this.signalingUrl.replace(/^http/, 'ws').replace(/\/+$/, '')) + `/ws/?room=${encodeURIComponent(this.roomCode)}`;
     console.log(`[MP] _connectWS — Ably unavailable, falling back to WebSocket: ${wsUrl}`);
     this.ws = new WebSocket(wsUrl);
     this.ws.addEventListener('open', () => {

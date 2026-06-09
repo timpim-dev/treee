@@ -3,12 +3,16 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import cors from 'cors';
+import http from 'http';
+import { WebSocket, WebSocketServer } from 'ws';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+const SIGNALING_HOST = process.env.SIGNALING_HOST || 'localhost';
+const SIGNALING_PORT = process.env.SIGNALING_PORT || 8081;
 
 app.use(cors());
 app.use(express.json());
@@ -62,11 +66,73 @@ app.post('/api/leaderboard', (req, res) => {
   }
 });
 
+// Proxy signaling API requests to avoid CORS issues from the browser
+// All /api/rooms/* calls are forwarded to the signaling server
+app.use('/api/rooms', (req, res) => {
+  const options = {
+    hostname: SIGNALING_HOST,
+    port: SIGNALING_PORT,
+    path: '/api/rooms' + req.url,
+    method: req.method,
+    headers: {
+      ...req.headers,
+      host: `${SIGNALING_HOST}:${SIGNALING_PORT}`,
+    },
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.on('error', (err) => {
+    console.error('[Proxy] Signaling request failed:', err.message);
+    res.status(502).json({ ok: false, reason: 'signaling_unreachable' });
+  });
+
+  req.pipe(proxyReq);
+});
+
 // For any other routes, serve index.html (client-side routing support)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+const server = createServer(app);
+
+// WebSocket proxy — forward /ws?room=... connections to the signaling server
+// This lets the browser connect to the same origin instead of a different port (which browsers block via CORS)
+const wss = new WebSocketServer({ server, path: '/ws' });
+
+wss.on('connection', (clientWs, req) => {
+  const query = req.url.replace('/ws', '');
+  const targetUrl = `ws://${SIGNALING_HOST}:${SIGNALING_PORT}${query}`;
+  console.log(`[WS Proxy] new connection → ${targetUrl}`);
+
+  const upstream = new WebSocket(targetUrl);
+
+  upstream.on('open', () => {
+    clientWs.on('message', (msg) => {
+      if (upstream.readyState === WebSocket.OPEN) upstream.send(msg);
+    });
+  });
+
+  upstream.on('message', (msg) => {
+    if (clientWs.readyState === WebSocket.OPEN) clientWs.send(msg);
+  });
+
+  const cleanup = (label) => () => {
+    console.log(`[WS Proxy] ${label} closed`);
+    try { clientWs.close(); } catch (e) {}
+    try { upstream.close(); } catch (e) {}
+  };
+
+  upstream.on('close', cleanup('upstream'));
+  upstream.on('error', (e) => { console.error('[WS Proxy] upstream error:', e.message); cleanup('upstream error')(); });
+  clientWs.on('close', cleanup('client'));
+  clientWs.on('error', (e) => { console.error('[WS Proxy] client error:', e.message); });
+});
+
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT} — signaling proxy → ${SIGNALING_HOST}:${SIGNALING_PORT}`);
 });

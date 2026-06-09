@@ -424,7 +424,9 @@ export class Game {
 
     // Multiplayer manager — init before URL auto-join
     try {
-      this.multiplayer = new MultiplayerManager(this, { signalingUrl: (window.__SIGNALING_URL || (location.protocol + '//' + location.hostname + ':8081')) });
+      this.multiplayer = new MultiplayerManager(this, {
+        signalingUrl: window.__SIGNALING_URL || (location.origin),
+      });
       this.initMultiplayerUI();
     } catch (e) {
       console.warn('Multiplayer init failed', e);
