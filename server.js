@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import cors from 'cors';
 import http from 'http';
+import https from 'https';
 import { WebSocket, WebSocketServer } from 'ws';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -13,6 +14,7 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 const SIGNALING_HOST = process.env.SIGNALING_HOST || 'localhost';
 const SIGNALING_PORT = process.env.SIGNALING_PORT || 8081;
+const SIGNALING_PROTOCOL = process.env.SIGNALING_PROTOCOL || (SIGNALING_PORT == 443 ? 'https' : 'http');
 
 app.use(cors());
 app.use(express.json());
@@ -69,6 +71,9 @@ app.post('/api/leaderboard', (req, res) => {
 // Proxy signaling API requests to avoid CORS issues from the browser
 // All /api/rooms/* calls are forwarded to the signaling server
 app.use('/api/rooms', (req, res) => {
+  const useHttps = SIGNALING_PROTOCOL === 'https';
+  const requester = useHttps ? https : http;
+  
   const options = {
     hostname: SIGNALING_HOST,
     port: SIGNALING_PORT,
@@ -76,11 +81,11 @@ app.use('/api/rooms', (req, res) => {
     method: req.method,
     headers: {
       ...req.headers,
-      host: `${SIGNALING_HOST}:${SIGNALING_PORT}`,
+      host: `${SIGNALING_HOST}${useHttps && SIGNALING_PORT == 443 ? '' : ':' + SIGNALING_PORT}`,
     },
   };
 
-  const proxyReq = http.request(options, (proxyRes) => {
+  const proxyReq = requester.request(options, (proxyRes) => {
     res.writeHead(proxyRes.statusCode, proxyRes.headers);
     proxyRes.pipe(res);
   });
@@ -107,7 +112,8 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 wss.on('connection', (clientWs, req) => {
   // req.url already has path stripped by WebSocketServer, only query remains
   const query = req.url.startsWith('/') ? req.url : '/' + req.url;
-  const targetUrl = `ws://${SIGNALING_HOST}:${SIGNALING_PORT}${query}`;
+  const wsProtocol = SIGNALING_PROTOCOL === 'https' ? 'wss' : 'ws';
+  const targetUrl = `${wsProtocol}://${SIGNALING_HOST}:${SIGNALING_PORT}${query}`;
   console.log(`[WS Proxy] new connection → ${targetUrl}`);
 
   const upstream = new WebSocket(targetUrl);
