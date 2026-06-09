@@ -129,16 +129,18 @@ export class Game {
     this.initDevtoolsUI();
     // Multiplayer UI helpers
     this.initMultiplayerUI = function() {
-      const hudRight = document.getElementById('hud-right-controls');
-      if (!hudRight) return;
-      if (document.getElementById('btn-multiplayer')) return; // already init
+      if (document.getElementById('mp-modal')) return; // already init
 
-      const btn = document.createElement('button');
-      btn.id = 'btn-multiplayer';
-      btn.className = 'hud-btn';
-      btn.innerText = 'Multiplayer';
-      btn.addEventListener('click', () => this._openMultiplayerModal());
-      hudRight.appendChild(btn);
+      // Add HUD button if HUD is available
+      const hudRight = document.getElementById('hud-right-controls');
+      if (hudRight && !document.getElementById('btn-multiplayer')) {
+        const btn = document.createElement('button');
+        btn.id = 'btn-multiplayer';
+        btn.className = 'hud-btn';
+        btn.innerText = 'Multiplayer';
+        btn.addEventListener('click', () => this._openMultiplayerModal());
+        hudRight.appendChild(btn);
+      }
 
       const modal = document.createElement('div');
       modal.id = 'mp-modal';
@@ -381,27 +383,6 @@ export class Game {
     this.drawHTMLIcons();
     this.initTwitchUIListeners();
     this.updateTwitchStatus();
-
-    // Add debug handler for START MULTIPLAYER menu button to help trace click issues
-    try {
-      const _btnStartMp = document.getElementById('btn-start-multiplayer');
-      if (_btnStartMp) {
-        _btnStartMp.addEventListener('click', () => {
-          console.log('[Game] btn-start-multiplayer clicked');
-          try {
-            if (!this._openMultiplayerModal) {
-              this.initMultiplayerUI?.();
-            }
-          } catch (e) { console.warn('initMultiplayerUI error', e); }
-          if (this._openMultiplayerModal) {
-            this._openMultiplayerModal();
-          } else {
-            console.warn('[Game] _openMultiplayerModal not defined');
-            try { alert('Multiplayer init failed — check console for details'); } catch(e){}
-          }
-        });
-      }
-    } catch (e) { console.warn('btn-start-multiplayer debug attach failed', e); }
 
     // Multiplayer manager — init before URL auto-join
     try {
