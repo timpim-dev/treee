@@ -144,52 +144,107 @@ export class Game {
 
       const modal = document.createElement('div');
       modal.id = 'mp-modal';
-      modal.style.display = 'none';
-      modal.style.position = 'fixed';
-      modal.style.left = '50%';
-      modal.style.top = '50%';
-      modal.style.transform = 'translate(-50%, -50%)';
-      modal.style.background = 'rgba(20,20,28,0.95)';
-      modal.style.border = '1px solid #333';
-      modal.style.padding = '12px';
-      modal.style.zIndex = 9999;
-      modal.style.minWidth = '360px';
-      modal.style.maxHeight = '80vh';
-      modal.style.overflowY = 'auto';
+      modal.style.cssText = `
+        display:none; position:fixed; left:50%; top:50%;
+        transform:translate(-50%,-50%); z-index:9999;
+        background:#080a14; border:6px double #fff;
+        box-shadow:8px 8px 0 rgba(0,0,0,0.8);
+        padding:30px 36px; min-width:400px; max-width:480px;
+        width:90vw; font-family:'Press Start 2P',monospace;
+      `;
       modal.innerHTML = `
-        <h3 style="margin:6px 0 8px 0; font-size:14px;">Multiplayer</h3>
-        <div style="display:flex; gap:6px; margin-bottom:8px;">
-          <input id="mp-code-input" placeholder="Room code (optional)" style="flex:1; padding:6px; font-size:12px;">
-          <button id="mp-create-btn" style="padding:6px;">Create</button>
+        <div style="text-align:center; margin-bottom:20px;">
+          <div style="font-size:18px; color:#fff; text-shadow:4px 4px 0 #7d5fff; letter-spacing:2px; margin-bottom:6px;">MULTIPLAYER</div>
+          <div style="width:80px; height:4px; background:#fff; margin:0 auto;"></div>
         </div>
-        <div style="display:flex; gap:6px; margin-bottom:8px;">
-          <input id="mp-join-input" placeholder="Enter room code" style="flex:1; padding:6px; font-size:12px;">
-          <button id="mp-join-btn" style="padding:6px;">Join</button>
+
+        <!-- HOST section -->
+        <div id="mp-section-host" style="margin-bottom:20px;">
+          <div style="font-size:7px; color:#a4b0be; letter-spacing:1px; margin-bottom:12px;">HOST A ROOM</div>
+          <button id="mp-create-btn" style="
+            width:100%; background:#111424; border:4px solid #fff; color:#fff;
+            font-family:'Press Start 2P',monospace; font-size:9px; padding:12px;
+            cursor:pointer; box-shadow:4px 4px 0 #7d5fff; letter-spacing:1px;
+          ">CREATE ROOM</button>
+          <div id="mp-room-info" style="display:none; margin-top:14px; padding:12px; background:rgba(125,95,255,0.1); border:2px dashed rgba(125,95,255,0.5); text-align:center;">
+            <div style="font-size:7px; color:#a4b0be; margin-bottom:6px;">ROOM CODE</div>
+            <div id="mp-room-code" style="font-size:20px; color:#fff; letter-spacing:6px; text-shadow:0 0 10px rgba(125,95,255,0.6); margin-bottom:10px;"></div>
+            <button id="mp-copy-link" style="
+              background:#111424; border:3px solid #7d5fff; color:#7d5fff;
+              font-family:'Press Start 2P',monospace; font-size:7px; padding:6px 12px;
+              cursor:pointer; box-shadow:3px 3px 0 #5b3cc4;
+            ">COPY INVITE LINK</button>
+          </div>
         </div>
-        <div style="display:flex; gap:6px; align-items:center; margin-bottom:8px;">
-          <button id="mp-save-btn" style="padding:6px;">Export Room</button>
-          <input id="mp-load-file" type="file" accept=".json" style="font-size:11px;">
-          <button id="mp-leave-btn" style="padding:6px; color:#f66;">Leave</button>
-          <button id="mp-close-btn" style="margin-left:auto; padding:6px;">Close</button>
+
+        <div style="border-top:1px dashed rgba(255,255,255,0.15); margin:16px 0;"></div>
+
+        <!-- JOIN section -->
+        <div id="mp-section-join" style="margin-bottom:20px;">
+          <div style="font-size:7px; color:#a4b0be; letter-spacing:1px; margin-bottom:12px;">JOIN A ROOM</div>
+          <div style="display:flex; gap:8px;">
+            <input id="mp-join-input" placeholder="ENTER CODE" style="
+              flex:1; background:rgba(5,8,18,0.9); border:2px solid rgba(181,126,255,0.45);
+              color:#fff; font-family:'Press Start 2P',monospace; font-size:9px;
+              padding:10px 12px; outline:none; letter-spacing:3px; text-transform:uppercase;
+            ">
+            <button id="mp-join-btn" style="
+              background:#111424; border:4px solid #fff; color:#fff;
+              font-family:'Press Start 2P',monospace; font-size:8px; padding:10px 14px;
+              cursor:pointer; box-shadow:3px 3px 0 #7d5fff; white-space:nowrap;
+            ">JOIN</button>
+          </div>
         </div>
-        <div id="mp-host-panel" style="display:none; border-top:1px solid #444; padding-top:8px; margin-top:4px;">
-          <div style="font-size:12px; font-weight:bold; margin-bottom:6px;">Room Master Controls</div>
-          <div id="mp-peer-list" style="font-size:11px; max-height:120px; overflow-y:auto;"></div>
-          <div id="mp-banned-list" style="font-size:10px; color:#888; margin-top:4px;"></div>
+
+        <!-- Status -->
+        <div id="mp-status" style="font-size:7px; color:#a4b0be; text-align:center; min-height:16px; margin-bottom:14px; letter-spacing:1px;"></div>
+
+        <!-- Host panel (players in room) -->
+        <div id="mp-host-panel" style="display:none; border-top:1px dashed rgba(255,255,255,0.15); padding-top:14px; margin-bottom:14px;">
+          <div style="font-size:7px; color:#7d5fff; letter-spacing:1px; margin-bottom:8px;">PLAYERS IN ROOM</div>
+          <div id="mp-peer-list" style="font-size:8px; max-height:100px; overflow-y:auto;"></div>
+          <div id="mp-banned-list" style="font-size:7px; color:#a4b0be; margin-top:6px;"></div>
+        </div>
+
+        <!-- Actions row -->
+        <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
+          <button id="mp-leave-btn" style="
+            background:#111424; border:4px solid #ff4757; color:#ff4757;
+            font-family:'Press Start 2P',monospace; font-size:7px; padding:8px 14px;
+            cursor:pointer; box-shadow:3px 3px 0 #c0392b;
+          ">LEAVE</button>
+          <button id="mp-close-btn" style="
+            background:#111424; border:4px solid #a4b0be; color:#a4b0be;
+            font-family:'Press Start 2P',monospace; font-size:7px; padding:8px 14px;
+            cursor:pointer; box-shadow:3px 3px 0 #636e72;
+          ">CLOSE</button>
         </div>
       `;
       document.body.appendChild(modal);
 
-      // Join request popup (streamer only)
+      // Join request popup
       const joinPopup = document.createElement('div');
       joinPopup.id = 'mp-join-request-popup';
-      joinPopup.style.cssText = 'display:none; position:fixed; top:20px; right:20px; z-index:10000; background:rgba(30,20,40,0.97); border:2px solid #a55eea; padding:14px; min-width:260px; border-radius:4px;';
+      joinPopup.style.cssText = `
+        display:none; position:fixed; top:20px; right:20px; z-index:10000;
+        background:#080a14; border:6px double #a55eea;
+        box-shadow:6px 6px 0 rgba(0,0,0,0.8); padding:18px 22px;
+        min-width:260px; font-family:'Press Start 2P',monospace;
+      `;
       joinPopup.innerHTML = `
-        <div style="font-size:13px; font-weight:bold; color:#a55eea; margin-bottom:8px;">Join Request</div>
-        <div id="mp-join-req-user" style="font-size:12px; margin-bottom:10px;"></div>
+        <div style="font-size:9px; color:#a55eea; letter-spacing:1px; margin-bottom:10px;">JOIN REQUEST</div>
+        <div id="mp-join-req-user" style="font-size:8px; color:#fff; margin-bottom:14px;"></div>
         <div style="display:flex; gap:8px;">
-          <button id="mp-join-accept" style="padding:6px 12px; background:#2ecc71; border:none; cursor:pointer;">Accept</button>
-          <button id="mp-join-deny" style="padding:6px 12px; background:#e74c3c; border:none; cursor:pointer;">Deny</button>
+          <button id="mp-join-accept" style="
+            flex:1; background:#111424; border:3px solid #2ecc71; color:#2ecc71;
+            font-family:'Press Start 2P',monospace; font-size:7px; padding:8px;
+            cursor:pointer; box-shadow:3px 3px 0 #27ae60;
+          ">ACCEPT</button>
+          <button id="mp-join-deny" style="
+            flex:1; background:#111424; border:3px solid #ff4757; color:#ff4757;
+            font-family:'Press Start 2P',monospace; font-size:7px; padding:8px;
+            cursor:pointer; box-shadow:3px 3px 0 #c0392b;
+          ">DENY</button>
         </div>
       `;
       document.body.appendChild(joinPopup);
@@ -202,94 +257,75 @@ export class Game {
       };
       this._closeMultiplayerModal = () => { modal.style.display = 'none'; };
 
+      // Hover effects
+      modal.querySelectorAll('button').forEach(b => {
+        b.addEventListener('mouseenter', () => { b.style.transform = 'translate(2px,2px)'; });
+        b.addEventListener('mouseleave', () => { b.style.transform = ''; });
+      });
+
       modal.querySelector('#mp-close-btn').addEventListener('click', () => this._closeMultiplayerModal());
       modal.querySelector('#mp-leave-btn').addEventListener('click', () => {
         if (this.multiplayer) this.multiplayer.leaveRoom();
         this._restoreViewerSaveAfterLeave();
-        this._setMpStatus('Left room');
+        this._setMpStatus('LEFT ROOM');
         this._stopHostBroadcast();
         this.remotePlayers.clear();
+        modal.querySelector('#mp-room-info').style.display = 'none';
         this._updateHostPanel();
       });
 
       modal.querySelector('#mp-create-btn').addEventListener('click', async () => {
-        const code = modal.querySelector('#mp-code-input').value || null;
-        this._setMpStatus('Creating...');
-        const r = await this.multiplayer.createRoom(code);
+        this._setMpStatus('CREATING ROOM...');
+        const r = await this.multiplayer.createRoom(null); // always random
         if (r.ok) {
-          this._setMpStatus('Created: ' + r.code);
           this.isMultiplayerViewer = false;
         } else {
-          this._setMpStatus('Create failed: ' + (r.reason || 'unknown'));
+          this._setMpStatus('FAILED: ' + (r.reason || 'unknown').toUpperCase());
         }
       });
 
       modal.querySelector('#mp-join-btn').addEventListener('click', async () => {
-        const code = modal.querySelector('#mp-join-input').value;
-        if (!code) return this._setMpStatus('Enter room code');
-        this._setMpStatus('Joining...');
+        const code = modal.querySelector('#mp-join-input').value.trim().toUpperCase();
+        if (!code) return this._setMpStatus('ENTER A ROOM CODE');
+        this._setMpStatus('JOINING...');
         const twitchUser = this.twitchManager.channel || null;
         const r = await this.multiplayer.joinRoom(code, { displayName: twitchUser || 'player', twitchUser });
-        if (r.ok) {
-          this._setMpStatus('Join requested: ' + code);
-        } else {
-          this._setMpStatus('Failed to join: ' + (r.reason || 'unknown'));
-        }
+        if (!r.ok) this._setMpStatus('FAILED: ' + (r.reason || 'unknown').toUpperCase());
       });
 
-      modal.querySelector('#mp-save-btn').addEventListener('click', () => {
-        if (!this.multiplayer || !this.multiplayer.isHost) {
-          return this._setMpStatus('Only room host can export', '#f66');
-        }
-        this.multiplayer.saveRoomToFile();
-        this._setMpStatus('Room exported');
+      modal.querySelector('#mp-copy-link').addEventListener('click', () => {
+        const el = modal.querySelector('#mp-share-link-val');
+        if (!el || !el.value) return;
+        el.select ? el.select() : null;
+        navigator.clipboard.writeText(el.value).catch(() => {
+          const tmp = document.createElement('textarea');
+          tmp.value = el.value;
+          document.body.appendChild(tmp);
+          tmp.select();
+          document.execCommand('copy');
+          document.body.removeChild(tmp);
+        });
+        this._setMpStatus('LINK COPIED!');
       });
 
-      const loadFile = modal.querySelector('#mp-load-file');
-      loadFile.addEventListener('change', async (e) => {
-        const f = e.target.files && e.target.files[0];
-        if (!f) return;
-        const res = await this.multiplayer.loadRoomFromFile(f);
-        if (res.ok) this._setMpStatus('Room loaded — world state restored');
-        else this._setMpStatus('Failed to parse room file');
-      });
+      // Hidden input to hold share link value
+      const shareLinkInput = document.createElement('input');
+      shareLinkInput.id = 'mp-share-link-val';
+      shareLinkInput.type = 'hidden';
+      modal.appendChild(shareLinkInput);
 
       joinPopup.querySelector('#mp-join-accept').addEventListener('click', () => this._acceptJoinRequestUI());
       joinPopup.querySelector('#mp-join-deny').addEventListener('click', () => this._denyJoinRequestUI());
 
-      const statusEl = document.createElement('div');
-      statusEl.id = 'mp-status';
-      statusEl.style.marginTop = '8px';
-      statusEl.style.fontSize = '12px';
-      statusEl.style.color = '#cfc';
-      statusEl.innerText = 'Idle';
-      modal.appendChild(statusEl);
-
-      const linkRow = document.createElement('div');
-      linkRow.style.display = 'flex';
-      linkRow.style.gap = '6px';
-      linkRow.style.marginTop = '8px';
-      linkRow.style.alignItems = 'center';
-      linkRow.innerHTML = `<input id="mp-share-link" style="flex:1; padding:6px; font-size:12px;" readonly placeholder="No room" /><button id="mp-copy-link" style="padding:6px;">Copy</button>`;
-      modal.appendChild(linkRow);
-      modal.querySelector('#mp-copy-link').addEventListener('click', () => {
-        const el = modal.querySelector('#mp-share-link');
-        if (!el || !el.value) return alert('No link to copy');
-        el.select();
-        document.execCommand('copy');
-        this._setMpStatus('Copied link to clipboard');
-      });
-
-      const peersList = document.createElement('div');
-      peersList.id = 'mp-peers';
-      peersList.style.marginTop = '8px';
-      peersList.style.fontSize = '12px';
-      peersList.innerText = 'Peers: 0';
-      modal.appendChild(peersList);
-
-      this._setMpStatus = (txt, color) => { statusEl.innerText = txt; if (color) statusEl.style.color = color; else statusEl.style.color = '#cfc'; };
-      this._setMpLink = (url) => { const el = modal.querySelector('#mp-share-link'); if (el) el.value = url || ''; };
-      this._setMpPeers = (list) => { peersList.innerText = 'Peers: ' + (list && list.length ? list.join(', ') : '0'); };
+      this._setMpStatus = (txt) => {
+        const el = modal.querySelector('#mp-status');
+        if (el) el.textContent = txt;
+      };
+      this._setMpLink = (url) => {
+        const el = modal.querySelector('#mp-share-link-val');
+        if (el) el.value = url || '';
+      };
+      this._setMpPeers = (list) => { /* handled by _updateHostPanel */ };
 
       this._updateHostPanel = () => {
         const panel = modal.querySelector('#mp-host-panel');
@@ -302,13 +338,13 @@ export class Game {
         panel.style.display = 'block';
         const peers = this.multiplayer.getPeerList();
         listEl.innerHTML = peers.length === 0
-          ? '<div style="color:#888;">No viewers connected</div>'
+          ? '<div style="color:#a4b0be; font-size:7px;">NO PLAYERS CONNECTED</div>'
           : peers.map(p => `
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:3px 0; border-bottom:1px solid #333;">
-              <span>${p.displayName || p.id}</span>
-              <span>
-                <button data-kick="${p.id}" style="font-size:10px; padding:2px 6px; margin-right:4px;">Kick</button>
-                <button data-ban="${p.id}" data-user="${p.twitchUser || p.displayName}" style="font-size:10px; padding:2px 6px; color:#f66;">Ban</button>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px dashed rgba(255,255,255,0.1);">
+              <span style="font-size:7px; color:#fff;">${p.displayName || p.id}</span>
+              <span style="display:flex; gap:6px;">
+                <button data-kick="${p.id}" style="font-family:'Press Start 2P',monospace; font-size:6px; padding:3px 7px; background:#111424; border:2px solid #a4b0be; color:#a4b0be; cursor:pointer;">KICK</button>
+                <button data-ban="${p.id}" data-user="${p.twitchUser || p.displayName}" style="font-family:'Press Start 2P',monospace; font-size:6px; padding:3px 7px; background:#111424; border:2px solid #ff4757; color:#ff4757; cursor:pointer;">BAN</button>
               </span>
             </div>`).join('');
         listEl.querySelectorAll('[data-kick]').forEach(btn => {
@@ -326,7 +362,7 @@ export class Game {
           });
         });
         const banned = Array.from(this.multiplayer.bannedUsers);
-        bannedEl.innerText = banned.length ? 'Banned: ' + banned.join(', ') : '';
+        bannedEl.textContent = banned.length ? 'BANNED: ' + banned.join(', ') : '';
       };
 
       this.multiplayer.onStatusChange = (s) => {
@@ -334,29 +370,31 @@ export class Game {
         if (s.type === 'room_created') {
           const url = location.origin + '/?join=' + encodeURIComponent(s.code.toLowerCase());
           this._setMpLink(url);
-          this._setMpStatus('Room created: ' + s.code);
+          const codeEl = modal.querySelector('#mp-room-code');
+          if (codeEl) codeEl.textContent = s.code;
+          const roomInfo = modal.querySelector('#mp-room-info');
+          if (roomInfo) roomInfo.style.display = 'block';
+          this._setMpStatus('ROOM READY — SHARE THE CODE!');
           if (this.multiplayer && this.multiplayer.isHost) this._startHostBroadcast();
           this._updateHostPanel();
         } else if (s.type === 'joining') {
-          this._setMpStatus('Joining ' + (s.code || ''));
+          this._setMpStatus('JOINING ' + (s.code || '') + '...');
         } else if (s.type === 'host_connected') {
-          this._setMpStatus('Connected to host!');
+          this._setMpStatus('CONNECTED!');
         } else if (s.type === 'join_rejected') {
-          this._setMpStatus('Join denied: ' + (s.reason || 'rejected'), '#f66');
+          this._setMpStatus('DENIED: ' + (s.reason || 'rejected').toUpperCase());
         } else if (s.type === 'kicked') {
-          this._setMpStatus('You were kicked from the room', '#f66');
+          this._setMpStatus('YOU WERE KICKED');
           this.remotePlayers.clear();
           this._restoreViewerSaveAfterLeave();
         } else if (s.type === 'ws_open') {
-          this._setMpStatus('Connected to signaling');
+          this._setMpStatus('');
         } else if (s.type === 'ws_closed') {
-          this._setMpStatus('Signaling disconnected', '#f66');
+          this._setMpStatus('DISCONNECTED');
           this._stopHostBroadcast();
         } else if (s.type === 'ws_error') {
-          this._setMpStatus('Signaling error', '#f66');
+          this._setMpStatus('CONNECTION ERROR');
         } else if (s.type === 'peer_connected' || s.type === 'peer_disconnected') {
-          const peers = Array.from(this.multiplayer.peers.keys());
-          this._setMpPeers(peers);
           this._updateHostPanel();
         }
       };
