@@ -50,6 +50,7 @@ export class TwitchManager {
       'vote':      { cooldown: 0,  enabled: true, desc: 'Vote on events', bits: 0, redeemId: '' },
       'gg':        { cooldown: 3,  enabled: true, desc: 'GG celebration', perUser: true, bits: 0, redeemId: '' },
       'backrooms': { cooldown: 120, enabled: true, desc: 'Backrooms chance', bits: 0, redeemId: '' },
+      'join':      { cooldown: 30,  enabled: true, desc: 'Join streamer multiplayer room', bits: 0, redeemId: '' },
     };
 
     this.enableAnnouncements = true;
@@ -275,6 +276,13 @@ export class TwitchManager {
           return;
         }
 
+        // !join — handled immediately, not queued (works outside PLAYING)
+        if (cmdName === 'join') {
+          this.handleJoinCommand(username);
+          this.addFeedMessage(username, 'join', message, '#7d5fff');
+          return;
+        }
+
         // Queue the command
         if (this.commandQueue.length >= this.maxQueueSize) {
           this.commandQueue.shift(); // Drop oldest
@@ -284,7 +292,7 @@ export class TwitchManager {
         // Add to chat feed
         const colors = {
           spawn: '#ff6b6b', heal: '#2ecc71', curse: '#e74c3c',
-          buff: '#a55eea', meteor: '#f39c12', gg: '#4ecdc4', backrooms: '#dbbf85'
+          buff: '#a55eea', meteor: '#f39c12', gg: '#4ecdc4', backrooms: '#dbbf85', join: '#7d5fff'
         };
         this.addFeedMessage(username, cmdName, message, colors[cmdName] || '#fff');
         return;
@@ -294,6 +302,16 @@ export class TwitchManager {
     // Add normal message to feed (username colored by Twitch color tag if present)
     const userColor = tags.color || '#a970ff';
     this.addFeedMessage(username, 'chat', message, userColor);
+  }
+
+  /**
+   * Handle !join command from chat viewer
+   */
+  handleJoinCommand(username) {
+    const cmdDef = this.commands['join'];
+    if (!cmdDef || !cmdDef.enabled) return;
+    if (!this.game || typeof this.game.handleJoinCommand !== 'function') return;
+    this.game.handleJoinCommand(username);
   }
 
   /**

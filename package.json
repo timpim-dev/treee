@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node server.js"
+    "start": "node server.js",
+    "signaling": "node src/multiplayer/signaling/server.js"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

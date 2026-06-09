@@ -52,6 +52,8 @@ export class Game {
     this.remotePlayers = new Map(); // other players seen from snapshots
     this._mpHostInterval = null;
     this._remoteInputQueue = []; // inputs received by host from peers (to be applied in host game loop)
+    this.isMultiplayerViewer = false; // true when joined as viewer (no host inventory sync)
+    this._viewerSaveBackup = null; // backup of viewer SP state while in MP session
 
     // Dev overlay flags
     this.devShowHitboxes = false;
@@ -127,9 +129,10 @@ export class Game {
     this.initDevtoolsUI();
     // Multiplayer UI helpers
     this.initMultiplayerUI = function() {
-      // Create a simple multiplayer button in HUD
       const hudRight = document.getElementById('hud-right-controls');
       if (!hudRight) return;
+      if (document.getElementById('btn-multiplayer')) return; // already init
+
       const btn = document.createElement('button');
       btn.id = 'btn-multiplayer';
       btn.className = 'hud-btn';
@@ -137,7 +140,6 @@ export class Game {
       btn.addEventListener('click', () => this._openMultiplayerModal());
       hudRight.appendChild(btn);
 
-      // Modal container
       const modal = document.createElement('div');
       modal.id = 'mp-modal';
       modal.style.display = 'none';
@@ -149,9 +151,12 @@ export class Game {
       modal.style.border = '1px solid #333';
       modal.style.padding = '12px';
       modal.style.zIndex = 9999;
-      modal.style.minWidth = '320px';
+      modal.style.minWidth = '360px';
+      modal.style.maxHeight = '80vh';
+      modal.style.overflowY = 'auto';
       modal.innerHTML = `
         <h3 style="margin:6px 0 8px 0; font-size:14px;">Multiplayer</h3>
+        <div id="mp-connection-hint" style="font-size:11px; color:#f39c12; margin-bottom:8px; display:none;">Connect to Twitch chat first to use multiplayer.</div>
         <div style="display:flex; gap:6px; margin-bottom:8px;">
           <input id="mp-code-input" placeholder="Room code (optional)" style="flex:1; padding:6px; font-size:12px;">
           <button id="mp-create-btn" style="padding:6px;">Create</button>
@@ -160,53 +165,104 @@ export class Game {
           <input id="mp-join-input" placeholder="Enter room code" style="flex:1; padding:6px; font-size:12px;">
           <button id="mp-join-btn" style="padding:6px;">Join</button>
         </div>
-        <div style="display:flex; gap:6px; align-items:center;">
-          <button id="mp-save-btn" style="padding:6px;">Save Room</button>
-          <input id="mp-load-file" type="file" style="display:inline-block;">
+        <div style="display:flex; gap:6px; align-items:center; margin-bottom:8px;">
+          <button id="mp-save-btn" style="padding:6px;">Export Room</button>
+          <input id="mp-load-file" type="file" accept=".json" style="font-size:11px;">
+          <button id="mp-leave-btn" style="padding:6px; color:#f66;">Leave</button>
           <button id="mp-close-btn" style="margin-left:auto; padding:6px;">Close</button>
+        </div>
+        <div id="mp-host-panel" style="display:none; border-top:1px solid #444; padding-top:8px; margin-top:4px;">
+          <div style="font-size:12px; font-weight:bold; margin-bottom:6px;">Room Master Controls</div>
+          <div id="mp-peer-list" style="font-size:11px; max-height:120px; overflow-y:auto;"></div>
+          <div id="mp-banned-list" style="font-size:10px; color:#888; margin-top:4px;"></div>
         </div>
       `;
       document.body.appendChild(modal);
 
-      this._openMultiplayerModal = () => { modal.style.display = 'block'; };
+      // Join request popup (streamer only)
+      const joinPopup = document.createElement('div');
+      joinPopup.id = 'mp-join-request-popup';
+      joinPopup.style.cssText = 'display:none; position:fixed; top:20px; right:20px; z-index:10000; background:rgba(30,20,40,0.97); border:2px solid #a55eea; padding:14px; min-width:260px; border-radius:4px;';
+      joinPopup.innerHTML = `
+        <div style="font-size:13px; font-weight:bold; color:#a55eea; margin-bottom:8px;">Join Request</div>
+        <div id="mp-join-req-user" style="font-size:12px; margin-bottom:10px;"></div>
+        <div style="display:flex; gap:8px;">
+          <button id="mp-join-accept" style="padding:6px 12px; background:#2ecc71; border:none; cursor:pointer;">Accept</button>
+          <button id="mp-join-deny" style="padding:6px 12px; background:#e74c3c; border:none; cursor:pointer;">Deny</button>
+        </div>
+      `;
+      document.body.appendChild(joinPopup);
+      this._joinRequestPopup = joinPopup;
+      this._pendingJoinRequestUI = null;
+
+      this._openMultiplayerModal = () => {
+        modal.style.display = 'block';
+        this._updateMpConnectionHint();
+        this._updateHostPanel();
+      };
       this._closeMultiplayerModal = () => { modal.style.display = 'none'; };
 
-      // Buttons
       modal.querySelector('#mp-close-btn').addEventListener('click', () => this._closeMultiplayerModal());
+      modal.querySelector('#mp-leave-btn').addEventListener('click', () => {
+        if (this.multiplayer) this.multiplayer.leaveRoom();
+        this._restoreViewerSaveAfterLeave();
+        this._setMpStatus('Left room');
+        this._stopHostBroadcast();
+        this.remotePlayers.clear();
+        this._updateHostPanel();
+      });
+
       modal.querySelector('#mp-create-btn').addEventListener('click', async () => {
+        if (!this._checkMpConnection()) return;
         const code = modal.querySelector('#mp-code-input').value || null;
         this._setMpStatus('Creating...');
         const r = await this.multiplayer.createRoom(code);
         if (r.ok) {
           this._setMpStatus('Created: ' + r.code);
+          this.isMultiplayerViewer = false;
+        } else if (r.reason === 'not_connected') {
+          this._setMpStatus('Connect to Twitch chat first', '#f66');
         } else {
           this._setMpStatus('Create failed: ' + (r.reason || 'unknown'));
         }
       });
+
       modal.querySelector('#mp-join-btn').addEventListener('click', async () => {
+        if (!this._checkMpConnection()) return;
         const code = modal.querySelector('#mp-join-input').value;
         if (!code) return this._setMpStatus('Enter room code');
         this._setMpStatus('Joining...');
-        const r = await this.multiplayer.joinRoom(code);
+        const twitchUser = this.twitchManager.channel || null;
+        const r = await this.multiplayer.joinRoom(code, { displayName: twitchUser || 'viewer', twitchUser });
         if (r.ok) {
           this._setMpStatus('Join requested: ' + code);
+        } else if (r.reason === 'not_connected') {
+          this._setMpStatus('Connect to Twitch chat first', '#f66');
         } else {
           this._setMpStatus('Failed to join: ' + (r.reason || 'unknown'));
         }
       });
+
       modal.querySelector('#mp-save-btn').addEventListener('click', () => {
+        if (!this.multiplayer || !this.multiplayer.isHost) {
+          return this._setMpStatus('Only room host can export', '#f66');
+        }
         this.multiplayer.saveRoomToFile();
+        this._setMpStatus('Room exported');
       });
+
       const loadFile = modal.querySelector('#mp-load-file');
       loadFile.addEventListener('change', async (e) => {
         const f = e.target.files && e.target.files[0];
         if (!f) return;
         const res = await this.multiplayer.loadRoomFromFile(f);
-        if (res.ok) this._setMpStatus('Loaded room file');
+        if (res.ok) this._setMpStatus('Room loaded — world state restored');
         else this._setMpStatus('Failed to parse room file');
       });
 
-      // status helper
+      joinPopup.querySelector('#mp-join-accept').addEventListener('click', () => this._acceptJoinRequestUI());
+      joinPopup.querySelector('#mp-join-deny').addEventListener('click', () => this._denyJoinRequestUI());
+
       const statusEl = document.createElement('div');
       statusEl.id = 'mp-status';
       statusEl.style.marginTop = '8px';
@@ -237,22 +293,77 @@ export class Game {
       peersList.innerText = 'Peers: 0';
       modal.appendChild(peersList);
 
-      // expose small helpers to update UI
       this._setMpStatus = (txt, color) => { statusEl.innerText = txt; if (color) statusEl.style.color = color; else statusEl.style.color = '#cfc'; };
       this._setMpLink = (url) => { const el = modal.querySelector('#mp-share-link'); if (el) el.value = url || ''; };
       this._setMpPeers = (list) => { peersList.innerText = 'Peers: ' + (list && list.length ? list.join(', ') : '0'); };
 
-      // Listen to multiplayer events
+      this._checkMpConnection = () => {
+        if (this.multiplayer && this.multiplayer.isConnectionAllowed()) return true;
+        this._setMpStatus('Connect to Twitch chat first', '#f66');
+        return false;
+      };
+
+      this._updateMpConnectionHint = () => {
+        const hint = modal.querySelector('#mp-connection-hint');
+        if (hint) hint.style.display = (this.multiplayer && this.multiplayer.isConnectionAllowed()) ? 'none' : 'block';
+      };
+
+      this._updateHostPanel = () => {
+        const panel = modal.querySelector('#mp-host-panel');
+        const listEl = modal.querySelector('#mp-peer-list');
+        const bannedEl = modal.querySelector('#mp-banned-list');
+        if (!panel || !this.multiplayer || !this.multiplayer.isHost) {
+          if (panel) panel.style.display = 'none';
+          return;
+        }
+        panel.style.display = 'block';
+        const peers = this.multiplayer.getPeerList();
+        listEl.innerHTML = peers.length === 0
+          ? '<div style="color:#888;">No viewers connected</div>'
+          : peers.map(p => `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:3px 0; border-bottom:1px solid #333;">
+              <span>${p.displayName || p.id}</span>
+              <span>
+                <button data-kick="${p.id}" style="font-size:10px; padding:2px 6px; margin-right:4px;">Kick</button>
+                <button data-ban="${p.id}" data-user="${p.twitchUser || p.displayName}" style="font-size:10px; padding:2px 6px; color:#f66;">Ban</button>
+              </span>
+            </div>`).join('');
+        listEl.querySelectorAll('[data-kick]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            this.multiplayer.kickPeer(btn.getAttribute('data-kick'));
+            this._updateHostPanel();
+          });
+        });
+        listEl.querySelectorAll('[data-ban]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const user = btn.getAttribute('data-user');
+            const pid = btn.getAttribute('data-ban');
+            if (user) this.multiplayer.banUser(user, pid);
+            this._updateHostPanel();
+          });
+        });
+        const banned = Array.from(this.multiplayer.bannedUsers);
+        bannedEl.innerText = banned.length ? 'Banned: ' + banned.join(', ') : '';
+      };
+
       this.multiplayer.onStatusChange = (s) => {
         if (!s || !s.type) return;
         if (s.type === 'room_created') {
           const url = location.origin + '/?join=' + encodeURIComponent(s.code.toLowerCase());
           this._setMpLink(url);
           this._setMpStatus('Room created: ' + s.code);
-          // If we are host, start broadcasting snapshots
           if (this.multiplayer && this.multiplayer.isHost) this._startHostBroadcast();
+          this._updateHostPanel();
         } else if (s.type === 'joining') {
-          this._setMpStatus('Joining ' + (s.code || '')); 
+          this._setMpStatus('Joining ' + (s.code || ''));
+        } else if (s.type === 'host_connected') {
+          this._setMpStatus('Connected to host!');
+        } else if (s.type === 'join_rejected') {
+          this._setMpStatus('Join denied: ' + (s.reason || 'rejected'), '#f66');
+        } else if (s.type === 'kicked') {
+          this._setMpStatus('You were kicked from the room', '#f66');
+          this.remotePlayers.clear();
+          this._restoreViewerSaveAfterLeave();
         } else if (s.type === 'ws_open') {
           this._setMpStatus('Connected to signaling');
         } else if (s.type === 'ws_closed') {
@@ -260,16 +371,21 @@ export class Game {
           this._stopHostBroadcast();
         } else if (s.type === 'ws_error') {
           this._setMpStatus('Signaling error', '#f66');
-        } else if (s.type === 'peer_connected') {
+        } else if (s.type === 'peer_connected' || s.type === 'peer_disconnected') {
           const peers = Array.from(this.multiplayer.peers.keys());
           this._setMpPeers(peers);
-        } else if (s.type === 'peer_disconnected') {
-          const peers = Array.from(this.multiplayer.peers.keys());
-          this._setMpPeers(peers);
+          this._updateHostPanel();
         }
       };
 
-      // receive authoritative snapshots from host (client-side)
+      this.multiplayer.onJoinRequest = (req) => {
+        this._showJoinRequestPopup(req);
+      };
+
+      this.multiplayer.onPeerMetaUpdate = () => {
+        this._updateHostPanel();
+      };
+
       this.multiplayer.onStateSnapshot = (snap) => {
         try { this._applySnapshot(snap); } catch (e) { console.warn('apply snapshot failed', e); }
       };
@@ -305,6 +421,14 @@ export class Game {
         });
       }
     } catch (e) { console.warn('btn-start-multiplayer debug attach failed', e); }
+
+    // Multiplayer manager — init before URL auto-join
+    try {
+      this.multiplayer = new MultiplayerManager(this, { signalingUrl: (window.__SIGNALING_URL || (location.protocol + '//' + location.hostname + ':8081')) });
+      this.initMultiplayerUI();
+    } catch (e) {
+      console.warn('Multiplayer init failed', e);
+    }
 
     // Check for Twitch URL parameter ?channel=username and ?join=slug
     const urlParams = new URLSearchParams(window.location.search);
@@ -343,13 +467,32 @@ export class Game {
 
     // Auto-join multiplayer room via ?join=slug (streamer URLs map to room codes)
     const joinParam = urlParams.get('join');
+    if (joinParam) {
+      // Auto-connect to streamer chat so viewer is "connected" for multiplayer
+      if (this.twitchManager.enabled !== false && !this.twitchManager.connected) {
+        this.twitchManager.connect(joinParam);
+      }
+    }
     if (joinParam && this.multiplayer) {
       try {
         const roomCode = joinParam.toUpperCase();
+        const twitchUser = (this.twitchManager && this.twitchManager.channel) ? this.twitchManager.channel : null;
         console.log(`[Multiplayer] Auto-joining room from URL parameter: ${joinParam} -> ${roomCode}`);
-        this.multiplayer.joinRoom(roomCode).then(res => {
-          if (!res.ok) console.warn('Auto-join failed', res);
-        }).catch(e => console.warn('Auto-join error', e));
+        // Delay join slightly to allow Twitch WS to connect
+        const doJoin = () => {
+          if (!this.multiplayer.isConnectionAllowed()) {
+            console.warn('[Multiplayer] Auto-join skipped — connect to Twitch chat first');
+            return;
+          }
+          this.multiplayer.joinRoom(roomCode, {
+            displayName: twitchUser || 'viewer',
+            twitchUser: twitchUser,
+          }).then(res => {
+            if (!res.ok) console.warn('Auto-join failed', res);
+            else if (this.state === 'MENU') this._setMpStatus('Joined room ' + roomCode + ' — start playing!');
+          }).catch(e => console.warn('Auto-join error', e));
+        };
+        setTimeout(doJoin, 1500);
       } catch (e) {
         console.warn('Failed to process join URL param', e);
       }
@@ -359,13 +502,6 @@ export class Game {
     this.initPlayerAccountUI();
     this.initLevelBuilderUI();
     this.initStoryModeUI();
-    // Multiplayer manager (lazy: uses default signaling host on same origin:8081)
-    try {
-      this.multiplayer = new MultiplayerManager(this, { signalingUrl: (window.__SIGNALING_URL || (location.protocol + '//' + location.hostname + ':8081')) });
-      this.initMultiplayerUI();
-    } catch (e) {
-      console.warn('Multiplayer init failed', e);
-    }
     this.parseTwitchOAuthHash();
     this.parsePlayerOAuthRedirect();
 
@@ -969,9 +1105,13 @@ export class Game {
     const btnStartMultiplayer = document.getElementById('btn-start-multiplayer');
     if (btnStartMultiplayer) {
       btnStartMultiplayer.addEventListener('click', () => {
-        // Ensure multiplayer UI initialized
         if (!this._openMultiplayerModal) {
           try { this.initMultiplayerUI(); } catch(e) { console.warn('initMultiplayerUI failed', e); }
+        }
+        if (this.multiplayer && !this.multiplayer.isConnectionAllowed()) {
+          alert('Connect to Twitch chat first (Twitch panel → Login with Twitch) to use multiplayer.');
+          this.setState('TWITCH');
+          return;
         }
         if (this._openMultiplayerModal) this._openMultiplayerModal();
       });
@@ -1500,24 +1640,31 @@ export class Game {
 
       // Wire the "Allow viewers to join" checkbox to signaling API and PocketBase settings
       const chkAllowJoins = document.getElementById('chk-twitch-allow-joins');
+      const joinModeRow = document.getElementById('mp-join-mode-row');
+      const selJoinMode = document.getElementById('sel-multiplayer-join-mode');
       if (chkAllowJoins) {
         try {
-          const currentAllow = (this.pbClient && this.pbClient.record && this.pbClient.record.settings && this.pbClient.record.settings.multiplayerAllowJoins) || false;
+          const settings = (this.pbClient && this.pbClient.record && this.pbClient.record.settings) || {};
+          const currentAllow = settings.multiplayerAllowJoins || false;
           chkAllowJoins.checked = !!currentAllow;
+          if (joinModeRow) joinModeRow.style.display = currentAllow ? 'block' : 'none';
+          if (selJoinMode) selJoinMode.value = settings.multiplayerJoinMode || 'free';
         } catch (e) { chkAllowJoins.checked = false; }
 
         chkAllowJoins.addEventListener('change', async (e) => {
           const enable = !!e.target.checked;
+          if (joinModeRow) joinModeRow.style.display = enable ? 'block' : 'none';
           const slug = (this.pbClient && this.pbClient.record && (this.pbClient.record.slug || this.pbClient.record.twitch_name)) || (this.twitchManager && this.twitchManager.channel) || null;
           const signalingUrl = (this.multiplayer && this.multiplayer.signalingUrl) || (window.__SIGNALING_URL || (location.protocol + '//' + location.hostname + ':8081'));
+          const joinMode = (selJoinMode && selJoinMode.value) || 'free';
           if (!slug) {
             alert('Cannot determine streamer slug. Log in to PocketBase first.');
             chkAllowJoins.checked = false;
+            if (joinModeRow) joinModeRow.style.display = 'none';
             return;
           }
 
           if (enable) {
-            // Reserve room for streamer via signaling endpoint. Use dedicated endpoint if available.
             try {
               const url = signalingUrl.replace(/\/+$/, '') + '/api/rooms/reserve-for-streamer';
               const body = { code: (slug || '').toUpperCase(), owner: slug, ttl: 3600 };
@@ -1526,7 +1673,6 @@ export class Game {
               if (res.ok) {
                 j = await res.json();
               } else if (res.status === 404) {
-                // fallback to generic reserve endpoint
                 const fallback = signalingUrl.replace(/\/+$/, '') + '/api/rooms/reserve';
                 res = await fetch(fallback, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                 j = await res.json();
@@ -1534,32 +1680,37 @@ export class Game {
                 j = await res.json().catch(() => ({ ok: false, reason: 'unknown' }));
               }
 
+              const newSettings = Object.assign({}, this.pbClient.record.settings || {}, {
+                multiplayerAllowJoins: true,
+                multiplayerRoomCode: (slug || '').toUpperCase(),
+                multiplayerJoinMode: joinMode,
+              });
+              await this.pbClient.saveSettings(newSettings);
+
               if (j && j.ok) {
-                // Persist in PocketBase settings
-                const newSettings = Object.assign({}, this.pbClient.record.settings || {}, { multiplayerAllowJoins: true, multiplayerRoomCode: (slug || '').toUpperCase() });
-                await this.pbClient.saveSettings(newSettings);
-                alert('Room reserved for viewers: ' + (slug || '').toUpperCase());
+                alert('!join enabled. Room: ' + (slug || '').toUpperCase() + ' (' + joinMode + ' mode)');
               } else if (j && j.reason === 'conflict') {
-                // Room exists; still save preference
-                const newSettings = Object.assign({}, this.pbClient.record.settings || {}, { multiplayerAllowJoins: true, multiplayerRoomCode: (slug || '').toUpperCase() });
-                await this.pbClient.saveSettings(newSettings);
-                alert('Room already exists or is reserved by someone else. Viewers may still join.');
+                alert('Room already reserved — !join still enabled.');
               } else {
                 throw new Error(j && j.reason ? j.reason : 'reserve_failed');
               }
+
+              // Auto-host streamer's singleplayer game as MP room
+              this._ensureStreamerHosting((slug || '').toUpperCase());
             } catch (err) {
               console.warn('reserve for streamer failed', err);
-              alert('Failed to reserve room for viewers: ' + (err && err.message ? err.message : String(err)));
+              alert('Failed to enable !join: ' + (err && err.message ? err.message : String(err)));
               chkAllowJoins.checked = false;
+              if (joinModeRow) joinModeRow.style.display = 'none';
             }
           } else {
-            // Release room
             try {
               const releaseUrl = signalingUrl.replace(/\/+$/, '') + '/api/rooms/release';
               await fetch(releaseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: (slug || '').toUpperCase() }) });
               const newSettings = Object.assign({}, this.pbClient.record.settings || {}, { multiplayerAllowJoins: false });
               await this.pbClient.saveSettings(newSettings);
-              alert('Released room reservation.');
+              if (this.multiplayer && this.multiplayer.isHost) this.multiplayer.leaveRoom();
+              alert('!join disabled and room released.');
             } catch (err) {
               console.warn('release failed', err);
               alert('Failed to release room: ' + (err && err.message ? err.message : String(err)));
@@ -1567,6 +1718,15 @@ export class Game {
             }
           }
         });
+
+        if (selJoinMode) {
+          selJoinMode.addEventListener('change', async () => {
+            if (!this.pbClient || !this.pbClient.isAuthenticated()) return;
+            const joinMode = selJoinMode.value || 'free';
+            const newSettings = Object.assign({}, this.pbClient.record.settings || {}, { multiplayerJoinMode: joinMode });
+            await this.pbClient.saveSettings(newSettings);
+          });
+        }
       }
 
       populateTwitchSettingsUI();
@@ -3260,9 +3420,164 @@ export class Game {
 
   _sendLocalInput(payload) {
     try {
-      if (!this.multiplayer) return;
-      this.multiplayer.broadcastData({ t: 'INPUT', p: payload });
+      if (!this.multiplayer || !this.multiplayer.connected) return;
+      if (!this.multiplayer.roomCode) return;
+      // Viewers send to host; host doesn't echo own input
+      if (this.multiplayer.isHost) return;
+      const entry = this.multiplayer._getPeerEntry(this.multiplayer.clientId) || this.multiplayer.peers.get('HOST');
+      if (entry && entry.dc && entry.dc.readyState === 'open') {
+        entry.dc.send(JSON.stringify({ t: 'INPUT', p: payload }));
+      }
     } catch (e) { console.warn('send input failed', e); }
+  }
+
+  /** Streamer receives !join from chat — free mode posts link, whitelist shows popup */
+  handleJoinCommand(username) {
+    if (!this.pbClient || !this.pbClient.isAuthenticated()) return;
+    const settings = (this.pbClient.record && this.pbClient.record.settings) || {};
+    if (!settings.multiplayerAllowJoins) return;
+
+    const slug = (this.pbClient.record.slug || this.pbClient.record.twitch_name || this.twitchManager.channel || '').toLowerCase();
+    const roomCode = (settings.multiplayerRoomCode || slug).toUpperCase();
+    const joinMode = settings.multiplayerJoinMode || 'free';
+    const joinUrl = `${location.origin}/?join=${encodeURIComponent(slug)}`;
+
+    if (this.multiplayer && this.multiplayer.isBanned(username)) {
+      this.twitchManager.sendMessage(`@${username} you are banned from this room.`);
+      return;
+    }
+
+    if (joinMode === 'whitelist') {
+      const requestId = `chat_${Date.now()}_${username}`;
+      this._showJoinRequestPopup({ requestId, username, from: null, source: 'chat' });
+      return;
+    }
+
+    // Free mode: post room link immediately
+    this.twitchManager.sendMessage(`@${username} Join ${slug}'s room! Code: ${roomCode} — ${joinUrl}`);
+    this._ensureStreamerHosting(roomCode);
+  }
+
+  _ensureStreamerHosting(roomCode) {
+    if (!this.multiplayer) return;
+    if (this.multiplayer.isHost && this.multiplayer.roomCode === roomCode) return;
+    this.multiplayer.createRoom(roomCode).then(r => {
+      if (r.ok) {
+        this.isMultiplayerViewer = false;
+        console.log('[Multiplayer] Streamer auto-hosting room', roomCode);
+      }
+    }).catch(e => console.warn('auto-host failed', e));
+  }
+
+  _showJoinRequestPopup(req) {
+    if (!this._joinRequestPopup) return;
+    this._pendingJoinRequestUI = req;
+    const userEl = this._joinRequestPopup.querySelector('#mp-join-req-user');
+    if (userEl) userEl.innerText = `${req.username} wants to join your game!`;
+    this._joinRequestPopup.style.display = 'block';
+    if (this.audio) this.audio.playUnlock();
+  }
+
+  _acceptJoinRequestUI() {
+    const req = this._pendingJoinRequestUI;
+    if (!req) return;
+    this._joinRequestPopup.style.display = 'none';
+    this._pendingJoinRequestUI = null;
+
+    const slug = (this.pbClient && this.pbClient.record && (this.pbClient.record.slug || this.pbClient.record.twitch_name)) || this.twitchManager.channel;
+    const roomCode = ((this.pbClient && this.pbClient.record && this.pbClient.record.settings && this.pbClient.record.settings.multiplayerRoomCode) || slug || '').toUpperCase();
+    const joinUrl = `${location.origin}/?join=${encodeURIComponent((slug || '').toLowerCase())}`;
+
+    this._ensureStreamerHosting(roomCode);
+    this.twitchManager.sendMessage(`@${req.username} Welcome! Join here: ${joinUrl} (Code: ${roomCode})`);
+
+    if (req.from && this.multiplayer) {
+      this.multiplayer.sendWS({ type: 'JOIN_ACCEPT', to: req.from, p: { code: roomCode, url: joinUrl } });
+    }
+  }
+
+  _denyJoinRequestUI() {
+    const req = this._pendingJoinRequestUI;
+    this._joinRequestPopup.style.display = 'none';
+    this._pendingJoinRequestUI = null;
+    if (req && req.source === 'chat') {
+      this.twitchManager.sendMessage(`@${req.username} your join request was denied.`);
+    } else if (req && req.from && this.multiplayer) {
+      this.multiplayer.sendWS({ type: 'JOIN_REJECT', to: req.from, p: { reason: 'denied' } });
+    }
+  }
+
+  /** Called when viewer successfully connects to host — use base MP stats, not host progression */
+  _onJoinedAsViewer() {
+    this.isMultiplayerViewer = true;
+    if (!this.player) return;
+    // Backup viewer's singleplayer save so we can restore after leaving
+    try {
+      this._viewerSaveBackup = localStorage.getItem('aetherweaver_save');
+    } catch (e) {}
+    // Apply fresh multiplayer viewer profile (no host inventory/tree sync)
+    this._applyViewerMultiplayerProfile();
+  }
+
+  _applyViewerMultiplayerProfile() {
+    if (!this.player) return;
+    this.player.level = 1;
+    this.player.ap = 0;
+    this.player.hp = 100;
+    this.player.maxHp = 100;
+    this.player.mp = 50;
+    this.player.maxMp = 50;
+    this.player.equipment = { helmet: null, chest: null, boots: null, weapon: null, offhand: null };
+    this.player.equippedRunes = [];
+    this.player.gearStorage = [];
+    this.player.runeStorage = [];
+    // Do NOT call saveGameState — viewer SP progress stays in backup
+    this.updateHUD();
+  }
+
+  _restoreViewerSaveAfterLeave() {
+    if (!this.isMultiplayerViewer || !this._viewerSaveBackup) return;
+    try {
+      localStorage.setItem('aetherweaver_save', this._viewerSaveBackup);
+      if (this.player) this.player.loadGameState();
+    } catch (e) {}
+    this._viewerSaveBackup = null;
+    this.isMultiplayerViewer = false;
+  }
+
+  _applyRoomExport(data) {
+    if (!data || !this.player) return;
+    if (data.wave && this.levelManager) {
+      this.levelManager.wave = data.wave;
+    }
+    if (data.player) {
+      this.player.x = data.player.x || this.player.x;
+      this.player.y = data.player.y || this.player.y;
+      if (data.player.hp !== undefined) this.player.hp = data.player.hp;
+      if (data.player.mp !== undefined) this.player.mp = data.player.mp;
+    }
+    if (Array.isArray(data.enemies)) {
+      this.enemies = data.enemies.map(e => {
+        const enemy = new Enemy(this, e.x, e.y, e.type || 'slime');
+        enemy.id = e.id;
+        enemy.hp = e.hp || enemy.hp;
+        return enemy;
+      });
+    }
+    if (Array.isArray(data.projectiles)) {
+      this.projectiles = data.projectiles.map(p => ({ id: p.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy, life: 1 }));
+    }
+    if (Array.isArray(data.banned) && this.multiplayer) {
+      this.multiplayer.bannedUsers = new Set(data.banned.map(u => u.toLowerCase()));
+    }
+    if (data.roomCode && this.multiplayer && this.multiplayer.isHost) {
+      this._setMpLink && this._setMpLink(location.origin + '/?join=' + encodeURIComponent(data.roomCode.toLowerCase()));
+    }
+    this.updateHUD();
+  }
+
+  _onWorldSync(snap) {
+    this._applySnapshot(snap);
   }
 
   drawShopItems() {

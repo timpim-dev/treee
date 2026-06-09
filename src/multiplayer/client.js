@@ -1,5 +1,4 @@
-// Multiplayer client manager (MVP)
-// Exposes a class MultiplayerManager with methods to create/join rooms via the signaling server.
+// Multiplayer client manager — P2P via WebRTC with signaling relay
 
 export class MultiplayerManager {
   constructor(game, opts = {}) {
@@ -8,29 +7,33 @@ export class MultiplayerManager {
     this.roomCode = null;
     this.clientId = null;
     this.isHost = false;
+    this.connected = false; // true once WS/Ably signaling is up
 
     this.ws = null;
-    this.peers = new Map(); // peerId -> { pc, dc }
+    this.peers = new Map(); // peerId -> { pc, dc, meta }
 
     this.ably = null;
     this.ablyChannel = null;
 
+    this.peerMeta = new Map(); // peerId -> { displayName, twitchUser, joinedAt }
+    this.bannedUsers = new Set(); // lowercase twitch usernames
+    this.pendingJoinRequests = new Map(); // requestId -> { username, ts }
+
     this.onStateSnapshot = opts.onStateSnapshot || (() => {});
     this.onPeerJoin = opts.onPeerJoin || (() => {});
     this.onPeerLeave = opts.onPeerLeave || (() => {});
-    this.onStatusChange = opts.onStatusChange || (() => {}); // status updates for UI
+    this.onStatusChange = opts.onStatusChange || (() => {});
+    this.onJoinRequest = opts.onJoinRequest || (() => {});
+    this.onPeerMetaUpdate = opts.onPeerMetaUpdate || (() => {});
+  }
+
+  /** Require Twitch chat connection before multiplayer actions */
+  isConnectionAllowed() {
+    const tm = this.game && this.game.twitchManager;
+    return !!(tm && tm.connected && tm.channel);
   }
 
   async reserveCode(code, ttl = 1800) {
-    // Try Ably presence-based reservation first (if available on Vercel token endpoint)
-    try {
-      const ablyToken = await this._fetchAblyToken();
-      if (ablyToken && typeof Ably !== 'undefined') {
-        // but Ably is not globally imported — attempt dynamic import
-      }
-    } catch (e) { /* ignore, fallback to HTTP */ }
-
-    // Fallback: server reserve endpoint
     const url = this.signalingUrl.replace(/\/+$/, '') + '/api/rooms/reserve';
     try {
       const res = await fetch(url, {
@@ -38,8 +41,7 @@ export class MultiplayerManager {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, ttl, owner: this.clientId || null }),
       });
-      const j = await res.json();
-      return j;
+      return await res.json();
     } catch (e) {
       console.warn('reserve failure', e);
       return { ok: false, reason: 'network' };
@@ -47,7 +49,9 @@ export class MultiplayerManager {
   }
 
   async createRoom(code = null) {
-    // generate simple 6-char code if not provided
+    if (!this.isConnectionAllowed()) {
+      return { ok: false, reason: 'not_connected' };
+    }
     code = code || this._generateCode(6);
     const attemptLimit = 8;
     for (let attempt = 0; attempt < attemptLimit; attempt++) {
@@ -58,11 +62,10 @@ export class MultiplayerManager {
         this.isHost = true;
         this.onStatusChange({ type: 'room_created', code: this.roomCode, roomId: r.roomId });
         await this._connectWS();
-        // Host ready
         console.log('[multiplayer] room created', this.roomCode, r.roomId);
         return { ok: true, code: this.roomCode, roomId: r.roomId };
       } else if (r.reason === 'conflict') {
-        continue; // try another
+        continue;
       } else {
         return { ok: false, reason: r.reason };
       }
@@ -70,46 +73,120 @@ export class MultiplayerManager {
     return { ok: false, reason: 'no_code' };
   }
 
-  async joinRoom(code) {
+  async joinRoom(code, meta = {}) {
+    if (!this.isConnectionAllowed()) {
+      return { ok: false, reason: 'not_connected' };
+    }
     if (!code) return { ok: false, reason: 'missing_code' };
     this.roomCode = code.toUpperCase();
     this.isHost = false;
+    this._joinMeta = meta; // { displayName, twitchUser }
     this.onStatusChange({ type: 'joining', code: this.roomCode });
     await this._connectWS();
-    // After WS connected, create offer to establish P2P with host (host will reply)
-    // Peer will create a peer connection and datachannel, then createOffer and broadcast.
     return { ok: true };
   }
 
   leaveRoom() {
-    // Close all peers
-    for (const [peerId, entry] of this.peers) {
+    for (const [, entry] of this.peers) {
       try { entry.dc && entry.dc.close(); } catch (e) {}
       try { entry.pc && entry.pc.close(); } catch (e) {}
     }
     this.peers.clear();
+    this.peerMeta.clear();
     if (this.ws) this.ws.close();
     this.ws = null;
+    if (this.ablyChannel) {
+      try { this.ablyChannel.unsubscribe(); } catch (e) {}
+    }
+    if (this.ably) {
+      try { this.ably.close(); } catch (e) {}
+    }
+    this.ably = null;
+    this.ablyChannel = null;
     if (this.isHost && this.roomCode) {
-      // release via API
       fetch(this.signalingUrl.replace(/\/+$/, '') + '/api/rooms/release', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: this.roomCode })
-      }).catch(()=>{});
+      }).catch(() => {});
     }
     this.roomCode = null;
     this.clientId = null;
     this.isHost = false;
+    this.connected = false;
+    this._joinMeta = null;
+  }
+
+  kickPeer(peerId) {
+    if (!this.isHost) return false;
+    this._sendToPeer(peerId, { t: 'KICK', p: { reason: 'kicked' } });
+    this._closePeer(peerId);
+    return true;
+  }
+
+  banUser(username, peerId = null) {
+    if (!this.isHost || !username) return false;
+    const uname = username.toLowerCase();
+    this.bannedUsers.add(uname);
+    if (peerId) this.kickPeer(peerId);
+    this.broadcastData({ t: 'BAN_SYNC', p: { banned: Array.from(this.bannedUsers) } });
+    return true;
+  }
+
+  unbanUser(username) {
+    if (!this.isHost || !username) return false;
+    this.bannedUsers.delete(username.toLowerCase());
+    this.broadcastData({ t: 'BAN_SYNC', p: { banned: Array.from(this.bannedUsers) } });
+    return true;
+  }
+
+  isBanned(username) {
+    return username && this.bannedUsers.has(username.toLowerCase());
+  }
+
+  acceptJoinRequest(requestId) {
+    const req = this.pendingJoinRequests.get(requestId);
+    if (!req) return null;
+    this.pendingJoinRequests.delete(requestId);
+    return req;
+  }
+
+  rejectJoinRequest(requestId) {
+    this.pendingJoinRequests.delete(requestId);
+  }
+
+  _closePeer(peerId) {
+    const entry = this.peers.get(peerId);
+    if (entry) {
+      try { entry.dc && entry.dc.close(); } catch (e) {}
+      try { entry.pc && entry.pc.close(); } catch (e) {}
+      this.peers.delete(peerId);
+    }
+    this.peerMeta.delete(peerId);
+    this.onPeerLeave(peerId);
+    this.onStatusChange({ type: 'peer_disconnected', peerId });
+  }
+
+  _sendToPeer(peerId, msg) {
+    const entry = this.peers.get(peerId);
+    if (entry && entry.dc && entry.dc.readyState === 'open') {
+      entry.dc.send(JSON.stringify(msg));
+    }
+  }
+
+  _getPeerEntry(fromId) {
+    return this.peers.get(fromId) || this.peers.get('HOST') || null;
   }
 
   async _connectWS() {
     if (!this.roomCode) throw new Error('no room code');
-    // Prefer Ably realtime channel for signaling if available
     if (await this._tryInitAblyChannel(this.roomCode)) {
+      this.connected = true;
       this.onStatusChange({ type: 'signaling', transport: 'ably' });
+      if (this.isHost) this.sendWS({ type: 'CLAIM_HOST' });
+      else await this._createOfferForHost();
       return;
     }
 
-    const wsUrl = (this.signalingUrl.replace(/^http/, 'ws') ) + `/?room=${encodeURIComponent(this.roomCode)}`;
+    const wsUrl = (this.signalingUrl.replace(/^http/, 'ws')) + `/?room=${encodeURIComponent(this.roomCode)}`;
     this.ws = new WebSocket(wsUrl);
     this.ws.addEventListener('open', () => {
       console.log('[multiplayer] ws open');
@@ -122,6 +199,7 @@ export class MultiplayerManager {
     });
     this.ws.addEventListener('close', () => {
       console.log('[multiplayer] ws closed');
+      this.connected = false;
       this.onStatusChange({ type: 'ws_closed', code: this.roomCode });
     });
     this.ws.addEventListener('error', (e) => {
@@ -131,57 +209,81 @@ export class MultiplayerManager {
   }
 
   sendWS(msg) {
+    const payload = Object.assign({}, msg, { from: this.clientId });
     if (this.ablyChannel) {
-      try { this.ablyChannel.publish('signal', msg); } catch (e) { console.warn('ably publish failed', e); }
+      try { this.ablyChannel.publish('signal', payload); } catch (e) { console.warn('ably publish failed', e); }
       return;
     }
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-    this.ws.send(JSON.stringify(msg));
+    this.ws.send(JSON.stringify(payload));
   }
 
   async _handleWSMessage(msg) {
-    // If using Ably channel, messages come via _handleAblyMessage
-    if (this.ablyChannel) return;
+    if (this.ablyChannel && msg.type !== 'WS_CONNECTED') {
+      // Ably messages handled via _handleAblyMessage when subscribed
+    }
 
     const { type } = msg;
     if (type === 'WS_CONNECTED') {
       this.clientId = msg.clientId;
+      this.connected = true;
       console.log('[multiplayer] assigned clientId', this.clientId);
-      // If joining as peer, proactively create offer
-      if (!this.isHost) {
-        // create peer connection and datachannel then createOffer
+      if (this.isHost) {
+        this.sendWS({ type: 'CLAIM_HOST' });
+      } else {
         await this._createOfferForHost();
       }
       return;
     }
 
-    // WebRTC relay messages: OFFER, ANSWER, ICE
+    if (type === 'JOIN_REQUEST' && this.isHost) {
+      const username = (msg.p && msg.p.username) || msg.username || 'viewer';
+      if (this.isBanned(username)) {
+        this.sendWS({ type: 'JOIN_REJECT', to: msg.from, p: { reason: 'banned' } });
+        return;
+      }
+      const requestId = `jr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      this.pendingJoinRequests.set(requestId, { username, from: msg.from, ts: Date.now() });
+      this.onJoinRequest({ requestId, username, from: msg.from });
+      return;
+    }
+
     if (type === 'OFFER') {
-      // only host should respond
       if (!this.isHost) return;
       const from = msg.from;
       const sdp = msg.p && msg.p.sdp;
+      const displayName = (msg.p && msg.p.displayName) || from;
+      const twitchUser = (msg.p && msg.p.twitchUser) || null;
+      if (twitchUser && this.isBanned(twitchUser)) {
+        this.sendWS({ type: 'JOIN_REJECT', to: from, p: { reason: 'banned' } });
+        return;
+      }
       console.log('[multiplayer] OFFER from', from);
-      // Create RTCPeerConnection for this peer
       const pc = this._createPeerConnection(from);
+      this.peerMeta.set(from, { displayName, twitchUser, joinedAt: Date.now() });
       try {
         await pc.setRemoteDescription({ type: 'offer', sdp });
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        // send answer targeted to peer
         this.sendWS({ type: 'ANSWER', to: from, p: { sdp: pc.localDescription.sdp } });
       } catch (e) { console.warn('offer handling failed', e); }
       return;
     }
 
     if (type === 'ANSWER') {
-      if (this.isHost) return; // host doesn't expect answers
+      if (this.isHost) return;
       const sdp = msg.p && msg.p.sdp;
       const from = msg.from;
       console.log('[multiplayer] ANSWER from', from);
-      const entry = this.peers.get(from);
+      const entry = this._getPeerEntry(from);
       if (entry && entry.pc) {
         await entry.pc.setRemoteDescription({ type: 'answer', sdp });
+        // Migrate HOST key to actual host clientId
+        if (this.peers.has('HOST') && from !== 'HOST') {
+          const hostEntry = this.peers.get('HOST');
+          this.peers.delete('HOST');
+          this.peers.set(from, hostEntry);
+        }
       }
       return;
     }
@@ -189,28 +291,29 @@ export class MultiplayerManager {
     if (type === 'ICE') {
       const candidate = msg.p && msg.p.cand;
       const from = msg.from;
-      // route candidate to appropriate pc
-      const entry = this.peers.get(from);
+      const entry = this._getPeerEntry(from);
       if (entry && entry.pc && candidate) {
         try { await entry.pc.addIceCandidate(candidate); } catch (e) { console.warn('addIce failed', e); }
       }
       return;
     }
 
-    // Other application-layer messages can be broadcast via datachannels; ignore here
+    if (type === 'JOIN_REJECT' && !this.isHost) {
+      this.onStatusChange({ type: 'join_rejected', reason: (msg.p && msg.p.reason) || 'rejected' });
+      this.leaveRoom();
+      return;
+    }
   }
 
   async _createPeerConnection(peerId) {
     const iceServers = await this._getIceServers();
     const pc = new RTCPeerConnection({ iceServers: iceServers || [{ urls: 'stun:stun.l.google.com:19302' }] });
-    const entry = { pc, dc: null };
+    const entry = { pc, dc: null, meta: {} };
     this.peers.set(peerId, entry);
 
     pc.onicecandidate = (ev) => {
       if (ev.candidate) {
-        // route via Ably if available
-        if (this.ablyChannel) this.ablyChannel.publish('signal', { type: 'ICE', to: peerId, p: { cand: ev.candidate } });
-        else this.sendWS({ type: 'ICE', to: peerId, p: { cand: ev.candidate } });
+        this.sendWS({ type: 'ICE', to: peerId, p: { cand: ev.candidate } });
       }
     };
 
@@ -225,12 +328,18 @@ export class MultiplayerManager {
       if (pc.connectionState === 'connected') {
         console.log('[multiplayer] peer connected', peerId);
         this.onPeerJoin(peerId);
+        this.onPeerMetaUpdate(this.getPeerList());
         this.onStatusChange({ type: 'peer_connected', peerId });
-      } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'closed' || pc.connectionState === 'failed') {
+        // Send ban list to new peer
+        if (this.isHost) {
+          this._sendToPeer(peerId, { t: 'BAN_SYNC', p: { banned: Array.from(this.bannedUsers) } });
+          // Send world sync request trigger
+          this._sendToPeer(peerId, { t: 'SYNC_REQUEST', p: {} });
+        }
+      } else if (['disconnected', 'closed', 'failed'].includes(pc.connectionState)) {
         console.log('[multiplayer] peer left', peerId);
-        this.peers.delete(peerId);
-        this.onPeerLeave(peerId);
-        this.onStatusChange({ type: 'peer_disconnected', peerId });
+        this._closePeer(peerId);
+        this.onPeerMetaUpdate(this.getPeerList());
       }
     };
 
@@ -238,7 +347,12 @@ export class MultiplayerManager {
   }
 
   _installDataChannelHandlers(dc, peerId) {
-    dc.onopen = () => console.log('[multiplayer] datachannel open', peerId);
+    dc.onopen = () => {
+      console.log('[multiplayer] datachannel open', peerId);
+      if (!this.isHost && this._joinMeta) {
+        dc.send(JSON.stringify({ t: 'PEER_ANNOUNCE', p: this._joinMeta }));
+      }
+    };
     dc.onclose = () => console.log('[multiplayer] datachannel close', peerId);
     dc.onmessage = (ev) => {
       try { const msg = JSON.parse(ev.data); this._handleDataMessage(msg, peerId); } catch (e) {}
@@ -249,150 +363,170 @@ export class MultiplayerManager {
     const { t, p } = msg;
     if (t === 'STATE_SNAPSHOT') {
       this.onStateSnapshot(p);
+    } else if (t === 'SYNC_RESPONSE' && !this.isHost) {
+      this.onStateSnapshot(p);
+      if (this.game && typeof this.game._onWorldSync === 'function') {
+        this.game._onWorldSync(p);
+      }
+    } else if (t === 'SYNC_REQUEST' && this.isHost) {
+      const snap = this._buildWorldSnapshot();
+      this._sendToPeer(peerId, { t: 'SYNC_RESPONSE', p: snap });
+    } else if (t === 'PEER_ANNOUNCE' && this.isHost && p) {
+      this.peerMeta.set(peerId, { displayName: p.displayName || peerId, twitchUser: p.twitchUser, joinedAt: Date.now() });
+      this.onPeerMetaUpdate(this.getPeerList());
     } else if (t === 'INPUT') {
-      // host will receive inputs from peers
       if (this.isHost) {
-        // integration with game loop: forward to game for validation/queueing
         try {
           if (this.game && typeof this.game._onRemoteInput === 'function') {
             this.game._onRemoteInput(peerId, p);
-          } else {
-            console.log('[multiplayer] input from', peerId, p);
           }
         } catch (e) { console.warn('forward input failed', e); }
+      }
+    } else if (t === 'KICK' && !this.isHost) {
+      this.onStatusChange({ type: 'kicked', reason: (p && p.reason) || 'kicked' });
+      this.leaveRoom();
+    } else if (t === 'BAN_SYNC') {
+      if (p && Array.isArray(p.banned)) {
+        this.bannedUsers = new Set(p.banned.map(u => u.toLowerCase()));
       }
     }
   }
 
+  getPeerList() {
+    return Array.from(this.peerMeta.entries()).map(([id, meta]) => ({
+      id,
+      displayName: meta.displayName || id,
+      twitchUser: meta.twitchUser || null,
+    }));
+  }
+
   async _createOfferForHost() {
-    // create pc with wildcard peerId 'host' until answer arrives from host with from==hostClientId
     const tempPeerId = 'HOST';
     const iceServers = await this._getIceServers();
     const pc = new RTCPeerConnection({ iceServers: iceServers || [{ urls: 'stun:stun.l.google.com:19302' }] });
     const dc = pc.createDataChannel('game');
-    const entry = { pc, dc };
+    const entry = { pc, dc, meta: {} };
     this.peers.set(tempPeerId, entry);
     this._installDataChannelHandlers(dc, tempPeerId);
 
     pc.onicecandidate = (ev) => {
       if (ev.candidate) {
-        if (this.ablyChannel) this.ablyChannel.publish('signal', { type: 'ICE', p: { cand: ev.candidate } });
-        else this.sendWS({ type: 'ICE', p: { cand: ev.candidate } });
+        this.sendWS({ type: 'ICE', p: { cand: ev.candidate } });
       }
     };
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'connected') console.log('[multiplayer] connected to host');
+      if (pc.connectionState === 'connected') {
+        console.log('[multiplayer] connected to host');
+        this.onStatusChange({ type: 'host_connected' });
+        if (this.game && typeof this.game._onJoinedAsViewer === 'function') {
+          this.game._onJoinedAsViewer();
+        }
+      }
     };
 
+    const meta = this._joinMeta || {};
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    // Broadcast OFFER (host will respond with ANSWER targeted to our clientId)
-    if (this.ablyChannel) this.ablyChannel.publish('signal', { type: 'OFFER', p: { sdp: pc.localDescription.sdp } });
-    else this.sendWS({ type: 'OFFER', p: { sdp: pc.localDescription.sdp } });
+    this.sendWS({ type: 'OFFER', p: { sdp: pc.localDescription.sdp, displayName: meta.displayName, twitchUser: meta.twitchUser } });
   }
 
-  // Send game-level message to all connected datachannels
   broadcastData(msg) {
     const s = JSON.stringify(msg);
-    for (const [peerId, entry] of this.peers) {
+    for (const [, entry] of this.peers) {
       if (entry.dc && entry.dc.readyState === 'open') entry.dc.send(s);
     }
   }
 
-  // ---------------- ABLY INTEGRATION ----------------
+  _buildWorldSnapshot() {
+    const g = this.game;
+    if (!g) return {};
+    return {
+      t: Date.now(),
+      wave: g.levelManager ? g.levelManager.wave : 1,
+      player: g.player ? { x: g.player.x, y: g.player.y, hp: g.player.hp, mp: g.player.mp } : null,
+      enemies: (g.enemies || []).slice(0, 150).map(e => ({ id: e.id || null, type: e.type, x: e.x, y: e.y, hp: e.hp })),
+      projectiles: (g.projectiles || []).slice(0, 200).map(p => ({ id: p.id || null, x: p.x, y: p.y, vx: p.vx, vy: p.vy })),
+    };
+  }
+
+  saveRoomToFile(filename = null) {
+    const g = this.game;
+    const snap = this._buildWorldSnapshot();
+    const data = {
+      protocol_version: 1,
+      roomCode: this.roomCode,
+      createdAt: Date.now(),
+      wave: snap.wave,
+      player: snap.player,
+      enemies: snap.enemies,
+      projectiles: snap.projectiles,
+      peers: this.getPeerList(),
+      banned: Array.from(this.bannedUsers),
+      meta: { note: 'World snapshot — excludes inventory, ability tree, and progression' }
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const name = filename || `room_${this.roomCode || 'unknown'}_${Date.now()}.json`;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+
+  async loadRoomFromFile(file) {
+    const txt = await file.text();
+    try {
+      const j = JSON.parse(txt);
+      if (this.game && typeof this.game._applyRoomExport === 'function') {
+        this.game._applyRoomExport(j);
+      }
+      return { ok: true, data: j };
+    } catch (e) {
+      return { ok: false, reason: 'parse' };
+    }
+  }
+
   async _fetchAblyToken() {
-   try {
-     const res = await fetch('/api/ably/token', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-     if (!res.ok) return null;
-     const tokenRequest = await res.json();
-     return tokenRequest;
-   } catch (e) { console.warn('fetchAblyToken failed', e); return null; }
+    try {
+      const res = await fetch('/api/ably/token', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) { console.warn('fetchAblyToken failed', e); return null; }
   }
 
   async _tryInitAblyChannel(code) {
-   // attempt to initialize Ably realtime channel for this room code
-   try {
-     const tokenRequest = await this._fetchAblyToken();
-     if (!tokenRequest) return false;
-     const Ably = (await import('ably')).Realtime;
-     this.ably = new Ably({ token: tokenRequest.token });
-     const channelName = `rooms:${code}`;
-     this.ablyChannel = this.ably.channels.get(channelName);
+    try {
+      const tokenRequest = await this._fetchAblyToken();
+      if (!tokenRequest) return false;
+      const Ably = (await import('ably')).Realtime;
+      this.ably = new Ably({ token: tokenRequest.token });
+      const channelName = `rooms:${code}`;
+      this.ablyChannel = this.ably.channels.get(channelName);
+      this.clientId = tokenRequest.clientId || `ably_${Date.now()}`;
 
-     // subscribe to signaling messages
-     this.ablyChannel.subscribe('signal', (msg) => {
-       try { this._handleAblyMessage(msg.data); } catch (e) { console.warn('handle ably signal failed', e); }
-     });
+      this.ablyChannel.subscribe('signal', (msg) => {
+        try { this._handleAblyMessage(msg.data); } catch (e) { console.warn('handle ably signal failed', e); }
+      });
 
-     // presence handling
-     const members = await new Promise((resolve) => this.ablyChannel.presence.get((err, members) => resolve(members)));
-     // if there is an owner present, we consider room reserved
-     const ownerPresent = members && members.find && members.find(m => (m.data && m.data.owner));
-     if (!ownerPresent && this.isHost) {
-       // enter presence as owner
-       this.ablyChannel.presence.enter({ owner: true, createdAt: Date.now(), clientId: tokenRequest.clientId || null }, (err) => { if (err) console.warn('presence enter failed', err); });
-     }
+      if (this.isHost) {
+        this.ablyChannel.presence.enter({ owner: true, createdAt: Date.now(), clientId: this.clientId });
+      }
 
-     // subscribe to presence updates
-     this.ablyChannel.presence.subscribe((presMsg) => {
-       // presMsg.action: enter/leave/update
-       this.onStatusChange({ type: 'presence', action: presMsg.action, member: presMsg });
-     });
-
-     // subscribe to generic messages for relay
-     this.ablyChannel.subscribe((msg) => {
-       // ignore non-signal messages
-     });
-
-     // publish WS_CONNECTED equivalent for client flow
-     this.onStatusChange({ type: 'ABLY_CONNECTED', channel: channelName });
-     return true;
-   } catch (e) {
-     console.warn('init ably failed', e);
-     this.ably = null;
-     this.ablyChannel = null;
-     return false;
-   }
+      this.connected = true;
+      this.onStatusChange({ type: 'ABLY_CONNECTED', channel: channelName, clientId: this.clientId });
+      return true;
+    } catch (e) {
+      console.warn('init ably failed', e);
+      this.ably = null;
+      this.ablyChannel = null;
+      return false;
+    }
   }
 
   _handleAblyMessage(data) {
-   // data is the payload sent by another peer
-   // emulate _handleWSMessage flow for Ably-based signaling
-   const msg = data;
-   const type = msg.type;
-   if (type === 'OFFER') {
-     if (!this.isHost) return;
-     const from = msg.from || null;
-     const sdp = msg.p && msg.p.sdp;
-     const pc = this._createPeerConnection(from || `peer-${Date.now()}`);
-     (async () => {
-       try {
-         await pc.setRemoteDescription({ type: 'offer', sdp });
-         const answer = await pc.createAnswer();
-         await pc.setLocalDescription(answer);
-         this.ablyChannel.publish('signal', { type: 'ANSWER', to: from, p: { sdp: pc.localDescription.sdp } });
-       } catch (e) { console.warn('offer handling failed', e); }
-     })();
-     return;
-   }
-
-   if (type === 'ANSWER') {
-     if (this.isHost) return;
-     const sdp = msg.p && msg.p.sdp;
-     const from = msg.from;
-     const entry = this.peers.get(from);
-     if (entry && entry.pc) entry.pc.setRemoteDescription({ type: 'answer', sdp }).catch(e => console.warn('setRemoteDescription failed', e));
-     return;
-   }
-
-   if (type === 'ICE') {
-     const candidate = msg.p && msg.p.cand;
-     const from = msg.from;
-     const entry = this.peers.get(from);
-     if (entry && entry.pc && candidate) entry.pc.addIceCandidate(candidate).catch(e => console.warn('addIce failed', e));
-     return;
-   }
+    this._handleWSMessage(data);
   }
 
   async _getIceServers() {
@@ -405,35 +539,6 @@ export class MultiplayerManager {
       console.warn('fetch /api/turn failed', e);
       return null;
     }
-  }
-
-  // Save minimal room state to file
-  saveRoomToFile(filename = null) {
-    const data = {
-      protocol_version: 1,
-      roomCode: this.roomCode,
-      createdAt: Date.now(),
-      players: [],
-      meta: { note: 'minimal snapshot' }
-    };
-    // Collect players from game if available
-    if (this.game && this.game.player) {
-      data.players.push({ id: 'host', x: this.game.player.x, y: this.game.player.y, hp: this.game.player.hp || null });
-    }
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const name = filename || `room_${this.roomCode || 'unknown'}.json`;
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-  }
-
-  // Load room from file (File object) and return parsed JSON
-  async loadRoomFromFile(file) {
-    const txt = await file.text();
-    try { const j = JSON.parse(txt); return { ok: true, data: j }; } catch (e) { return { ok: false, reason: 'parse' }; }
   }
 
   _generateCode(len = 6) {

@@ -1399,8 +1399,15 @@
                                     <label style="font-size:8px; margin-right:8px;">Allow viewers to join (Multiplayer)</label>
                                     <label class="setting-toggle" style="display:inline-flex; align-items:center; gap:6px;"> 
                                       <input type="checkbox" id="chk-twitch-allow-joins">
-                                      <span style="font-size:8px; color:var(--color-text-muted);">Reserve room code for viewers</span>
+                                      <span style="font-size:8px; color:var(--color-text-muted);">Enable !join command</span>
                                     </label>
+                                </div>
+                                <div id="mp-join-mode-row" style="margin-bottom:8px; display:none;">
+                                    <label style="font-size:8px; display:block; margin-bottom:4px;">!join mode</label>
+                                    <select id="sel-multiplayer-join-mode" style="width:100%; padding:4px; font-size:10px;">
+                                      <option value="free">Free — instant room link in chat</option>
+                                      <option value="whitelist">Whitelist — you approve each viewer</option>
+                                    </select>
                                 </div>
                                 <div
                                     style="

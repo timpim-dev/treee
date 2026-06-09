@@ -120,14 +120,33 @@ async function notifyWebhook(url, payload) {
   } catch (e) {
     console.warn('notifyWebhook error', e);
   }
-});
+}
 
 app.post('/api/rooms/release', (req, res) => {
   const { code } = req.body || {};
   if (!code) return res.status(400).json({ ok: false });
   const upCode = code.toUpperCase();
   reservations.delete(upCode);
+  // Close all sockets in room
+  const sockets = roomSockets.get(upCode);
+  if (sockets) {
+    for (const [, ws] of sockets) {
+      try { ws.close(); } catch (e) {}
+    }
+    roomSockets.delete(upCode);
+  }
   return res.json({ ok: true });
+});
+
+// Room status check
+app.get('/api/rooms/:code/status', (req, res) => {
+  const upCode = (req.params.code || '').toUpperCase();
+  const now = Date.now();
+  const entry = reservations.get(upCode);
+  const active = entry && entry.expiresAt > now;
+  const sockets = roomSockets.get(upCode);
+  const hostOnline = !!(sockets && sockets.size > 0);
+  return res.json({ ok: true, active, hostOnline, roomId: entry ? entry.roomId : null, owner: entry ? entry.owner : null });
 });
 
 const server = http.createServer(app);
@@ -149,9 +168,35 @@ wss.on('connection', (ws, req) => {
   sockets.set(clientId, ws);
   console.log(`[ws] connected ${clientId} -> ${room}`);
 
+  // Track host: first connection in a reserved room becomes host relay target
+  const reservation = reservations.get(room);
+  if (reservation && !reservation.hostClientId) {
+    reservation.hostClientId = clientId;
+  }
+
   ws.on('message', (data) => {
     let msg;
     try { msg = JSON.parse(data.toString()); } catch (e) { return; }
+
+    // Host claims role explicitly
+    if (msg.type === 'CLAIM_HOST') {
+      if (reservation) reservation.hostClientId = clientId;
+      ws.send(JSON.stringify({ type: 'HOST_CLAIMED', clientId }));
+      return;
+    }
+
+    // JOIN_REQUEST: route to host only (for cross-client join approval)
+    if (msg.type === 'JOIN_REQUEST') {
+      const hostId = reservation && reservation.hostClientId;
+      if (hostId && hostId !== clientId) {
+        const hostWs = sockets.get(hostId);
+        if (hostWs && hostWs.readyState === WebSocket.OPEN) {
+          hostWs.send(JSON.stringify(Object.assign({}, msg, { from: clientId })));
+        }
+      }
+      return;
+    }
+
     // Relay messages: { type, to, payload }
     const { to } = msg;
     if (to) {
