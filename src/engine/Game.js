@@ -156,7 +156,6 @@ export class Game {
       modal.style.overflowY = 'auto';
       modal.innerHTML = `
         <h3 style="margin:6px 0 8px 0; font-size:14px;">Multiplayer</h3>
-        <div id="mp-connection-hint" style="font-size:11px; color:#f39c12; margin-bottom:8px; display:none;">Connect to Twitch chat first to use multiplayer.</div>
         <div style="display:flex; gap:6px; margin-bottom:8px;">
           <input id="mp-code-input" placeholder="Room code (optional)" style="flex:1; padding:6px; font-size:12px;">
           <button id="mp-create-btn" style="padding:6px;">Create</button>
@@ -197,7 +196,6 @@ export class Game {
 
       this._openMultiplayerModal = () => {
         modal.style.display = 'block';
-        this._updateMpConnectionHint();
         this._updateHostPanel();
       };
       this._closeMultiplayerModal = () => { modal.style.display = 'none'; };
@@ -213,31 +211,25 @@ export class Game {
       });
 
       modal.querySelector('#mp-create-btn').addEventListener('click', async () => {
-        if (!this._checkMpConnection()) return;
         const code = modal.querySelector('#mp-code-input').value || null;
         this._setMpStatus('Creating...');
         const r = await this.multiplayer.createRoom(code);
         if (r.ok) {
           this._setMpStatus('Created: ' + r.code);
           this.isMultiplayerViewer = false;
-        } else if (r.reason === 'not_connected') {
-          this._setMpStatus('Connect to Twitch chat first', '#f66');
         } else {
           this._setMpStatus('Create failed: ' + (r.reason || 'unknown'));
         }
       });
 
       modal.querySelector('#mp-join-btn').addEventListener('click', async () => {
-        if (!this._checkMpConnection()) return;
         const code = modal.querySelector('#mp-join-input').value;
         if (!code) return this._setMpStatus('Enter room code');
         this._setMpStatus('Joining...');
         const twitchUser = this.twitchManager.channel || null;
-        const r = await this.multiplayer.joinRoom(code, { displayName: twitchUser || 'viewer', twitchUser });
+        const r = await this.multiplayer.joinRoom(code, { displayName: twitchUser || 'player', twitchUser });
         if (r.ok) {
           this._setMpStatus('Join requested: ' + code);
-        } else if (r.reason === 'not_connected') {
-          this._setMpStatus('Connect to Twitch chat first', '#f66');
         } else {
           this._setMpStatus('Failed to join: ' + (r.reason || 'unknown'));
         }
@@ -296,17 +288,6 @@ export class Game {
       this._setMpStatus = (txt, color) => { statusEl.innerText = txt; if (color) statusEl.style.color = color; else statusEl.style.color = '#cfc'; };
       this._setMpLink = (url) => { const el = modal.querySelector('#mp-share-link'); if (el) el.value = url || ''; };
       this._setMpPeers = (list) => { peersList.innerText = 'Peers: ' + (list && list.length ? list.join(', ') : '0'); };
-
-      this._checkMpConnection = () => {
-        if (this.multiplayer && this.multiplayer.isConnectionAllowed()) return true;
-        this._setMpStatus('Connect to Twitch chat first', '#f66');
-        return false;
-      };
-
-      this._updateMpConnectionHint = () => {
-        const hint = modal.querySelector('#mp-connection-hint');
-        if (hint) hint.style.display = (this.multiplayer && this.multiplayer.isConnectionAllowed()) ? 'none' : 'block';
-      };
 
       this._updateHostPanel = () => {
         const panel = modal.querySelector('#mp-host-panel');
@@ -478,14 +459,9 @@ export class Game {
         const roomCode = joinParam.toUpperCase();
         const twitchUser = (this.twitchManager && this.twitchManager.channel) ? this.twitchManager.channel : null;
         console.log(`[Multiplayer] Auto-joining room from URL parameter: ${joinParam} -> ${roomCode}`);
-        // Delay join slightly to allow Twitch WS to connect
         const doJoin = () => {
-          if (!this.multiplayer.isConnectionAllowed()) {
-            console.warn('[Multiplayer] Auto-join skipped — connect to Twitch chat first');
-            return;
-          }
           this.multiplayer.joinRoom(roomCode, {
-            displayName: twitchUser || 'viewer',
+            displayName: twitchUser || 'player',
             twitchUser: twitchUser,
           }).then(res => {
             if (!res.ok) console.warn('Auto-join failed', res);
@@ -1107,11 +1083,6 @@ export class Game {
       btnStartMultiplayer.addEventListener('click', () => {
         if (!this._openMultiplayerModal) {
           try { this.initMultiplayerUI(); } catch(e) { console.warn('initMultiplayerUI failed', e); }
-        }
-        if (this.multiplayer && !this.multiplayer.isConnectionAllowed()) {
-          alert('Connect to Twitch chat first (Twitch panel → Login with Twitch) to use multiplayer.');
-          this.setState('TWITCH');
-          return;
         }
         if (this._openMultiplayerModal) this._openMultiplayerModal();
       });

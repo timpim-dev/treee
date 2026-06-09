@@ -27,10 +27,9 @@ export class MultiplayerManager {
     this.onPeerMetaUpdate = opts.onPeerMetaUpdate || (() => {});
   }
 
-  /** Require Twitch chat connection before multiplayer actions */
+  /** Allow multiplayer for all players. Twitch connection only required in streaming mode. */
   isConnectionAllowed() {
-    const tm = this.game && this.game.twitchManager;
-    return !!(tm && tm.connected && tm.channel);
+    return true;
   }
 
   async reserveCode(code, ttl = 1800) {
@@ -49,9 +48,6 @@ export class MultiplayerManager {
   }
 
   async createRoom(code = null) {
-    if (!this.isConnectionAllowed()) {
-      return { ok: false, reason: 'not_connected' };
-    }
     code = code || this._generateCode(6);
     const attemptLimit = 8;
     for (let attempt = 0; attempt < attemptLimit; attempt++) {
@@ -74,9 +70,6 @@ export class MultiplayerManager {
   }
 
   async joinRoom(code, meta = {}) {
-    if (!this.isConnectionAllowed()) {
-      return { ok: false, reason: 'not_connected' };
-    }
     if (!code) return { ok: false, reason: 'missing_code' };
     this.roomCode = code.toUpperCase();
     this.isHost = false;
