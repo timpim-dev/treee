@@ -3426,23 +3426,40 @@ export class Game {
 
   /** Streamer receives !join from chat — free mode posts link, whitelist shows popup */
   handleJoinCommand(username) {
-    if (!this.pbClient || !this.pbClient.isAuthenticated()) return;
+    // Check if streamer is logged in
+    if (!this.pbClient || !this.pbClient.isAuthenticated()) {
+      this.twitchManager.sendMessage(`@${username} Sorry, multiplayer is not available right now (streamer not logged in).`);
+      return;
+    }
+
+    // Check if multiplayer is enabled
     const settings = (this.pbClient.record && this.pbClient.record.settings) || {};
-    if (!settings.multiplayerAllowJoins) return;
+    if (!settings.multiplayerAllowJoins) {
+      this.twitchManager.sendMessage(`@${username} Multiplayer joins are currently disabled.`);
+      return;
+    }
+
+    // Check if multiplayer system is available
+    if (!this.multiplayer) {
+      this.twitchManager.sendMessage(`@${username} Sorry, multiplayer system is not available.`);
+      return;
+    }
 
     const slug = (this.pbClient.record.slug || this.pbClient.record.twitch_name || this.twitchManager.channel || '').toLowerCase();
     const roomCode = (settings.multiplayerRoomCode || slug).toUpperCase();
     const joinMode = settings.multiplayerJoinMode || 'free';
     const joinUrl = `${location.origin}/?join=${encodeURIComponent(slug)}`;
 
+    // Check if viewer is banned
     if (this.multiplayer && this.multiplayer.isBanned(username)) {
-      this.twitchManager.sendMessage(`@${username} you are banned from this room.`);
+      this.twitchManager.sendMessage(`@${username} You are banned from this multiplayer room.`);
       return;
     }
 
     if (joinMode === 'whitelist') {
       const requestId = `chat_${Date.now()}_${username}`;
       this._showJoinRequestPopup({ requestId, username, from: null, source: 'chat' });
+      this.twitchManager.sendMessage(`@${username} Join request sent! Waiting for streamer approval...`);
       return;
     }
 
