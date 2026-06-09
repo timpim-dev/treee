@@ -212,11 +212,11 @@ export class TwitchManager {
    * Process a chat message for commands
    */
   handleChatMessage(username, message, tags = {}) {
+    console.log(`[Twitch] handleChatMessage — user: ${username}, msg: "${message}", gameState: ${this.game && this.game.state}, isTutorial: ${this.game && this.game.isTutorial}`);
     if (this.game.isTutorial) return;
 
     // Check custom reward redemption
-    const redeemId = tags['custom-reward-id'];
-    if (redeemId) {
+    const redeemId = tags['custom-reward-id'];    if (redeemId) {
       console.log(`[Twitch] Custom reward redeemed: ${redeemId} by ${username}`);
       this.lastRedeemId = redeemId;
       const lastRedeemEl = document.getElementById('twitch-last-redeem-id');
@@ -249,6 +249,7 @@ export class TwitchManager {
       const parts = message.substring(1).toLowerCase().split(/\s+/);
       const cmdName = parts[0];
       const args = parts.slice(1);
+      console.log(`[Twitch] Command detected: !${cmdName}`, { cmdDef: this.commands[cmdName], enabled: this.commands[cmdName]?.enabled });
 
       const cmdDef = this.commands[cmdName];
       if (cmdDef && cmdDef.enabled) {
@@ -256,15 +257,24 @@ export class TwitchManager {
         const userKey = `user_${username}`;
         
         // Check per-user global cooldown (3s between any commands)
-        if (this.userCooldowns[userKey] && now - this.userCooldowns[userKey] < 3000) return;
+        if (this.userCooldowns[userKey] && now - this.userCooldowns[userKey] < 3000) {
+          console.log(`[Twitch] Command !${cmdName} blocked — per-user global cooldown (${Math.round((3000 - (now - this.userCooldowns[userKey])) / 1000)}s left)`);
+          return;
+        }
 
         // Check command-specific cooldown
         if (cmdDef.perUser) {
           const perUserKey = `${cmdName}_${username}`;
-          if (this.globalCooldowns[perUserKey] && now - this.globalCooldowns[perUserKey] < cmdDef.cooldown * 1000) return;
+          if (this.globalCooldowns[perUserKey] && now - this.globalCooldowns[perUserKey] < cmdDef.cooldown * 1000) {
+            console.log(`[Twitch] Command !${cmdName} blocked — per-user cooldown`);
+            return;
+          }
           this.globalCooldowns[perUserKey] = now;
         } else if (cmdDef.cooldown > 0) {
-          if (this.globalCooldowns[cmdName] && now - this.globalCooldowns[cmdName] < cmdDef.cooldown * 1000) return;
+          if (this.globalCooldowns[cmdName] && now - this.globalCooldowns[cmdName] < cmdDef.cooldown * 1000) {
+            console.log(`[Twitch] Command !${cmdName} blocked — global cooldown (${Math.round((cmdDef.cooldown * 1000 - (now - this.globalCooldowns[cmdName])) / 1000)}s left)`);
+            return;
+          }
           this.globalCooldowns[cmdName] = now;
         }
 
@@ -287,6 +297,7 @@ export class TwitchManager {
         if (this.commandQueue.length >= this.maxQueueSize) {
           this.commandQueue.shift(); // Drop oldest
         }
+        console.log(`[Twitch] Queuing command: !${cmdName} from ${username} — queue size: ${this.commandQueue.length + 1}`);
         this.commandQueue.push({ cmd: cmdName, username, args, time: now });
 
         // Add to chat feed
@@ -417,7 +428,10 @@ export class TwitchManager {
    */
   executeCommand(cmd) {
     const game = this.game;
-    if (!game || game.state !== 'PLAYING') return;
+    if (!game || game.state !== 'PLAYING') {
+      console.warn(`[Twitch] executeCommand skipped — game.state is "${game && game.state}" (need PLAYING)`);
+      return;
+    }
 
     const player = game.player;
     if (!player) return;
