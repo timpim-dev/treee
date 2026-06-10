@@ -561,19 +561,37 @@ export class MultiplayerManager {
   }
 
   async _tryInitAblyChannel(code) {
-    console.log('[MP] _tryInitAblyChannel — fetching token from /api/ably/token...');
+    console.log('[MP] _tryInitAblyChannel — checking Ably availability...');
     try {
-      const tokenRequest = await this._fetchAblyToken();
-      if (!tokenRequest) {
+      // Quick check: can we reach the token endpoint?
+      const testToken = await this._fetchAblyToken();
+      if (!testToken) {
         console.warn('[MP] _tryInitAblyChannel — no token returned, Ably unavailable');
         return false;
       }
-      console.log('[MP] _tryInitAblyChannel — token received, importing Ably...');
+      console.log('[MP] _tryInitAblyChannel — token endpoint reachable, importing Ably...');
       const Ably = (await import('ably')).Realtime;
-      this.ably = new Ably({ tokenDetails: tokenRequest });
+
+      // Use authCallback so the SDK can exchange the tokenRequest for a real
+      // token and automatically renew it when it expires.
+      this.ably = new Ably({
+        authCallback: async (tokenParams, callback) => {
+          try {
+            const tokenRequest = await this._fetchAblyToken();
+            if (tokenRequest) {
+              callback(null, tokenRequest);
+            } else {
+              callback(new Error('Failed to fetch Ably token'), null);
+            }
+          } catch (e) {
+            callback(e, null);
+          }
+        }
+      });
+
       const channelName = `rooms:${code}`;
       this.ablyChannel = this.ably.channels.get(channelName);
-      this.clientId = tokenRequest.clientId || `ably_${Date.now()}`;
+      this.clientId = `ably_${Date.now()}`;
       console.log(`[MP] _tryInitAblyChannel — Ably channel: ${channelName}, clientId: ${this.clientId}`);
 
       this.ablyChannel.subscribe('signal', (msg) => {
