@@ -42,6 +42,13 @@ export class Game {
     this.lowParticleMode = false;
     this.showSpellTrails = true;
     this.isStoryMode = false;
+    this.mpAllowJoins = true;
+    this.mpJoinMode = 'free';
+    this.mpSignalingUrl = window.__SIGNALING_URL || `${location.protocol}//${location.hostname}${location.port ? ':' + location.port : ''}`;
+    this.mpPvP = false;
+    this.mpFriendlyFire = false;
+    this.mpSharedXp = true;
+    this.mpHealthScaling = true;
     this.isLocalDev = ['localhost', '127.0.0.1'].includes(window.location.hostname);
     this.devtoolsVisible = false;
     this.customPresetIdx = 0;
@@ -175,11 +182,17 @@ export class Game {
                 font-family:'Press Start 2P',monospace; font-size:7px; padding:6px 12px;
                 cursor:pointer; box-shadow:3px 3px 0 #5b3cc4;
               ">COPY INVITE LINK</button>
-              <button id="mp-load-room-btn" style="
+              <button id="mp-start-game-btn" style="
                 background:#7d5fff; border:3px solid #fff; color:#fff;
                 font-family:'Press Start 2P',monospace; font-size:8px; padding:8px 12px;
                 cursor:pointer; box-shadow:3px 3px 0 #5b3cc4;
-              ">START GAME / LOAD ROOM</button>
+              ">START NEW GAME</button>
+              <button id="mp-load-room-btn" style="
+                background:#111424; border:3px solid #2ed573; color:#2ed573;
+                font-family:'Press Start 2P',monospace; font-size:8px; padding:8px 12px;
+                cursor:pointer; box-shadow:3px 3px 0 #26af5f;
+              ">LOAD ROOM FILE</button>
+              <input type="file" id="mp-room-file-input" accept=".json" style="display:none;">
             </div>
           </div>
         </div>
@@ -286,6 +299,7 @@ export class Game {
         const r = await this.multiplayer.createRoom(null); // always random
         if (r.ok) {
           this.isMultiplayerViewer = false;
+          if (this.player) this.player.loadGameState();
         } else {
           this._setMpStatus('FAILED: ' + (r.reason || 'unknown').toUpperCase());
         }
@@ -315,13 +329,38 @@ export class Game {
         this._setMpStatus('LINK COPIED!');
       });
 
-      modal.querySelector('#mp-load-room-btn').addEventListener('click', () => {
+      modal.querySelector('#mp-start-game-btn').addEventListener('click', () => {
         this.isTutorial = false;
         this.isStoryMode = false;
         const tg = document.getElementById('tutorial-guide');
         if (tg) tg.classList.add('hidden');
         this.startNewGame();
         this._closeMultiplayerModal();
+      });
+
+      const fileInput = modal.querySelector('#mp-room-file-input');
+      modal.querySelector('#mp-load-room-btn').addEventListener('click', () => {
+        fileInput.click();
+      });
+
+      fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        this.isTutorial = false;
+        this.isStoryMode = false;
+        const tg = document.getElementById('tutorial-guide');
+        if (tg) tg.classList.add('hidden');
+        
+        this.startNewGame();
+        
+        this._setMpStatus('LOADING ROOM...');
+        const res = await this.multiplayer.loadRoomFromFile(file);
+        if (res.ok) {
+          this._closeMultiplayerModal();
+          this._setMpStatus('ROOM LOADED!');
+        } else {
+          this._setMpStatus('LOAD FAILED: ' + (res.reason || 'unknown').toUpperCase());
+        }
       });
 
       // Hidden input to hold share link value
@@ -398,6 +437,7 @@ export class Game {
         } else if (s.type === 'host_connected') {
           this._setMpStatus('CONNECTED!');
           this._closeMultiplayerModal();
+          if (this.player) this.player.loadGameState();
           this.setState('PLAYING');
         } else if (s.type === 'join_rejected') {
           this._setMpStatus('DENIED: ' + (s.reason || 'rejected').toUpperCase());
@@ -410,8 +450,12 @@ export class Game {
         } else if (s.type === 'ws_closed') {
           this._setMpStatus('DISCONNECTED');
           this._stopHostBroadcast();
+          if (this.multiplayer) this.multiplayer.leaveRoom();
+          if (this.player) this.player.loadGameState();
         } else if (s.type === 'ws_error') {
           this._setMpStatus('CONNECTION ERROR');
+          if (this.multiplayer) this.multiplayer.leaveRoom();
+          if (this.player) this.player.loadGameState();
         } else if (s.type === 'peer_connected' || s.type === 'peer_disconnected') {
           this._updateHostPanel();
         }
@@ -443,8 +487,7 @@ export class Game {
     // Multiplayer manager — init before URL auto-join
     try {
       this.multiplayer = new MultiplayerManager(this, {
-        // Use environment-specific signaling URL or default to port 8081 on same host
-        signalingUrl: window.__SIGNALING_URL || `${location.protocol}//${location.hostname}${location.port ? ':' + location.port : ''}`,
+        signalingUrl: this.mpSignalingUrl,
       });
       this.initMultiplayerUI();
     } catch (e) {
@@ -892,6 +935,14 @@ export class Game {
     const chkSettingsParticles = document.getElementById('chk-settings-particles');
     const chkSettingsTrails = document.getElementById('chk-settings-trails');
 
+    const chkMpAllowJoins = document.getElementById('chk-mp-allow-joins');
+    const selMpJoinMode = document.getElementById('sel-mp-join-mode');
+    const txtMpSignalingUrl = document.getElementById('txt-mp-signaling-url');
+    const chkMpPvP = document.getElementById('chk-mp-pvp');
+    const chkMpFriendlyFire = document.getElementById('chk-mp-friendly-fire');
+    const chkMpSharedXp = document.getElementById('chk-mp-shared-xp');
+    const chkMpHealthScaling = document.getElementById('chk-mp-health-scaling');
+
     const updateCheckboxesUI = () => {
       if (chkSettingsShake) chkSettingsShake.checked = this.enableScreenShake;
       if (chkSettingsGlow) chkSettingsGlow.checked = this.enableGlowEffects;
@@ -900,6 +951,14 @@ export class Game {
       if (chkSettingsFloor) chkSettingsFloor.checked = this.showFloorGrid;
       if (chkSettingsParticles) chkSettingsParticles.checked = this.lowParticleMode;
       if (chkSettingsTrails) chkSettingsTrails.checked = this.showSpellTrails;
+
+      if (chkMpAllowJoins) chkMpAllowJoins.checked = this.mpAllowJoins;
+      if (selMpJoinMode) selMpJoinMode.value = this.mpJoinMode;
+      if (txtMpSignalingUrl) txtMpSignalingUrl.value = this.mpSignalingUrl;
+      if (chkMpPvP) chkMpPvP.checked = this.mpPvP;
+      if (chkMpFriendlyFire) chkMpFriendlyFire.checked = this.mpFriendlyFire;
+      if (chkMpSharedXp) chkMpSharedXp.checked = this.mpSharedXp;
+      if (chkMpHealthScaling) chkMpHealthScaling.checked = this.mpHealthScaling;
     };
 
     if (chkSettingsShake) {
@@ -943,6 +1002,55 @@ export class Game {
     if (chkSettingsTrails) {
       chkSettingsTrails.addEventListener('change', (e) => {
         this.showSpellTrails = e.target.checked;
+        this.saveSettings();
+      });
+    }
+
+    if (chkMpAllowJoins) {
+      chkMpAllowJoins.addEventListener('change', (e) => {
+        this.mpAllowJoins = e.target.checked;
+        this.saveSettings();
+        if (this.multiplayer) {
+          // If we want to dynamically tell the server or update client settings
+        }
+      });
+    }
+    if (selMpJoinMode) {
+      selMpJoinMode.addEventListener('change', (e) => {
+        this.mpJoinMode = e.target.value;
+        this.saveSettings();
+      });
+    }
+    if (txtMpSignalingUrl) {
+      txtMpSignalingUrl.addEventListener('change', (e) => {
+        this.mpSignalingUrl = e.target.value.trim();
+        this.saveSettings();
+        if (this.multiplayer) {
+          this.multiplayer.signalingUrl = this.mpSignalingUrl;
+        }
+      });
+    }
+    if (chkMpPvP) {
+      chkMpPvP.addEventListener('change', (e) => {
+        this.mpPvP = e.target.checked;
+        this.saveSettings();
+      });
+    }
+    if (chkMpFriendlyFire) {
+      chkMpFriendlyFire.addEventListener('change', (e) => {
+        this.mpFriendlyFire = e.target.checked;
+        this.saveSettings();
+      });
+    }
+    if (chkMpSharedXp) {
+      chkMpSharedXp.addEventListener('change', (e) => {
+        this.mpSharedXp = e.target.checked;
+        this.saveSettings();
+      });
+    }
+    if (chkMpHealthScaling) {
+      chkMpHealthScaling.addEventListener('change', (e) => {
+        this.mpHealthScaling = e.target.checked;
         this.saveSettings();
       });
     }
@@ -3356,6 +3464,14 @@ export class Game {
         enemies: this.enemies.slice(0, 100).map(e => ({ id: e.id || null, x: e.x, y: e.y, hp: e.hp || null })),
         projectiles: this.projectiles.slice(0, 200).map(p => ({ id: p.id || null, x: p.x, y: p.y, vx: p.vx, vy: p.vy }))
       };
+      if (this.levelManager) {
+        snap.mapData = {
+          theme: this.levelManager.theme,
+          unlockedSectors: Array.from(this.levelManager.unlockedSectors),
+          sectorThemes: this.levelManager.sectorThemes,
+          unlockedDoors: Array.from(this.levelManager.unlockedDoors)
+        };
+      }
       try { this.multiplayer.broadcastData({ t: 'STATE_SNAPSHOT', p: snap }); } catch (e) { console.warn('broadcast snapshot failed', e); }
     }, intervalMs);
   }
@@ -3400,15 +3516,20 @@ export class Game {
       }
     }
 
-    // Update enemies positions locally for visualization (non-authoritative client-side interpolation could be added)
+    // Update enemies positions locally for visualization
     if (Array.isArray(snap.enemies)) {
       for (const se of snap.enemies) {
         const existing = this.enemies.find(e => e.id === se.id);
         if (existing) {
-          existing.x = se.x; existing.y = se.y; if (se.hp !== undefined) existing.hp = se.hp;
+          existing.x = se.x;
+          existing.y = se.y;
+          if (se.hp !== undefined) existing.hp = se.hp;
         } else {
-          // lightweight enemy placeholder if not present
-          this.enemies.push({ id: se.id || `e${Date.now()}`, x: se.x, y: se.y, hp: se.hp || 0, draw: () => {} });
+          // Instantiate a real Enemy so that it updates and renders properly
+          const enemy = new Enemy(this, se.x, se.y, se.type || 'slime');
+          enemy.id = se.id;
+          if (se.hp !== undefined) enemy.hp = se.hp;
+          this.enemies.push(enemy);
         }
       }
     }
@@ -3416,6 +3537,11 @@ export class Game {
     if (Array.isArray(snap.projectiles)) {
       // Replace local projectiles with snapshot for now (could be improved)
       this.projectiles = snap.projectiles.map(p => ({ id: p.id || null, x: p.x, y: p.y, vx: p.vx, vy: p.vy, life: 1 }));
+    }
+
+    // Apply map synchronization if present
+    if (snap.mapData && this.levelManager) {
+      this._applyMapSync(snap.mapData);
     }
   }
 
@@ -3538,13 +3664,13 @@ export class Game {
   /** Called when viewer successfully connects to host — use base MP stats, not host progression */
   _onJoinedAsViewer() {
     this.isMultiplayerViewer = true;
-    if (!this.player) return;
-    // Backup viewer's singleplayer save so we can restore after leaving
-    try {
-      this._viewerSaveBackup = localStorage.getItem('aetherweaver_save');
-    } catch (e) {}
-    // Apply fresh multiplayer viewer profile (no host inventory/tree sync)
-    this._applyViewerMultiplayerProfile();
+    if (this.player) {
+      this.player.loadGameState();
+    }
+    if (this.state === 'MENU') {
+      this.setState('PLAYING');
+      this._closeMultiplayerModal && this._closeMultiplayerModal();
+    }
   }
 
   _applyViewerMultiplayerProfile() {
@@ -3559,18 +3685,14 @@ export class Game {
     this.player.equippedRunes = [];
     this.player.gearStorage = [];
     this.player.runeStorage = [];
-    // Do NOT call saveGameState — viewer SP progress stays in backup
     this.updateHUD();
   }
 
   _restoreViewerSaveAfterLeave() {
-    if (!this.isMultiplayerViewer || !this._viewerSaveBackup) return;
-    try {
-      localStorage.setItem('aetherweaver_save', this._viewerSaveBackup);
-      if (this.player) this.player.loadGameState();
-    } catch (e) {}
-    this._viewerSaveBackup = null;
     this.isMultiplayerViewer = false;
+    if (this.player) {
+      this.player.loadGameState();
+    }
   }
 
   _applyRoomExport(data) {
@@ -3606,6 +3728,41 @@ export class Game {
 
   _onWorldSync(snap) {
     this._applySnapshot(snap);
+  }
+
+  _applyMapSync(md) {
+    if (!md || !this.levelManager) return;
+    let changed = false;
+    if (this.levelManager.theme !== md.theme) {
+      this.levelManager.theme = md.theme;
+      changed = true;
+    }
+    if (md.unlockedSectors) {
+      const mdSectors = new Set(md.unlockedSectors);
+      if (this.levelManager.unlockedSectors.size !== mdSectors.size || ![...this.levelManager.unlockedSectors].every(s => mdSectors.has(s))) {
+        this.levelManager.unlockedSectors = mdSectors;
+        changed = true;
+      }
+    }
+    if (md.sectorThemes && JSON.stringify(this.levelManager.sectorThemes) !== JSON.stringify(md.sectorThemes)) {
+      this.levelManager.sectorThemes = md.sectorThemes;
+      changed = true;
+    }
+    if (md.unlockedDoors) {
+      const mdDoors = new Set(md.unlockedDoors);
+      if (this.levelManager.unlockedDoors.size !== mdDoors.size || ![...this.levelManager.unlockedDoors].every(d => mdDoors.has(d))) {
+        this.levelManager.unlockedDoors = mdDoors;
+        changed = true;
+      }
+    }
+    if (md.fullTileGrid && JSON.stringify(this.levelManager.fullTileGrid) !== JSON.stringify(md.fullTileGrid)) {
+      this.levelManager.fullTileGrid = md.fullTileGrid;
+      changed = true;
+    }
+    if (changed) {
+      console.log('[Multiplayer] Map sync updated, regenerating obstacles...');
+      this.levelManager.generateObstacles();
+    }
   }
 
   drawShopItems() {
@@ -6027,7 +6184,14 @@ export class Game {
       showEnemyHealthbars: this.showEnemyHealthbars,
       showFloorGrid: this.showFloorGrid,
       lowParticleMode: this.lowParticleMode,
-      showSpellTrails: this.showSpellTrails
+      showSpellTrails: this.showSpellTrails,
+      mpAllowJoins: this.mpAllowJoins,
+      mpJoinMode: this.mpJoinMode,
+      mpSignalingUrl: this.mpSignalingUrl,
+      mpPvP: this.mpPvP,
+      mpFriendlyFire: this.mpFriendlyFire,
+      mpSharedXp: this.mpSharedXp,
+      mpHealthScaling: this.mpHealthScaling
     };
     localStorage.setItem('aetherweaver_settings', JSON.stringify(settings));
   }
@@ -6047,6 +6211,17 @@ export class Game {
         this.lowParticleMode = settings.lowParticleMode !== undefined ? settings.lowParticleMode : false;
         if (this.particles) this.particles.lowParticleMode = this.lowParticleMode;
         this.showSpellTrails = settings.showSpellTrails !== undefined ? settings.showSpellTrails : true;
+
+        this.mpAllowJoins = settings.mpAllowJoins !== undefined ? settings.mpAllowJoins : true;
+        this.mpJoinMode = settings.mpJoinMode !== undefined ? settings.mpJoinMode : 'free';
+        this.mpSignalingUrl = settings.mpSignalingUrl !== undefined ? settings.mpSignalingUrl : (window.__SIGNALING_URL || `${location.protocol}//${location.hostname}${location.port ? ':' + location.port : ''}`);
+        this.mpPvP = settings.mpPvP !== undefined ? settings.mpPvP : false;
+        this.mpFriendlyFire = settings.mpFriendlyFire !== undefined ? settings.mpFriendlyFire : false;
+        this.mpSharedXp = settings.mpSharedXp !== undefined ? settings.mpSharedXp : true;
+        this.mpHealthScaling = settings.mpHealthScaling !== undefined ? settings.mpHealthScaling : true;
+        if (this.multiplayer && settings.mpSignalingUrl !== undefined) {
+          this.multiplayer.signalingUrl = this.mpSignalingUrl;
+        }
 
         if (this.audio) {
           if (settings.musicVolume !== undefined) this.audio.setMusicVolume(settings.musicVolume / 100);
@@ -6070,6 +6245,14 @@ export class Game {
         this.lowParticleMode = false;
         if (this.particles) this.particles.lowParticleMode = false;
         this.showSpellTrails = true;
+
+        this.mpAllowJoins = true;
+        this.mpJoinMode = 'free';
+        this.mpSignalingUrl = window.__SIGNALING_URL || `${location.protocol}//${location.hostname}${location.port ? ':' + location.port : ''}`;
+        this.mpPvP = false;
+        this.mpFriendlyFire = false;
+        this.mpSharedXp = true;
+        this.mpHealthScaling = true;
       }
     } catch (e) {
       console.warn("Failed to load settings from localStorage:", e);

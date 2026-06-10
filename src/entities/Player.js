@@ -1160,7 +1160,9 @@ export class Player {
   _flushSave() {
     this._saveTimer = null;
     if (!this._pendingSave) return;
-    localStorage.setItem('aetherweaver_save', JSON.stringify(this._pendingSave));
+    const isMultiplayer = this.game.multiplayer && (this.game.multiplayer.connected || this.game.multiplayer.roomCode);
+    const saveKey = isMultiplayer ? 'aetherweaver_mp_save' : 'aetherweaver_save';
+    localStorage.setItem(saveKey, JSON.stringify(this._pendingSave));
     this._pendingSave = null;
     if (this.game?.scheduleCloudSync) {
       this.game.scheduleCloudSync();
@@ -1169,7 +1171,19 @@ export class Player {
 
   loadGameState() {
     try {
-      const data = localStorage.getItem('aetherweaver_save');
+      const isMultiplayer = this.game.multiplayer && (this.game.multiplayer.connected || this.game.multiplayer.roomCode);
+      const saveKey = isMultiplayer ? 'aetherweaver_mp_save' : 'aetherweaver_save';
+
+      // Always reset tree nodes first to prevent bleed-through between singleplayer and multiplayer
+      const tree = this.game.abilityTree;
+      const roots = new Set(['root', 'comp1_root', 'comp2_root']);
+      if (tree && tree.nodes) {
+        for (const key in tree.nodes) {
+          tree.nodes[key].unlocked = roots.has(key);
+        }
+      }
+
+      const data = localStorage.getItem(saveKey);
       if (data) {
         const progress = JSON.parse(data);
         this.level = progress.level || 1;
@@ -1247,12 +1261,39 @@ export class Player {
 
         if (progress.treeNodes) {
           for (const key in progress.treeNodes) {
-            if (this.game.abilityTree && this.game.abilityTree.nodes[key]) {
-              this.game.abilityTree.nodes[key].unlocked = progress.treeNodes[key];
+            if (tree && tree.nodes[key]) {
+              tree.nodes[key].unlocked = progress.treeNodes[key];
             }
           }
         }
+      } else {
+        if (isMultiplayer) {
+          this.level = 1;
+          this.xp = 0;
+          this.xpNeeded = 50;
+          this.ap = 0;
+          this.shards = 0;
+          this.shopMaxHp = 0;
+          this.shopMaxMp = 0;
+          this.shopManaRegen = 0;
+          this.runeStorage = [];
+          this.equippedRunes = [];
+          this.gearStorage = [];
+          this.equipment = { helmet: null, chestplate: null, boots: null, weapon: null, ring: null };
+        }
       }
+
+      // Always run modifier recalculations and clamp health/mana to max values
+      if (tree) {
+        this.recalculateModifiers(tree);
+      }
+      this.hp = Math.min(this.getMaxHp(), this.hp);
+      this.mp = Math.min(this.getMaxMp(), this.mp);
+      if (this.hp <= 0) this.hp = this.getMaxHp();
+      if (this.mp <= 0) this.mp = this.getMaxMp();
+
+      // Trigger HUD update to refresh levels, stats, and spell slots
+      this.game.updateHUD();
     } catch (e) {
       console.warn("Failed to load local storage save: ", e);
     }

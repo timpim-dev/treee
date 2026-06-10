@@ -417,7 +417,7 @@ export class MultiplayerManager {
         this.game._onWorldSync(p);
       }
     } else if (t === 'SYNC_REQUEST' && this.isHost) {
-      const snap = this._buildWorldSnapshot();
+      const snap = this._buildWorldSnapshot(true);
       this._sendToPeer(peerId, { t: 'SYNC_RESPONSE', p: snap });
     } else if (t === 'PEER_ANNOUNCE' && this.isHost && p) {
       this.peerMeta.set(peerId, { displayName: p.displayName || peerId, twitchUser: p.twitchUser, joinedAt: Date.now() });
@@ -495,16 +495,28 @@ export class MultiplayerManager {
     }
   }
 
-  _buildWorldSnapshot() {
+  _buildWorldSnapshot(isInitial = false) {
     const g = this.game;
     if (!g) return {};
-    return {
+    const snap = {
       t: Date.now(),
       wave: g.levelManager ? g.levelManager.wave : 1,
       player: g.player ? { x: g.player.x, y: g.player.y, hp: g.player.hp, mp: g.player.mp } : null,
       enemies: (g.enemies || []).slice(0, 150).map(e => ({ id: e.id || null, type: e.type, x: e.x, y: e.y, hp: e.hp })),
       projectiles: (g.projectiles || []).slice(0, 200).map(p => ({ id: p.id || null, x: p.x, y: p.y, vx: p.vx, vy: p.vy })),
     };
+    if (g.levelManager) {
+      snap.mapData = {
+        theme: g.levelManager.theme,
+        unlockedSectors: Array.from(g.levelManager.unlockedSectors),
+        sectorThemes: g.levelManager.sectorThemes,
+        unlockedDoors: Array.from(g.levelManager.unlockedDoors),
+      };
+      if (isInitial) {
+        snap.mapData.fullTileGrid = g.levelManager.fullTileGrid;
+      }
+    }
+    return snap;
   }
 
   saveRoomToFile(filename = null) {

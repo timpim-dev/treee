@@ -60,7 +60,7 @@
             href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap"
             rel="stylesheet"
         />
-      <script type="module" crossorigin src="/assets/main-CxmgL3EM.js"></script>
+      <script type="module" crossorigin src="/assets/main-BM46RIYN.js"></script>
       <link rel="stylesheet" crossorigin href="/assets/main-DlEOkV-7.css">
     </head>
     <body>
@@ -392,6 +392,14 @@
                     <!-- Right Column: Navigation Buttons -->
                     <div class="main-menu-right">
                         <div class="menu-buttons vertical-buttons">
+                            <button id="btn-direct-join" class="btn-menu hidden" style="
+                                background: linear-gradient(135deg, #10ac84, #1dd1a1);
+                                border-color: #10ac84;
+                                text-shadow: 0 0 5px rgba(29, 209, 161, 0.5);
+                                color: #fff;
+                            ">
+                                JOIN ROOM
+                            </button>
                             <button id="btn-play-menu" class="btn-menu">
                                 PLAY
                             </button>
@@ -686,6 +694,9 @@
                         <button class="settings-tab-btn" data-tab="controls">
                             CONTROLS
                         </button>
+                        <button class="settings-tab-btn" data-tab="multiplayer">
+                            MULTIPLAYER
+                        </button>
                     </div>
 
                     <div class="menu-buttons" style="margin-top: 10px">
@@ -947,6 +958,119 @@
                                 RESET TO DEFAULTS
                             </button>
                         </div>
+
+                        <!-- Tab content: MULTIPLAYER -->
+                        <div
+                            id="settings-tab-multiplayer"
+                            class="settings-tab-pane hidden"
+                        >
+                            <div class="settings-toggles-box">
+                                <div class="settings-toggles-grid">
+                                    <div class="setting-toggle-group" style="grid-column: span 2">
+                                        <label class="setting-toggle">
+                                            <input
+                                                type="checkbox"
+                                                id="chk-mp-allow-joins"
+                                                checked
+                                            />
+                                            <span
+                                                class="checkbox-custom"
+                                            ></span>
+                                            <span>ALLOW VIEWERS TO JOIN</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px; text-align: left;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span style="font-family: var(--font-pixel); font-size: 7px; color: #fff; min-width: 90px;">JOIN MODE:</span>
+                                        <select id="sel-mp-join-mode" style="
+                                            flex: 1;
+                                            background: rgba(5,8,18,0.9);
+                                            border: 2px solid rgba(181,126,255,0.45);
+                                            color: #fff;
+                                            font-family: var(--font-pixel);
+                                            font-size: 8px;
+                                            padding: 4px;
+                                            outline: none;
+                                        ">
+                                            <option value="free">FREE (INSTANT)</option>
+                                            <option value="whitelist">WHITELIST</option>
+                                        </select>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span style="font-family: var(--font-pixel); font-size: 7px; color: #fff; min-width: 90px;">SIGNALING:</span>
+                                        <input type="text" id="txt-mp-signaling-url" style="
+                                            flex: 1;
+                                            background: rgba(5,8,18,0.9);
+                                            border: 2px solid rgba(181,126,255,0.45);
+                                            color: #fff;
+                                            font-family: var(--font-pixel);
+                                            font-size: 8px;
+                                            padding: 4px;
+                                            outline: none;
+                                        ">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div style="border-top: 1px dashed rgba(255,255,255,0.15); margin: 10px 0;"></div>
+
+                            <div class="settings-toggles-box">
+                                <div style="font-family: var(--font-pixel); font-size: 7px; color: #7d5fff; margin-bottom: 8px; text-align: left;">SPECIAL OPTIONS</div>
+                                <div class="settings-toggles-grid">
+                                    <div class="setting-toggle-group">
+                                        <label class="setting-toggle">
+                                            <input
+                                                type="checkbox"
+                                                id="chk-mp-pvp"
+                                            />
+                                            <span
+                                                class="checkbox-custom"
+                                            ></span>
+                                            <span>PVP MODE</span>
+                                        </label>
+                                    </div>
+                                    <div class="setting-toggle-group">
+                                        <label class="setting-toggle">
+                                            <input
+                                                type="checkbox"
+                                                id="chk-mp-friendly-fire"
+                                            />
+                                            <span
+                                                class="checkbox-custom"
+                                            ></span>
+                                            <span>FRIENDLY FIRE</span>
+                                        </label>
+                                    </div>
+                                    <div class="setting-toggle-group">
+                                        <label class="setting-toggle">
+                                            <input
+                                                type="checkbox"
+                                                id="chk-mp-shared-xp"
+                                                checked
+                                            />
+                                            <span
+                                                class="checkbox-custom"
+                                            ></span>
+                                            <span>SHARED XP/SHARDS</span>
+                                        </label>
+                                    </div>
+                                    <div class="setting-toggle-group">
+                                        <label class="setting-toggle">
+                                            <input
+                                                type="checkbox"
+                                                id="chk-mp-health-scaling"
+                                                checked
+                                            />
+                                            <span
+                                                class="checkbox-custom"
+                                            ></span>
+                                            <span>HP SCALING</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
 
                         <button
                             id="btn-close-settings"
