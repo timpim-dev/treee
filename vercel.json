@@ -1,31 +1,14 @@
 {
   "version": 2,
-  "builds": [
+  "cleanUrls": true,
+  "rewrites": [
     {
-      "src": "server.js",
-      "use": "@vercel/node"
+      "source": "/api/rooms/:path*",
+      "destination": "/api/rooms"
     },
     {
-      "src": "src/multiplayer/signaling/server.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/ably/token.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/ably/token",
-      "dest": "/api/ably/token.js"
-    },
-    {
-      "src": "/api/rooms/(.*)",
-      "dest": "/src/multiplayer/signaling/server.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/server.js"
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
     }
   ]
 }
