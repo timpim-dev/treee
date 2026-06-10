@@ -467,6 +467,37 @@
         grid-template-columns: 1fr;
       }
     }
+
+    /* Spawn copy buttons */
+    .spawn-copy-btn {
+      display: inline-block;
+      background: #0d0f1e;
+      border: 2px solid var(--color-aether);
+      color: var(--color-aether);
+      font-family: 'Press Start 2P', monospace;
+      font-size: 9px;
+      padding: 8px 14px;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: all 0.15s steps(2);
+      box-shadow: 3px 3px 0 rgba(125,95,255,0.25);
+      width: 100%;
+      text-align: left;
+    }
+    .spawn-copy-btn:hover {
+      background: var(--color-aether);
+      color: #fff;
+      box-shadow: 0 0 12px rgba(125,95,255,0.5);
+    }
+    .spawn-copy-btn:active {
+      transform: translate(2px, 2px);
+      box-shadow: none;
+    }
+    .spawn-copy-btn.copied {
+      border-color: #2ed573;
+      color: #2ed573;
+      background: #021a0a;
+    }
   </style>
 </head>
 <body>
@@ -509,6 +540,7 @@
           <li><button class="nav-item-btn" data-category="combos">Elemental Synergies</button></li>
           <li><button class="nav-item-btn" data-category="satchel">Satchel & Gear</button></li>
           <li><button class="nav-item-btn" data-category="bosses">Boss Anomalies</button></li>
+          <li><button class="nav-item-btn" data-category="enemies">Enemy Registry</button></li>
           <li><button class="nav-item-btn" data-category="twitch">Twitch Integration</button></li>
         </ul>
       </div>
@@ -1066,11 +1098,346 @@
         </div>
       </section>
 
+      <!-- ENEMIES REGISTRY -->
+      <section class="wiki-section" id="sec-enemies">
+        <h1 class="sec-title">ENEMY REGISTRY</h1>
+        <p class="sec-intro">All enemy archetypes that can appear in the dungeon. Spawnable enemies can be summoned by Twitch viewers using the <strong>!spawn</strong> command. Click any command tag to copy it to your clipboard. Stats shown are base values at wave 1 before difficulty scaling.</p>
+
+        <!-- Copy feedback toast -->
+        <div id="spawn-toast" style="position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1e35;border:2px solid var(--color-aether);color:#fff;font-family:var(--font-sub);font-size:12px;padding:10px 22px;opacity:0;pointer-events:none;transition:opacity 0.2s,transform 0.2s;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,0.6);">Copied to clipboard</div>
+
+        <!-- Stat overview table -->
+        <div class="wiki-box" style="padding:0;margin-bottom:28px;">
+          <div class="table-container">
+            <table id="enemy-table">
+              <thead>
+                <tr>
+                  <th>Type ID</th>
+                  <th>Default Name</th>
+                  <th>Tier</th>
+                  <th>Base HP</th>
+                  <th>Damage</th>
+                  <th>Speed</th>
+                  <th>XP</th>
+                  <th>AI Pattern</th>
+                  <th>Loot</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>slime</code></td>
+                  <td>Aether Slime</td>
+                  <td>Standard</td>
+                  <td>33</td>
+                  <td>10</td>
+                  <td>45</td>
+                  <td>13</td>
+                  <td>Chase — splits into 3 Mini Slimes on death</td>
+                  <td>Shards, HP orb (5%)</td>
+                </tr>
+                <tr>
+                  <td><code>slime_elite</code></td>
+                  <td>Elite Fire Slime</td>
+                  <td>Elite</td>
+                  <td>72</td>
+                  <td>16</td>
+                  <td>60</td>
+                  <td>31</td>
+                  <td>Chase — splits into 4 Mini Slimes on death</td>
+                  <td>Shards, 50% Relic drop</td>
+                </tr>
+                <tr>
+                  <td><code>slime_mini</code></td>
+                  <td>Mini Slime</td>
+                  <td>Minor</td>
+                  <td>10</td>
+                  <td>5</td>
+                  <td>65</td>
+                  <td>4</td>
+                  <td>Chase — fast, small hitbox</td>
+                  <td>Shards</td>
+                </tr>
+                <tr>
+                  <td><code>skeleton</code></td>
+                  <td>Runic Archer</td>
+                  <td>Standard</td>
+                  <td>52</td>
+                  <td>12</td>
+                  <td>55</td>
+                  <td>25</td>
+                  <td>Keep Distance (200px) — fires Fire bolts every 2.2s</td>
+                  <td>Shards, MP orb (5%)</td>
+                </tr>
+                <tr>
+                  <td><code>skeleton_elite</code></td>
+                  <td>Elite Glacial Archer</td>
+                  <td>Elite</td>
+                  <td>104</td>
+                  <td>18</td>
+                  <td>65</td>
+                  <td>56</td>
+                  <td>Keep Distance — triple Frost arrow spread every 1.4s</td>
+                  <td>Shards, 50% Relic drop</td>
+                </tr>
+                <tr>
+                  <td><code>horror</code></td>
+                  <td>Void Stalker</td>
+                  <td>Standard</td>
+                  <td>78</td>
+                  <td>16</td>
+                  <td>65</td>
+                  <td>44</td>
+                  <td>Chase + Teleport — fires Void bolts at range, teleports on hit</td>
+                  <td>Shards, HP orb (5%)</td>
+                </tr>
+                <tr>
+                  <td><code>horror_elite</code></td>
+                  <td>Elite Void Assassin</td>
+                  <td>Elite</td>
+                  <td>156</td>
+                  <td>24</td>
+                  <td>80</td>
+                  <td>88</td>
+                  <td>Chase + Teleport — double-shot Void bolts (0.35s delay) every 1.8s</td>
+                  <td>Shards, 50% Relic drop</td>
+                </tr>
+                <tr>
+                  <td><code>warden</code></td>
+                  <td>Chrono Warden</td>
+                  <td>Elite</td>
+                  <td>105</td>
+                  <td>20</td>
+                  <td>90 / 220</td>
+                  <td>63</td>
+                  <td>Charge — every 2s lunges at 220 speed, immune to slow</td>
+                  <td>Shards, HP orb (5%)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Individual enemy cards -->
+        <div class="wiki-grid-2">
+
+          <!-- SLIME -->
+          <div class="wiki-card" style="border-color:#2ed573;">
+            <span class="card-element-badge" style="color:#2ed573;">Standard</span>
+            <h3 class="wiki-card-title" style="color:#2ed573;">Aether Slime</h3>
+            <p class="wiki-card-subtitle">slime</p>
+            <p>The most common enemy. Chases the player directly and bursts into 3 Mini Slimes when killed. Found in all region themes with a renamed variant in each (Spore, Cavern, Aquatic, Glitch).</p>
+            <ul style="margin-top:12px;">
+              <li><strong>AI:</strong> Direct chase, no ranged attack.</li>
+              <li><strong>Death:</strong> Splits into 3 Slime Minis.</li>
+              <li><strong>Weakness:</strong> Fire (burning DOT), Lightning (shock amplifies damage).</li>
+            </ul>
+            <div style="margin-top:14px;">
+              <span style="font-family:var(--font-sub);font-size:11px;color:var(--color-text-dim);display:block;margin-bottom:6px;">TWITCH SPAWN COMMAND</span>
+              <button class="spawn-copy-btn" data-cmd="!spawn slime" title="Click to copy">!spawn slime</button>
+            </div>
+          </div>
+
+          <!-- SLIME ELITE -->
+          <div class="wiki-card" style="border-color:#ff6b6b;">
+            <span class="card-element-badge" style="color:#ff6b6b;">Elite</span>
+            <h3 class="wiki-card-title" style="color:#ff6b6b;">Elite Fire Slime</h3>
+            <p class="wiki-card-subtitle">slime_elite</p>
+            <p>A larger, fiery variant with double HP and significantly higher XP. Bursts into 4 Mini Slimes when killed. Has a 50% chance to drop a random Relic or Gear piece.</p>
+            <ul style="margin-top:12px;">
+              <li><strong>AI:</strong> Direct chase, no ranged attack.</li>
+              <li><strong>Death:</strong> Splits into 4 Slime Minis + Relic (50% chance).</li>
+              <li><strong>Weakness:</strong> Frost (slows it considerably).</li>
+            </ul>
+            <div style="margin-top:14px;">
+              <span style="font-family:var(--font-sub);font-size:11px;color:var(--color-text-dim);display:block;margin-bottom:6px;">TWITCH SPAWN COMMAND</span>
+              <button class="spawn-copy-btn" data-cmd="!spawn slime_elite" title="Click to copy">!spawn slime_elite</button>
+            </div>
+          </div>
+
+          <!-- SLIME MINI -->
+          <div class="wiki-card" style="border-color:#7ed6df;">
+            <span class="card-element-badge" style="color:#7ed6df;">Minor</span>
+            <h3 class="wiki-card-title" style="color:#7ed6df;">Mini Slime</h3>
+            <p class="wiki-card-subtitle">slime_mini</p>
+            <p>Tiny and very fast. Spawned when a normal or elite Slime dies. Can also be directly summoned by a Twitch viewer using the curse command, or by !spawn slime_mini.</p>
+            <ul style="margin-top:12px;">
+              <li><strong>AI:</strong> Direct chase. Smallest hitbox in the game (radius 6).</li>
+              <li><strong>Speed:</strong> 65 — faster than the player base movement.</li>
+              <li><strong>Note:</strong> Low HP and XP, but dangerous in swarms.</li>
+            </ul>
+            <div style="margin-top:14px;">
+              <span style="font-family:var(--font-sub);font-size:11px;color:var(--color-text-dim);display:block;margin-bottom:6px;">TWITCH SPAWN COMMAND</span>
+              <button class="spawn-copy-btn" data-cmd="!spawn slime_mini" title="Click to copy">!spawn slime_mini</button>
+            </div>
+          </div>
+
+          <!-- SKELETON -->
+          <div class="wiki-card" style="border-color:#eccc68;">
+            <span class="card-element-badge" style="color:#eccc68;">Standard</span>
+            <h3 class="wiki-card-title" style="color:#eccc68;">Runic Archer</h3>
+            <p class="wiki-card-subtitle">skeleton</p>
+            <p>A ranged enemy that maintains an ideal distance of 200px and fires Fire bolts. Named differently in each region theme (Ivy Archer, Fossil Sentry, Coral Sentry, Lagging Sentry).</p>
+            <ul style="margin-top:12px;">
+              <li><strong>AI:</strong> Keep Distance — backs away if too close, approaches if too far.</li>
+              <li><strong>Attack:</strong> Single Fire bolt every 2.2s, effective range 350px.</li>
+              <li><strong>Weakness:</strong> Frost slows it; Lightning shock increases damage taken by 35%.</li>
+            </ul>
+            <div style="margin-top:14px;">
+              <span style="font-family:var(--font-sub);font-size:11px;color:var(--color-text-dim);display:block;margin-bottom:6px;">TWITCH SPAWN COMMAND</span>
+              <button class="spawn-copy-btn" data-cmd="!spawn skeleton" title="Click to copy">!spawn skeleton</button>
+            </div>
+          </div>
+
+          <!-- SKELETON ELITE -->
+          <div class="wiki-card" style="border-color:#f1c40f;">
+            <span class="card-element-badge" style="color:#f1c40f;">Elite</span>
+            <h3 class="wiki-card-title" style="color:#f1c40f;">Elite Glacial Archer</h3>
+            <p class="wiki-card-subtitle">skeleton_elite</p>
+            <p>A powerful ranged attacker that fires a triple Frost arrow spread every 1.4 seconds. Each arrow applies a slow status, making it very dangerous in tight corridors.</p>
+            <ul style="margin-top:12px;">
+              <li><strong>AI:</strong> Keep Distance — same as base Skeleton but faster.</li>
+              <li><strong>Attack:</strong> Triple Frost spread (-0.22 / 0 / +0.22 rad offset) every 1.4s.</li>
+              <li><strong>Loot:</strong> 50% chance to drop a Relic or Gear piece.</li>
+            </ul>
+            <div style="margin-top:14px;">
+              <span style="font-family:var(--font-sub);font-size:11px;color:var(--color-text-dim);display:block;margin-bottom:6px;">TWITCH SPAWN COMMAND</span>
+              <button class="spawn-copy-btn" data-cmd="!spawn skeleton_elite" title="Click to copy">!spawn skeleton_elite</button>
+            </div>
+          </div>
+
+          <!-- HORROR -->
+          <div class="wiki-card" style="border-color:#a55eea;">
+            <span class="card-element-badge" style="color:#a55eea;">Standard</span>
+            <h3 class="wiki-card-title" style="color:#a55eea;">Void Stalker</h3>
+            <p class="wiki-card-subtitle">horror</p>
+            <p>A teleporting melee-range chaser that also fires Void bolts at range. When hit, it teleports up to 180px away (3s cooldown). Named Vine Creeper, Tunnel Skulker, Abyss Lurker, or The Smiler depending on region.</p>
+            <ul style="margin-top:12px;">
+              <li><strong>AI:</strong> Chase + Teleport — fires Void bolts at targets within 300px every 3s.</li>
+              <li><strong>On Hit:</strong> Teleports randomly up to 180px away (3s cooldown).</li>
+              <li><strong>Weakness:</strong> Lightning shock prevents effective repositioning.</li>
+            </ul>
+            <div style="margin-top:14px;">
+              <span style="font-family:var(--font-sub);font-size:11px;color:var(--color-text-dim);display:block;margin-bottom:6px;">TWITCH SPAWN COMMAND</span>
+              <button class="spawn-copy-btn" data-cmd="!spawn horror" title="Click to copy">!spawn horror</button>
+            </div>
+          </div>
+
+          <!-- HORROR ELITE -->
+          <div class="wiki-card" style="border-color:#9b59b6;">
+            <span class="card-element-badge" style="color:#9b59b6;">Elite</span>
+            <h3 class="wiki-card-title" style="color:#9b59b6;">Elite Void Assassin</h3>
+            <p class="wiki-card-subtitle">horror_elite</p>
+            <p>An upgraded Void Stalker that fires a delayed double-shot: a second Void bolt follows 350ms after the first. Has double HP and the highest base XP among standard enemies.</p>
+            <ul style="margin-top:12px;">
+              <li><strong>AI:</strong> Chase + Teleport — double Void bolt shots every 1.8s.</li>
+              <li><strong>Second Shot:</strong> Refires 350ms later targeting the player's updated position.</li>
+              <li><strong>Loot:</strong> 50% chance to drop a Relic or Gear piece.</li>
+            </ul>
+            <div style="margin-top:14px;">
+              <span style="font-family:var(--font-sub);font-size:11px;color:var(--color-text-dim);display:block;margin-bottom:6px;">TWITCH SPAWN COMMAND</span>
+              <button class="spawn-copy-btn" data-cmd="!spawn horror_elite" title="Click to copy">!spawn horror_elite</button>
+            </div>
+          </div>
+
+          <!-- WARDEN -->
+          <div class="wiki-card" style="border-color:#ff9f43;">
+            <span class="card-element-badge" style="color:#ff9f43;">Elite</span>
+            <h3 class="wiki-card-title" style="color:#ff9f43;">Chrono Warden</h3>
+            <p class="wiki-card-subtitle">warden</p>
+            <p>A heavy-hitting charger immune to Frost slow. Every 2 seconds, if within 220px of the player, it locks onto them and lunges at 220 speed for 0.6s. Named Grove Guardian, Iron Warden, Deep Warden, or Null Pointer Warden.</p>
+            <ul style="margin-top:12px;">
+              <li><strong>AI:</strong> Charge — normal chase, then 220-speed lunge every 2s.</li>
+              <li><strong>Immunity:</strong> Completely ignores Frost slow effects.</li>
+              <li><strong>Tell:</strong> Gold particle burst marks the start of each charge.</li>
+            </ul>
+            <div style="margin-top:14px;">
+              <span style="font-family:var(--font-sub);font-size:11px;color:var(--color-text-dim);display:block;margin-bottom:6px;">TWITCH SPAWN COMMAND</span>
+              <button class="spawn-copy-btn" data-cmd="!spawn warden" title="Click to copy">!spawn warden</button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Theme aliases reference table -->
+        <h2 style="font-family:var(--font-sub);font-size:15px;color:#fff;margin:32px 0 14px;letter-spacing:1px;">REGION NAME ALIASES</h2>
+        <p style="color:#a4b0be;font-size:14px;margin-bottom:16px;">Enemies are renamed based on the region sector they spawn in. The underlying type ID and stats remain identical.</p>
+        <div class="wiki-box" style="padding:0;">
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Type ID</th>
+                  <th>Dungeon (default)</th>
+                  <th>Gardens</th>
+                  <th>Underground</th>
+                  <th>Pool</th>
+                  <th>Backrooms</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><code>slime</code></td><td>Aether Slime</td><td>Spore Slime</td><td>Cavern Slime</td><td>Aquatic Slime</td><td>Glitch Slime</td></tr>
+                <tr><td><code>slime_elite</code></td><td>Elite Fire Slime</td><td>Elite Blossom Slime</td><td>Elite Magma Slime</td><td>Elite Tide Slime</td><td>Elite Error Slime</td></tr>
+                <tr><td><code>slime_mini</code></td><td>Mini Slime</td><td>Seed Slime</td><td>Rock Slime</td><td>Droplet Slime</td><td>Pixel Slime</td></tr>
+                <tr><td><code>skeleton</code></td><td>Runic Archer</td><td>Ivy Archer</td><td>Fossil Sentry</td><td>Coral Sentry</td><td>Lagging Sentry</td></tr>
+                <tr><td><code>skeleton_elite</code></td><td>Elite Glacial Archer</td><td>Elite Thorn Archer</td><td>Elite Deep Archer</td><td>Elite Abyssal Archer</td><td>Elite Glitched Archer</td></tr>
+                <tr><td><code>horror</code></td><td>Void Stalker</td><td>Vine Creeper</td><td>Tunnel Skulker</td><td>Abyss Lurker</td><td>The Smiler</td></tr>
+                <tr><td><code>horror_elite</code></td><td>Elite Void Assassin</td><td>Elite Bramble Stalker</td><td>Elite Maw Horror</td><td>Elite Siren Terror</td><td>Elite Bacteria Assassin</td></tr>
+                <tr><td><code>warden</code></td><td>Chrono Warden</td><td>Grove Guardian</td><td>Iron Warden</td><td>Deep Warden</td><td>Null Pointer Warden</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Boss note -->
+        <div class="wiki-card" style="margin-top:24px;border-color:#ff4757;">
+          <h3 class="wiki-card-title" style="color:#ff4757;">Boss Anomalies — Not Directly Spawnable</h3>
+          <p>The three world bosses (Archon at wave 5, Volcanic Titan at wave 10, Void Behemoth at wave 15) cannot be summoned via the Twitch spawn command. They are tied to wave progression events. See the <strong>Boss Anomalies</strong> section for full details on their attack phases.</p>
+        </div>
+
+      </section>
+
     </main>
   </div>
 
   <!-- Interactive JavaScript -->
   <script>
+    // ── Spawn copy-to-clipboard ──────────────────────────────────────────────
+    document.addEventListener('click', function(e) {
+      const btn = e.target.closest('.spawn-copy-btn');
+      if (!btn) return;
+      const cmd = btn.dataset.cmd;
+      if (!cmd) return;
+      navigator.clipboard.writeText(cmd).then(() => {
+        btn.classList.add('copied');
+        const origText = btn.textContent;
+        btn.textContent = 'Copied!';
+        const toast = document.getElementById('spawn-toast');
+        if (toast) {
+          toast.style.opacity = '1';
+          toast.style.transform = 'translateX(-50%) translateY(0)';
+          clearTimeout(toast._hideTimer);
+          toast._hideTimer = setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(-50%) translateY(20px)';
+          }, 1800);
+        }
+        setTimeout(() => {
+          btn.textContent = origText;
+          btn.classList.remove('copied');
+        }, 1500);
+      }).catch(() => {
+        // Fallback: select the text for manual copy
+        const ta = document.createElement('textarea');
+        ta.value = cmd;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      });
+    });
+
     const wikiIconPalette = {
       '.': null,
       'k': '#10121a',

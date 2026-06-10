@@ -443,7 +443,7 @@ export class TwitchManager {
         const dist = 300 + Math.random() * 200;
         const ex = player.x + Math.cos(angle) * dist;
         const ey = player.y + Math.sin(angle) * dist;
-        const types = ['slime', 'skeleton', 'horror'];
+        const types = ['slime', 'slime_elite', 'slime_mini', 'skeleton', 'skeleton_elite', 'horror', 'horror_elite', 'warden'];
         const spawnType = cmd.args[0] && types.includes(cmd.args[0]) ? cmd.args[0] : types[Math.floor(Math.random() * types.length)];
         game.spawnEnemy(ex, ey, spawnType);
         game.particles.spawnText(player.x, player.y - 60, `${cmd.username} spawned ${spawnType}!`, {
