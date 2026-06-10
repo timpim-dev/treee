@@ -169,11 +169,18 @@ export class Game {
           <div id="mp-room-info" style="display:none; margin-top:14px; padding:12px; background:rgba(125,95,255,0.1); border:2px dashed rgba(125,95,255,0.5); text-align:center;">
             <div style="font-size:7px; color:#a4b0be; margin-bottom:6px;">ROOM CODE</div>
             <div id="mp-room-code" style="font-size:20px; color:#fff; letter-spacing:6px; text-shadow:0 0 10px rgba(125,95,255,0.6); margin-bottom:10px;"></div>
-            <button id="mp-copy-link" style="
-              background:#111424; border:3px solid #7d5fff; color:#7d5fff;
-              font-family:'Press Start 2P',monospace; font-size:7px; padding:6px 12px;
-              cursor:pointer; box-shadow:3px 3px 0 #5b3cc4;
-            ">COPY INVITE LINK</button>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <button id="mp-copy-link" style="
+                background:#111424; border:3px solid #7d5fff; color:#7d5fff;
+                font-family:'Press Start 2P',monospace; font-size:7px; padding:6px 12px;
+                cursor:pointer; box-shadow:3px 3px 0 #5b3cc4;
+              ">COPY INVITE LINK</button>
+              <button id="mp-load-room-btn" style="
+                background:#7d5fff; border:3px solid #fff; color:#fff;
+                font-family:'Press Start 2P',monospace; font-size:8px; padding:8px 12px;
+                cursor:pointer; box-shadow:3px 3px 0 #5b3cc4;
+              ">START GAME / LOAD ROOM</button>
+            </div>
           </div>
         </div>
 
@@ -308,6 +315,15 @@ export class Game {
         this._setMpStatus('LINK COPIED!');
       });
 
+      modal.querySelector('#mp-load-room-btn').addEventListener('click', () => {
+        this.isTutorial = false;
+        this.isStoryMode = false;
+        const tg = document.getElementById('tutorial-guide');
+        if (tg) tg.classList.add('hidden');
+        this.startNewGame();
+        this._closeMultiplayerModal();
+      });
+
       // Hidden input to hold share link value
       const shareLinkInput = document.createElement('input');
       shareLinkInput.id = 'mp-share-link-val';
@@ -381,6 +397,8 @@ export class Game {
           this._setMpStatus('JOINING ' + (s.code || '') + '...');
         } else if (s.type === 'host_connected') {
           this._setMpStatus('CONNECTED!');
+          this._closeMultiplayerModal();
+          this.setState('PLAYING');
         } else if (s.type === 'join_rejected') {
           this._setMpStatus('DENIED: ' + (s.reason || 'rejected').toUpperCase());
         } else if (s.type === 'kicked') {
