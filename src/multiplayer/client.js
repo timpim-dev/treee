@@ -570,7 +570,7 @@ export class MultiplayerManager {
       }
       console.log('[MP] _tryInitAblyChannel — token received, importing Ably...');
       const Ably = (await import('ably')).Realtime;
-      this.ably = new Ably({ token: tokenRequest.token });
+      this.ably = new Ably({ tokenDetails: tokenRequest });
       const channelName = `rooms:${code}`;
       this.ablyChannel = this.ably.channels.get(channelName);
       this.clientId = tokenRequest.clientId || `ably_${Date.now()}`;
