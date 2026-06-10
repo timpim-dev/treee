@@ -8,9 +8,17 @@
     {
       "src": "src/multiplayer/signaling/server.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "api/ably/token.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
+    {
+      "src": "/api/ably/token",
+      "dest": "/api/ably/token.js"
+    },
     {
       "src": "/api/rooms/(.*)",
       "dest": "/src/multiplayer/signaling/server.js"
