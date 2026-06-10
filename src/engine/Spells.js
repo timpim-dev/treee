@@ -834,7 +834,42 @@ export const SpellBook = {
         }
       }, 400);
     }
-  }
+  },
+
+  // --- TIME ECHO (new) ---
+  time_echo: {
+    id: 'time_echo',
+    name: 'Time Echo',
+    element: SPELL_TYPES.TIME,
+    cooldown: 14.0,
+    manaCost: 30,
+    description: 'Summons a spectral mirror image of yourself that auto-fires magic bolts at nearby enemies for 8 seconds.',
+    cast(player, targetAngle, game) {
+      // Spawn the echo slightly offset from the player
+      const offsetX = Math.cos(targetAngle + Math.PI * 0.5) * 28;
+      const offsetY = Math.sin(targetAngle + Math.PI * 0.5) * 28;
+      const echo = {
+        x: player.x + offsetX,
+        y: player.y + offsetY,
+        life: 8.0,          // seconds remaining
+        shootTimer: 0.0,
+        shootInterval: 0.6, // fires every 0.6 s
+        isEcho: true,
+        radius: 8,
+        // Visual: ghost tint
+        hueShift: player.hueShift || 0,
+        alpha: 0.55,
+      };
+      game.echoClones = game.echoClones || [];
+      game.echoClones.push(echo);
+
+      game.particles.createExplosion(echo.x, echo.y, '#ff9f43', 18, 100, 3);
+      game.particles.spawnText(echo.x, echo.y - 28, 'TIME ECHO!', {
+        color: '#ff9f43', fontSize: 12, fontPixel: true, life: 1.5
+      });
+      if (game.audio) game.audio.playTeleport();
+    }
+  },
 };
 
 /**
@@ -861,6 +896,35 @@ export function processCombo(enemy, spellType, game) {
       };
       currentStatuses[SPELL_TYPES.FROST] = 0; // consume status
     }
+
+    else if (currentStatuses[SPELL_TYPES.LIGHTNING] > 0) {
+      // Fire hits Lightning -> OVERLOAD
+      comboTriggered = {
+        name: 'OVERLOAD',
+        color: '#ff6348',
+        class: 'overload',
+        effect() {
+          const radius = 100;
+          game.enemies.forEach(nearby => {
+            if (nearby.dead) return;
+            const d = Math.hypot(nearby.x - enemy.x, nearby.y - enemy.y);
+            if (d <= radius) {
+              const falloff = 1 - d / radius;
+              nearby.takeDamage(Math.round(50 * falloff), true, game);
+              if (!nearby.dead) {
+                const ang = d > 0.001 ? Math.atan2(nearby.y - enemy.y, nearby.x - enemy.x) : Math.random() * Math.PI * 2;
+                nearby.applyKnockback(Math.cos(ang) * 350, Math.sin(ang) * 350);
+              }
+            }
+          });
+          game.spawnAreaEffect(enemy.x, enemy.y, 100, 'fire_pool', 1.5);
+          game.particles.createExplosion(enemy.x, enemy.y, '#ff6348', 30, 180, 6);
+          if (game.audio) game.audio.playExplosion();
+          game.screenShake = 10;
+        }
+      };
+      currentStatuses[SPELL_TYPES.LIGHTNING] = 0; // consume status
+    }
   } 
   
   else if (spellType === SPELL_TYPES.LIGHTNING) {
@@ -879,15 +943,74 @@ export function processCombo(enemy, spellType, game) {
       };
       currentStatuses[SPELL_TYPES.FROST] = 0;
     }
+
+    else if (currentStatuses[SPELL_TYPES.FIRE] > 0) {
+      // Lightning hits Fire -> OVERLOAD (same as Fire+Lightning, symmetric)
+      comboTriggered = {
+        name: 'OVERLOAD',
+        color: '#ff6348',
+        class: 'overload',
+        effect() {
+          const radius = 100;
+          game.enemies.forEach(nearby => {
+            if (nearby.dead) return;
+            const d = Math.hypot(nearby.x - enemy.x, nearby.y - enemy.y);
+            if (d <= radius) {
+              const falloff = 1 - d / radius;
+              nearby.takeDamage(Math.round(50 * falloff), true, game);
+              if (!nearby.dead) {
+                const ang = d > 0.001 ? Math.atan2(nearby.y - enemy.y, nearby.x - enemy.x) : Math.random() * Math.PI * 2;
+                nearby.applyKnockback(Math.cos(ang) * 350, Math.sin(ang) * 350);
+              }
+            }
+          });
+          game.spawnAreaEffect(enemy.x, enemy.y, 100, 'fire_pool', 1.5);
+          game.particles.createExplosion(enemy.x, enemy.y, '#ff6348', 30, 180, 6);
+          if (game.audio) game.audio.playExplosion();
+          game.screenShake = 10;
+        }
+      };
+      currentStatuses[SPELL_TYPES.FIRE] = 0;
+    }
   }
 
   else if (spellType === SPELL_TYPES.VOID) {
-    // Void can combine with fire inside Singularities
-    // This is handled actively inside the AreaEffect update loop when a fire projectile enters the singularity.
+    if (currentStatuses[SPELL_TYPES.FROST] > 0) {
+      // Void hits Frost -> PARADOX — gravitational implosion + deep slow
+      comboTriggered = {
+        name: 'PARADOX',
+        color: '#a55eea',
+        class: 'paradox',
+        effect() {
+          const radius = 120;
+          // Pull all enemies in radius toward the hit enemy (implosion)
+          game.enemies.forEach(nearby => {
+            if (nearby.dead) return;
+            const d = Math.hypot(nearby.x - enemy.x, nearby.y - enemy.y);
+            if (d <= radius && d > 0.001) {
+              const ang = Math.atan2(enemy.y - nearby.y, enemy.x - nearby.x); // toward center
+              const pullStrength = ((radius - d) / radius) * 400;
+              nearby.applyKnockback(Math.cos(ang) * pullStrength, Math.sin(ang) * pullStrength);
+              // Apply a deep 85% slow via frost status (long duration)
+              nearby.applyStatus(SPELL_TYPES.FROST, 3.0);
+            }
+          });
+          game.spawnAreaEffect(enemy.x, enemy.y, 120, 'singularity', 1.8);
+          game.particles.createExplosion(enemy.x, enemy.y, '#a55eea', 28, 160, 5);
+          if (game.audio) game.audio.playTeleport();
+          game.screenShake = 8;
+        }
+      };
+      currentStatuses[SPELL_TYPES.FROST] = 0;
+    } else {
+      // Void can combine with fire inside Singularities
+      // This is handled actively inside the AreaEffect update loop when a fire projectile enters the singularity.
+    }
   }
 
   // Record combo visual indicator
   if (comboTriggered) {
+    comboTriggered.effect();
     game.lastTriggeredComboClass = comboTriggered.class;
 
     // Spawn floating combo label on screen

@@ -60,7 +60,7 @@
             href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap"
             rel="stylesheet"
         />
-      <script type="module" crossorigin src="/assets/main-BM46RIYN.js"></script>
+      <script type="module" crossorigin src="/assets/main-rhAcZID5.js"></script>
       <link rel="stylesheet" crossorigin href="/assets/main-DlEOkV-7.css">
     </head>
     <body>
@@ -385,7 +385,7 @@
                             ></canvas>
                         </div>
                         <div class="menu-version-indicator" id="menu-version">
-                            v0.5.6Beta
+                            v0.6.0-beta
                         </div>
                     </div>
 
@@ -694,9 +694,7 @@
                         <button class="settings-tab-btn" data-tab="controls">
                             CONTROLS
                         </button>
-                        <button class="settings-tab-btn" data-tab="multiplayer">
-                            MULTIPLAYER
-                        </button>
+                        <!-- Multiplayer settings tab hidden while multiplayer is paused -->
                     </div>
 
                     <div class="menu-buttons" style="margin-top: 10px">
@@ -2005,9 +2003,9 @@
                             </button>
                         </div>
 
-                        <!-- Multiplayer Mode -->
+                        <!-- Multiplayer Mode -- temporarily disabled -->
                         <div
-                            class="mode-card"
+                            class="mode-card disabled-mode"
                             id="mode-card-multiplayer"
                         >
                             <div class="mode-preview-box">
@@ -2019,11 +2017,11 @@
                             </div>
                             <h3>MULTIPLAYER</h3>
                             <p>
-                                Co-op with fellow Runeweavers or duel in active
-                                PvP arenas.
+                                Co-op and PvP modes are temporarily unavailable
+                                while we rework the system.
                             </p>
-                            <button id="btn-start-multiplayer" class="btn-menu small">
-                                START MULTIPLAYER
+                            <button id="btn-start-multiplayer" class="btn-menu small secondary" disabled>
+                                COMING BACK SOON
                             </button>
                         </div>
                     </div>
@@ -2668,6 +2666,103 @@
                 >
                     PROCEED ANYWAY
                 </button>
+            </div>
+        </div>
+
+        <!-- Changelog Panel (shown on version update) -->
+        <div id="panel-changelog" style="
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(0,0,0,0.82);
+            align-items: center;
+            justify-content: center;
+            font-family: 'Press Start 2P', monospace;
+        ">
+            <div style="
+                background: linear-gradient(145deg, #0d1117, #161b22);
+                border: 1px solid #30363d;
+                border-radius: 12px;
+                padding: 36px 42px;
+                max-width: 640px;
+                width: 90%;
+                max-height: 80vh;
+                overflow-y: auto;
+                position: relative;
+                box-shadow: 0 0 60px rgba(90,60,200,0.35), 0 0 0 1px rgba(90,60,200,0.15);
+            ">
+                <div style="
+                    font-size: 7px;
+                    color: #8b949e;
+                    letter-spacing: 2px;
+                    text-transform: uppercase;
+                    margin-bottom: 6px;
+                ">WHAT'S NEW</div>
+                <div style="
+                    font-size: 13px;
+                    color: #c9d1d9;
+                    margin-bottom: 4px;
+                    letter-spacing: 1px;
+                ">AETHERWEAVER</div>
+                <div id="changelog-version-badge" style="
+                    display: inline-block;
+                    font-size: 7px;
+                    color: #8b5cf6;
+                    border: 1px solid #8b5cf6;
+                    padding: 3px 8px;
+                    border-radius: 4px;
+                    margin-bottom: 24px;
+                    letter-spacing: 1px;
+                ">v0.6.0-beta</div>
+
+                <div id="changelog-content" style="
+                    font-size: 7px;
+                    color: #8b949e;
+                    line-height: 2.2;
+                    letter-spacing: 0.5px;
+                ">
+                    <div style="color:#c9d1d9; font-size:8px; margin-bottom:10px; border-bottom:1px solid #30363d; padding-bottom:8px;">
+                        v0.6.0-beta -- June 2026
+                    </div>
+
+                    <div style="color:#58a6ff; margin-bottom:6px; font-size:7px;">GAMEPLAY</div>
+                    <div style="margin-bottom:4px; padding-left:8px;">-- Multiplayer is temporarily offline while the system is reworked. Singleplayer is unaffected.</div>
+                    <div style="margin-bottom:4px; padding-left:8px;">-- New elemental combo: OVERLOAD (Fire + Lightning) -- area knockback explosion</div>
+                    <div style="margin-bottom:4px; padding-left:8px;">-- New elemental combo: PARADOX (Void + Frost) -- gravitational implosion + slow field</div>
+                    <div style="margin-bottom:4px; padding-left:8px;">-- New spell: TIME ECHO -- summons a spectral mirror that auto-fires magic bolts at nearby enemies for 8 seconds</div>
+                    <div style="margin-bottom:16px; padding-left:8px;">-- Enemy packs now spread out instead of stacking. Enemies use a separation force to maintain spacing.</div>
+
+                    <div style="color:#58a6ff; margin-bottom:6px; font-size:7px;">FIXES AND POLISH</div>
+                    <div style="margin-bottom:4px; padding-left:8px;">-- Fixed UI freeze when clicking PLAY from main menu after visiting certain panels</div>
+                    <div style="margin-bottom:4px; padding-left:8px;">-- Improved invite link reliability (Ably fallback to WebSocket now triggers correctly)</div>
+                    <div style="margin-bottom:4px; padding-left:8px;">-- Changelog panel now shows automatically on first launch of a new version</div>
+                    <div style="margin-bottom:4px; padding-left:8px;">-- Settings persistence improved for multiplayer preferences</div>
+                    <div style="margin-bottom:16px; padding-left:8px;">-- Ability tree is now independent between singleplayer and multiplayer sessions</div>
+
+                    <div style="color:#58a6ff; margin-bottom:6px; font-size:7px;">PREVIOUS -- v0.5.6-beta</div>
+                    <div style="margin-bottom:4px; padding-left:8px;">-- Multiplayer lobby with room codes and special options</div>
+                    <div style="margin-bottom:4px; padding-left:8px;">-- Load room from JSON file in multiplayer lobby</div>
+                    <div style="margin-bottom:4px; padding-left:8px;">-- New wall tiles and dungeon room generator improvements</div>
+                    <div style="margin-bottom:4px; padding-left:8px;">-- Ability tree node editor in Level Builder</div>
+                </div>
+
+                <div style="margin-top:28px; text-align:right;">
+                    <button id="btn-changelog-close" style="
+                        font-family: 'Press Start 2P', monospace;
+                        font-size: 7px;
+                        background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+                        color: #fff;
+                        border: none;
+                        border-radius: 6px;
+                        padding: 10px 22px;
+                        cursor: pointer;
+                        letter-spacing: 1px;
+                        transition: opacity 0.15s;
+                    " onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+                        GOT IT
+                    </button>
+                </div>
             </div>
         </div>
 

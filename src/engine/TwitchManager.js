@@ -50,7 +50,7 @@ export class TwitchManager {
       'vote':      { cooldown: 0,  enabled: true, desc: 'Vote on events', bits: 0, redeemId: '' },
       'gg':        { cooldown: 3,  enabled: true, desc: 'GG celebration', perUser: true, bits: 0, redeemId: '' },
       'backrooms': { cooldown: 120, enabled: true, desc: 'Backrooms chance', bits: 0, redeemId: '' },
-      'join':      { cooldown: 30,  enabled: true, desc: 'Join streamer multiplayer room', bits: 0, redeemId: '' },
+      'join':      { cooldown: 30,  enabled: false, desc: 'Join streamer multiplayer room (temporarily disabled)', bits: 0, redeemId: '' },
     };
 
     this.enableAnnouncements = true;

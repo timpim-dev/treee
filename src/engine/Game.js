@@ -529,33 +529,9 @@ export class Game {
       });
     }
 
-    // Auto-join multiplayer room via ?join=slug (streamer URLs map to room codes)
-    const joinParam = urlParams.get('join');
-    if (joinParam) {
-      // Auto-connect to streamer chat so viewer is "connected" for multiplayer
-      if (this.twitchManager.enabled !== false && !this.twitchManager.connected) {
-        this.twitchManager.connect(joinParam);
-      }
-    }
-    if (joinParam && this.multiplayer) {
-      try {
-        const roomCode = joinParam.toUpperCase();
-        const twitchUser = (this.twitchManager && this.twitchManager.channel) ? this.twitchManager.channel : null;
-        console.log(`[Multiplayer] Auto-joining room from URL parameter: ${joinParam} -> ${roomCode}`);
-        const doJoin = () => {
-          this.multiplayer.joinRoom(roomCode, {
-            displayName: twitchUser || 'player',
-            twitchUser: twitchUser,
-          }).then(res => {
-            if (!res.ok) console.warn('Auto-join failed', res);
-            else if (this.state === 'MENU') this._setMpStatus('Joined room ' + roomCode + ' — start playing!');
-          }).catch(e => console.warn('Auto-join error', e));
-        };
-        setTimeout(doJoin, 1500);
-      } catch (e) {
-        console.warn('Failed to process join URL param', e);
-      }
-    }
+    // Auto-join multiplayer room via ?join=slug -- DISABLED (multiplayer temporarily paused)
+    // const joinParam = urlParams.get('join');
+    // Multiplayer auto-join and direct-join button are both suppressed until multiplayer is re-enabled.
 
     this.initKeybinds();
     this.initPlayerAccountUI();
@@ -563,6 +539,9 @@ export class Game {
     this.initStoryModeUI();
     this.parseTwitchOAuthHash();
     this.parsePlayerOAuthRedirect();
+
+    // Changelog: show panel when version changes
+    this._initChangelog();
 
     // Start rendering loops
     window.addEventListener('resize', () => {
@@ -572,6 +551,34 @@ export class Game {
     
     // Kick off animation loop
     requestAnimationFrame((time) => this.loop(time));
+  }
+
+  /** Show changelog panel the first time a new version is encountered. */
+  _initChangelog() {
+    const CURRENT_VERSION = 'v0.6.0-beta';
+    const STORAGE_KEY = 'aetherweaver_seen_version';
+    const panel = document.getElementById('panel-changelog');
+    if (!panel) return;
+    const seenVersion = localStorage.getItem(STORAGE_KEY);
+    if (seenVersion !== CURRENT_VERSION) {
+      // Show the panel
+      panel.style.display = 'flex';
+      // Close button
+      const btn = document.getElementById('btn-changelog-close');
+      if (btn) {
+        btn.addEventListener('click', () => {
+          panel.style.display = 'none';
+          localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);
+        });
+      }
+      // Also close when clicking backdrop
+      panel.addEventListener('click', (e) => {
+        if (e.target === panel) {
+          panel.style.display = 'none';
+          localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);
+        }
+      });
+    }
   }
 
   resizeCanvas() {
@@ -1227,14 +1234,7 @@ export class Game {
     }
 
     const btnStartMultiplayer = document.getElementById('btn-start-multiplayer');
-    if (btnStartMultiplayer) {
-      btnStartMultiplayer.addEventListener('click', () => {
-        if (!this._openMultiplayerModal) {
-          try { this.initMultiplayerUI(); } catch(e) { console.warn('initMultiplayerUI failed', e); }
-        }
-        if (this._openMultiplayerModal) this._openMultiplayerModal();
-      });
-    }
+    // btn-start-multiplayer is currently disabled via HTML attribute; no click listener needed while multiplayer is paused.
 
     // Customize Selector Buttons
     const presets = [
@@ -4762,8 +4762,58 @@ export class Game {
       }
     }
 
+    // ── Time Echo clone update ─────────────────────────────────────────────
+    if (this.echoClones && this.echoClones.length > 0) {
+      for (let i = this.echoClones.length - 1; i >= 0; i--) {
+        const echo = this.echoClones[i];
+        echo.life -= dt;
+        if (echo.life <= 0) {
+          this.particles.createExplosion(echo.x, echo.y, '#ff9f43', 12, 80, 2);
+          this.echoClones.splice(i, 1);
+          continue;
+        }
+
+        // Pulsing ambient particle so the clone is visible
+        if (Math.random() < 0.35) {
+          this.particles.spawn(echo.x + (Math.random() - 0.5) * 16, echo.y + (Math.random() - 0.5) * 16, {
+            vx: (Math.random() - 0.5) * 20,
+            vy: -15 - Math.random() * 15,
+            color: '#ff9f43',
+            size: 1.5,
+            life: 0.4,
+            glow: true,
+          });
+        }
+
+        // Auto-attack the nearest enemy every shootInterval seconds
+        echo.shootTimer += dt;
+        if (echo.shootTimer >= echo.shootInterval) {
+          echo.shootTimer = 0;
+          let nearest = null;
+          let minD = 280;
+          for (const enemy of this.enemies) {
+            if (enemy.dead) continue;
+            const d = Math.hypot(enemy.x - echo.x, enemy.y - echo.y);
+            if (d < minD) { minD = d; nearest = enemy; }
+          }
+          if (nearest) {
+            const angle = Math.atan2(nearest.y - echo.y, nearest.x - echo.x);
+            this.spawnProjectile(echo.x, echo.y, angle, {
+              element: SPELL_TYPES.TIME,
+              damage: Math.round(12 * (this.player.modifiers.allDamage || 1.0)),
+              speed: 260,
+              radius: 6,
+              sprite: 'proj_lightning',
+              id: 'echo_bolt',
+            }, true);
+          }
+        }
+      }
+    }
+
     // Update Area Effects (Singularities, Steam clouds, slow zones)
     for (let i = this.areaEffects.length - 1; i >= 0; i--) {
+
       const ae = this.areaEffects[i];
       ae.duration -= dt;
       if (ae.duration <= 0) {
@@ -5358,6 +5408,37 @@ export class Game {
       this.companions.forEach((comp) => {
         if ((comp.x - playerX) ** 2 + (comp.y - playerY) ** 2 > renderDistanceSq) return;
         comp.draw(this.ctx, this.assets);
+      });
+    }
+
+    // Draw Time Echo clones
+    if (this.echoClones && this.echoClones.length > 0) {
+      this.echoClones.forEach(echo => {
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.globalAlpha = echo.alpha || 0.55;
+        // Glowing halo
+        ctx.shadowColor = '#ff9f43';
+        ctx.shadowBlur = 14;
+        // Ghost silhouette — drawn as player-coloured circle with dashed border
+        ctx.beginPath();
+        ctx.arc(echo.x, echo.y, echo.radius + 2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,159,67,0.35)';
+        ctx.fill();
+        // Outline
+        ctx.strokeStyle = '#ff9f43';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Life arc
+        const lifeRatio = Math.min(1, echo.life / 8.0);
+        ctx.beginPath();
+        ctx.arc(echo.x, echo.y, echo.radius + 6, -Math.PI * 0.5, -Math.PI * 0.5 + Math.PI * 2 * lifeRatio);
+        ctx.strokeStyle = 'rgba(255,200,100,0.65)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
       });
     }
 

@@ -860,7 +860,50 @@ export class Enemy {
       }
     }
 
+    // ── Peer separation (prevents enemies from clumping) ──────────────────
+    // Only apply for regular enemy types; skip for bosses to avoid interfering
+    // with their scripted movement.
+    if (!isBossOrCharging) {
+      const SEP_RADIUS = this.radius * 3.5; // zone where repulsion kicks in
+      const SEP_STRENGTH = 0.55;            // weight of separation vs chase
+      let sepX = 0, sepY = 0, sepCount = 0;
+
+      const enemies = this.game.enemies;
+      for (let i = 0; i < enemies.length; i++) {
+        const other = enemies[i];
+        if (other === this || other.dead) continue;
+        const sdx = this.x - other.x;
+        const sdy = this.y - other.y;
+        const distSq = sdx * sdx + sdy * sdy;
+        const minSep = SEP_RADIUS + other.radius;
+        if (distSq < minSep * minSep && distSq > 0.0001) {
+          const d = Math.sqrt(distSq);
+          // Repulsion magnitude is stronger the closer they are
+          const mag = (minSep - d) / minSep;
+          sepX += (sdx / d) * mag;
+          sepY += (sdy / d) * mag;
+          sepCount++;
+        }
+      }
+
+      if (sepCount > 0) {
+        // Normalise
+        const sepMag = Math.sqrt(sepX * sepX + sepY * sepY);
+        if (sepMag > 0.0001) {
+          sepX /= sepMag;
+          sepY /= sepMag;
+        }
+        // Blend separation into move direction
+        moveX = moveX * (1 - SEP_STRENGTH) + sepX * SEP_STRENGTH;
+        moveY = moveY * (1 - SEP_STRENGTH) + sepY * SEP_STRENGTH;
+        // Re-normalise blended direction
+        const blMag = Math.sqrt(moveX * moveX + moveY * moveY);
+        if (blMag > 0.0001) { moveX /= blMag; moveY /= blMag; }
+      }
+    }
+
     // ── Integrate ─────────────────────────────────────────────────────────
+
     const finalVx = moveX * currentSpeed + this.kbX;
     const finalVy = moveY * currentSpeed + this.kbY;
 
