@@ -146,6 +146,13 @@ export class Player {
     this.shopMaxMp = 0;
     this.shopManaRegen = 0;
 
+    // Purchase counts for exponential shop pricing
+    this.shopBoughtHp = 0;
+    this.shopBoughtMp = 0;
+    this.shopBoughtVit = 0;
+    this.shopBoughtMana = 0;
+    this.shopBoughtRelic = 0;
+
     // Storage system — both are unlimited, no slot cap
     // runeStorage: collected runes waiting to be equipped
     // equippedRunes: active rune slots (only these apply stats), max maxRuneSlots
@@ -295,6 +302,22 @@ export class Player {
 
     // Load local save progress if existing
     this.loadGameState();
+  }
+
+  getShopPriceHp() {
+    return Math.round(15 * Math.pow(1.4, this.shopBoughtHp || 0));
+  }
+  getShopPriceMp() {
+    return Math.round(15 * Math.pow(1.4, this.shopBoughtMp || 0));
+  }
+  getShopPriceVit() {
+    return Math.round(40 * Math.pow(1.5, this.shopBoughtVit || 0));
+  }
+  getShopPriceMana() {
+    return Math.round(40 * Math.pow(1.5, this.shopBoughtMana || 0));
+  }
+  getShopPriceRelic() {
+    return Math.round(50 * Math.pow(1.6, this.shopBoughtRelic || 0));
   }
 
   /**
@@ -1072,6 +1095,11 @@ export class Player {
     this.shopMaxHp     = 0;
     this.shopMaxMp     = 0;
     this.shopManaRegen = 0;
+    this.shopBoughtHp  = 0;
+    this.shopBoughtMp  = 0;
+    this.shopBoughtVit = 0;
+    this.shopBoughtMana = 0;
+    this.shopBoughtRelic = 0;
     this.runeStorage   = [];
     this.equippedRunes = [];
     this.gearStorage   = [];
@@ -1115,10 +1143,15 @@ export class Player {
       xpNeeded: this.xpNeeded,
       ap: this.ap,
       shards: this.shards,
-      hueShift: this.hueShift,
+      hueShift: this.hueShift || 0,
       shopMaxHp: this.shopMaxHp,
       shopMaxMp: this.shopMaxMp,
       shopManaRegen: this.shopManaRegen,
+      shopBoughtHp: this.shopBoughtHp || 0,
+      shopBoughtMp: this.shopBoughtMp || 0,
+      shopBoughtVit: this.shopBoughtVit || 0,
+      shopBoughtMana: this.shopBoughtMana || 0,
+      shopBoughtRelic: this.shopBoughtRelic || 0,
       runeStorage: this.runeStorage.map(r => r.id),
       equippedRunes: this.equippedRunes.map(r => r.id),
       gearStorage: this.gearStorage.map(g => g.id),
@@ -1166,7 +1199,8 @@ export class Player {
     this._saveTimer = null;
     if (!this._pendingSave) return;
     const isMultiplayer = this.game.multiplayer && (this.game.multiplayer.connected || this.game.multiplayer.roomCode);
-    const saveKey = isMultiplayer ? 'aetherweaver_mp_save' : 'aetherweaver_save';
+    const slot = this.game.activeSlot || 1;
+    const saveKey = isMultiplayer ? `aetherweaver_mp_save_slot_${slot}` : `aetherweaver_save_slot_${slot}`;
     localStorage.setItem(saveKey, JSON.stringify(this._pendingSave));
     this._pendingSave = null;
     if (this.game?.scheduleCloudSync) {
@@ -1177,7 +1211,8 @@ export class Player {
   loadGameState() {
     try {
       const isMultiplayer = this.game.multiplayer && (this.game.multiplayer.connected || this.game.multiplayer.roomCode);
-      const saveKey = isMultiplayer ? 'aetherweaver_mp_save' : 'aetherweaver_save';
+      const slot = this.game.activeSlot || 1;
+      const saveKey = isMultiplayer ? `aetherweaver_mp_save_slot_${slot}` : `aetherweaver_save_slot_${slot}`;
 
       // Always reset tree nodes first to prevent bleed-through between singleplayer and multiplayer
       const tree = this.game.abilityTree;
@@ -1188,7 +1223,15 @@ export class Player {
         }
       }
 
-      const data = localStorage.getItem(saveKey);
+      let data = localStorage.getItem(saveKey);
+      if (!data && slot === 1) {
+        const legacyKey = isMultiplayer ? 'aetherweaver_mp_save' : 'aetherweaver_save';
+        const legacyData = localStorage.getItem(legacyKey);
+        if (legacyData) {
+          localStorage.setItem(saveKey, legacyData);
+          data = legacyData;
+        }
+      }
       if (data) {
         const progress = JSON.parse(data);
         this.level = progress.level || 1;
@@ -1200,6 +1243,11 @@ export class Player {
         this.shopMaxHp = progress.shopMaxHp || 0;
         this.shopMaxMp = progress.shopMaxMp || 0;
         this.shopManaRegen = progress.shopManaRegen || 0;
+        this.shopBoughtHp = progress.shopBoughtHp || 0;
+        this.shopBoughtMp = progress.shopBoughtMp || 0;
+        this.shopBoughtVit = progress.shopBoughtVit || 0;
+        this.shopBoughtMana = progress.shopBoughtMana || 0;
+        this.shopBoughtRelic = progress.shopBoughtRelic || 0;
         this.rebirthCount = progress.rebirthCount || 0;
         this.maxInventorySlots = progress.maxInventorySlots || 4;
         this.maxSpellSlots = progress.maxSpellSlots || 5;
@@ -1272,19 +1320,46 @@ export class Player {
           }
         }
       } else {
-        if (isMultiplayer) {
-          this.level = 1;
-          this.xp = 0;
-          this.xpNeeded = 50;
-          this.ap = 0;
-          this.shards = 0;
-          this.shopMaxHp = 0;
-          this.shopMaxMp = 0;
-          this.shopManaRegen = 0;
-          this.runeStorage = [];
-          this.equippedRunes = [];
-          this.gearStorage = [];
-          this.equipment = { helmet: null, chestplate: null, boots: null, weapon: null, ring: null };
+        // Reset player to a fresh/empty state
+        this.level = 1;
+        this.xp = 0;
+        this.xpNeeded = 50;
+        this.ap = 0;
+        this.shards = 0;
+        this.hueShift = 0;
+        this.shopMaxHp = 0;
+        this.shopMaxMp = 0;
+        this.shopManaRegen = 0;
+        this.shopBoughtHp = 0;
+        this.shopBoughtMp = 0;
+        this.shopBoughtVit = 0;
+        this.shopBoughtMana = 0;
+        this.shopBoughtRelic = 0;
+        this.runeStorage = [];
+        this.equippedRunes = [];
+        this.gearStorage = [];
+        this.equipment = { helmet: null, chestplate: null, boots: null, weapon: null, ring: null };
+        this.rebirthCount = 0;
+        this.rebirthBonuses = {
+          xpGain: 0,
+          shardGain: 0,
+          startingAp: 0,
+          damageBonus: 0,
+          healthBonus: 0
+        };
+        this.unlockedCompanion1 = false;
+        this.unlockedCompanion2 = false;
+        this.completedCompanion1Tree = false;
+        this.completedCompanion1TreeAwarded = false;
+        this.completedCompanion2Tree = false;
+        this.completedCompanion2TreeAwarded = false;
+        this.chapterUnlocked = 1;
+        if (this.game.levelManager) {
+          this.game.levelManager.theme = 'dungeon';
+          this.game.levelManager.unlockedSectors = new Set(["1,1"]);
+          this.game.levelManager.sectorThemes = {"1,1": 'dungeon'};
+          this.game.levelManager.unlockedDoors = new Set();
+          this.game.levelManager.generateObstacles();
         }
       }
 
