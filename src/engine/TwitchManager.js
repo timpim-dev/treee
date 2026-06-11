@@ -341,7 +341,7 @@ export class TwitchManager {
           shockwave: '#eccc68', loot: '#a55eea',
         };
         const feedColor = isOwner ? '#ffd32a' : (colors[cmdName] || '#fff');
-        this.addFeedMessage(username, cmdName, `${isOwner ? '[OWNER] ' : ''}${message}`, feedColor);
+        this.addFeedMessage(username, cmdName, `${isOwner ? '[dev] ' : ''}${message}`, feedColor);
         return;
       }
     }
