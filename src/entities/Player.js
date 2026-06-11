@@ -598,6 +598,7 @@ export class Player {
   takeDamage(amount, game) {
     if (this.game.isTutorial) return;
     if (this.iframeTimer > 0) return; // Immune during dash
+    if ((this.godmodeTimer || 0) > 0) return; // Owner godmode — fully immune
     
     const dr = Math.min(0.75, this.modifiers.damageReduction || 0);
     const finalDamage = Math.max(1, Math.round(amount * (1.0 - dr)));
@@ -733,6 +734,10 @@ export class Player {
     // Timers ticks
     if (this.iframeTimer > 0) this.iframeTimer -= dt;
     if (this.dashSpeedBoostTimer > 0) this.dashSpeedBoostTimer -= dt;
+    if ((this.godmodeTimer || 0) > 0) {
+      this.godmodeTimer -= dt;
+      if (this.godmodeTimer < 0) this.godmodeTimer = 0;
+    }
 
     // Volt Shield active ticks
     if (this.voltShieldTimer > 0) {

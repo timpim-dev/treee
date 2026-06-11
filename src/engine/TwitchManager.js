@@ -2,6 +2,12 @@
  * TwitchManager — Twitch IRC chat integration for viewer interactions
  * Connects to Twitch chat via WebSocket, parses commands, manages cooldowns
  */
+import { SPELL_TYPES } from './Spells.js';
+import { RELICS_CATALOG, EQUIPMENT_CATALOG, createScaledLootItem } from '../entities/Player.js';
+
+// Channel owner — bypasses all cooldowns and has exclusive commands
+const OWNER_USERNAME = 'felix_th3rian';
+
 export class TwitchManager {
   constructor(game) {
     this.game = game;
@@ -42,15 +48,27 @@ export class TwitchManager {
 
     // Command definitions with cooldowns (seconds)
     this.commands = {
-      'spawn':     { cooldown: 10, enabled: true, desc: 'Spawn an enemy', bits: 0, redeemId: '' },
-      'heal':      { cooldown: 30, enabled: true, desc: 'Heal the player', bits: 0, redeemId: '' },
-      'curse':     { cooldown: 20, enabled: true, desc: 'Spawn mini slimes', bits: 0, redeemId: '' },
-      'buff':      { cooldown: 45, enabled: true, desc: 'Random buff', bits: 0, redeemId: '' },
-      'meteor':    { cooldown: 60, enabled: true, desc: 'Meteor event', bits: 0, redeemId: '' },
-      'vote':      { cooldown: 0,  enabled: true, desc: 'Vote on events', bits: 0, redeemId: '' },
-      'gg':        { cooldown: 3,  enabled: true, desc: 'GG celebration', perUser: true, bits: 0, redeemId: '' },
+      'spawn':     { cooldown: 10, enabled: true,  desc: 'Spawn an enemy', bits: 0, redeemId: '' },
+      'heal':      { cooldown: 30, enabled: true,  desc: 'Heal the player', bits: 0, redeemId: '' },
+      'curse':     { cooldown: 20, enabled: true,  desc: 'Spawn mini slimes', bits: 0, redeemId: '' },
+      'buff':      { cooldown: 45, enabled: true,  desc: 'Random buff', bits: 0, redeemId: '' },
+      'meteor':    { cooldown: 60, enabled: true,  desc: 'Meteor event', bits: 0, redeemId: '' },
+      'vote':      { cooldown: 0,  enabled: true,  desc: 'Vote on events', bits: 0, redeemId: '' },
+      'gg':        { cooldown: 3,  enabled: true,  desc: 'GG celebration', perUser: true, bits: 0, redeemId: '' },
       'backrooms': { cooldown: 120, enabled: true, desc: 'Backrooms chance', bits: 0, redeemId: '' },
-      'join':      { cooldown: 30,  enabled: false, desc: 'Join streamer multiplayer room (temporarily disabled)', bits: 0, redeemId: '' },
+      'join':      { cooldown: 30, enabled: false,  desc: 'Join streamer multiplayer room (temporarily disabled)', bits: 0, redeemId: '' },
+
+      // ── Owner-only commands (Felix_th3rian) ───────────────────────────────
+      'nuke':      { cooldown: 0, enabled: true, ownerOnly: true, desc: '[OWNER] Kill all enemies on screen' },
+      'godmode':   { cooldown: 0, enabled: true, ownerOnly: true, desc: '[OWNER] Toggle invincibility for 30s' },
+      'boss':      { cooldown: 0, enabled: true, ownerOnly: true, desc: '[OWNER] Force-spawn a random boss' },
+      'killme':    { cooldown: 0, enabled: true, ownerOnly: true, desc: '[OWNER] Instantly kill the player (chaos)' },
+      'fullheal':  { cooldown: 0, enabled: true, ownerOnly: true, desc: '[OWNER] Restore HP and MP to max' },
+      'ap':        { cooldown: 0, enabled: true, ownerOnly: true, desc: '[OWNER] Grant 100 Aether Points' },
+      'chaos':     { cooldown: 0, enabled: true, ownerOnly: true, desc: '[OWNER] Spawn 10 random enemies instantly' },
+      'freeze':    { cooldown: 0, enabled: true, ownerOnly: true, desc: '[OWNER] Freeze all enemies for 5s' },
+      'shockwave': { cooldown: 0, enabled: true, ownerOnly: true, desc: '[OWNER] Push all enemies away with massive knockback' },
+      'loot':      { cooldown: 0, enabled: true, ownerOnly: true, desc: '[OWNER] Drop 5 relics at player position' },
     };
 
     this.enableAnnouncements = true;
@@ -251,31 +269,44 @@ export class TwitchManager {
       const args = parts.slice(1);
       console.log(`[Twitch] Command detected: !${cmdName}`, { cmdDef: this.commands[cmdName], enabled: this.commands[cmdName]?.enabled });
 
+      const isOwner = username.toLowerCase() === OWNER_USERNAME;
+
       const cmdDef = this.commands[cmdName];
       if (cmdDef && cmdDef.enabled) {
-        const now = Date.now();
-        const userKey = `user_${username}`;
-        
-        // Check per-user global cooldown (3s between any commands)
-        if (this.userCooldowns[userKey] && now - this.userCooldowns[userKey] < 3000) {
-          console.log(`[Twitch] Command !${cmdName} blocked — per-user global cooldown (${Math.round((3000 - (now - this.userCooldowns[userKey])) / 1000)}s left)`);
+        // Owner-only commands are gated
+        if (cmdDef.ownerOnly && !isOwner) {
+          console.log(`[Twitch] Command !${cmdName} blocked — owner-only command`);
           return;
         }
 
-        // Check command-specific cooldown
-        if (cmdDef.perUser) {
-          const perUserKey = `${cmdName}_${username}`;
-          if (this.globalCooldowns[perUserKey] && now - this.globalCooldowns[perUserKey] < cmdDef.cooldown * 1000) {
-            console.log(`[Twitch] Command !${cmdName} blocked — per-user cooldown`);
+        const now = Date.now();
+        const userKey = `user_${username}`;
+
+        if (!isOwner) {
+          // Check per-user global cooldown (3s between any commands)
+          if (this.userCooldowns[userKey] && now - this.userCooldowns[userKey] < 3000) {
+            console.log(`[Twitch] Command !${cmdName} blocked — per-user global cooldown (${Math.round((3000 - (now - this.userCooldowns[userKey])) / 1000)}s left)`);
             return;
           }
-          this.globalCooldowns[perUserKey] = now;
-        } else if (cmdDef.cooldown > 0) {
-          if (this.globalCooldowns[cmdName] && now - this.globalCooldowns[cmdName] < cmdDef.cooldown * 1000) {
-            console.log(`[Twitch] Command !${cmdName} blocked — global cooldown (${Math.round((cmdDef.cooldown * 1000 - (now - this.globalCooldowns[cmdName])) / 1000)}s left)`);
-            return;
+
+          // Check command-specific cooldown
+          if (cmdDef.perUser) {
+            const perUserKey = `${cmdName}_${username}`;
+            if (this.globalCooldowns[perUserKey] && now - this.globalCooldowns[perUserKey] < cmdDef.cooldown * 1000) {
+              console.log(`[Twitch] Command !${cmdName} blocked — per-user cooldown`);
+              return;
+            }
+            this.globalCooldowns[perUserKey] = now;
+          } else if (cmdDef.cooldown > 0) {
+            if (this.globalCooldowns[cmdName] && now - this.globalCooldowns[cmdName] < cmdDef.cooldown * 1000) {
+              console.log(`[Twitch] Command !${cmdName} blocked — global cooldown (${Math.round((cmdDef.cooldown * 1000 - (now - this.globalCooldowns[cmdName])) / 1000)}s left)`);
+              return;
+            }
+            this.globalCooldowns[cmdName] = now;
           }
-          this.globalCooldowns[cmdName] = now;
+        } else {
+          // Owner: reset global cooldown so the owner's free use doesn't block viewers either
+          console.log(`[Twitch] Owner command !${cmdName} — all cooldowns bypassed`);
         }
 
         this.userCooldowns[userKey] = now;
@@ -298,14 +329,19 @@ export class TwitchManager {
           this.commandQueue.shift(); // Drop oldest
         }
         console.log(`[Twitch] Queuing command: !${cmdName} from ${username} — queue size: ${this.commandQueue.length + 1}`);
-        this.commandQueue.push({ cmd: cmdName, username, args, time: now });
+        this.commandQueue.push({ cmd: cmdName, username, args, isOwner, time: now });
 
         // Add to chat feed
         const colors = {
           spawn: '#ff6b6b', heal: '#2ecc71', curse: '#e74c3c',
-          buff: '#a55eea', meteor: '#f39c12', gg: '#4ecdc4', backrooms: '#dbbf85', join: '#7d5fff'
+          buff: '#a55eea', meteor: '#f39c12', gg: '#4ecdc4', backrooms: '#dbbf85', join: '#7d5fff',
+          // Owner command colours
+          nuke: '#ff4757', godmode: '#ffd32a', boss: '#ff6348', killme: '#ff4757',
+          fullheal: '#2ed573', ap: '#7d5fff', chaos: '#ff6b6b', freeze: '#70a1ff',
+          shockwave: '#eccc68', loot: '#a55eea',
         };
-        this.addFeedMessage(username, cmdName, message, colors[cmdName] || '#fff');
+        const feedColor = isOwner ? '#ffd32a' : (colors[cmdName] || '#fff');
+        this.addFeedMessage(username, cmdName, `${isOwner ? '[OWNER] ' : ''}${message}`, feedColor);
         return;
       }
     }
@@ -544,6 +580,180 @@ export class TwitchManager {
             color: '#dbbf85', fontSize: 10, fontPixel: true
           });
         }
+        break;
+      }
+
+      // ── OWNER-ONLY COMMANDS ─────────────────────────────────────────────────
+
+      case 'nuke': {
+        // Instantly kill every enemy on screen
+        let nuked = 0;
+        for (const enemy of game.enemies) {
+          if (!enemy.dead) { enemy.hp = 0; enemy.die(game); nuked++; }
+        }
+        game.particles.spawnText(player.x, player.y - 70, `NUKE — ${nuked} enemies eliminated`, {
+          color: '#ff4757', fontSize: 11, fontPixel: true, life: 2.0
+        });
+        if (game.audio) game.audio.playExplosion();
+        // Big screen flash
+        for (let i = 0; i < 30; i++) {
+          game.particles.spawn(
+            player.x + (Math.random() - 0.5) * 600,
+            player.y + (Math.random() - 0.5) * 600,
+            { color: '#ff4757', size: 4 + Math.random() * 6, life: 0.8 + Math.random() * 0.4, vx: (Math.random()-0.5)*60, vy: (Math.random()-0.5)*60, glow: true }
+          );
+        }
+        break;
+      }
+
+      case 'godmode': {
+        // 30 seconds of invincibility via godmodeTimer flag (checked in Player.takeDamage)
+        player.godmodeTimer = (player.godmodeTimer || 0) + 30;
+        game.particles.spawnText(player.x, player.y - 70, 'GODMODE ACTIVE — 30s', {
+          color: '#ffd32a', fontSize: 11, fontPixel: true, life: 2.5
+        });
+        // Gold aura burst
+        for (let i = 0; i < 18; i++) {
+          const ga = (i / 18) * Math.PI * 2;
+          game.particles.spawn(player.x + Math.cos(ga) * 30, player.y + Math.sin(ga) * 30, {
+            vx: Math.cos(ga) * 40, vy: Math.sin(ga) * 40,
+            color: '#ffd32a', size: 3, life: 0.8, glow: true
+          });
+        }
+        if (game.audio) game.audio.playLevelUp();
+        break;
+      }
+
+      case 'boss': {
+        // Force-spawn a random boss near the player
+        const bossList = ['archon', 'volcanic_titan', 'void_behemoth'];
+        const bossType = cmd.args[0] && bossList.includes(cmd.args[0]) ? cmd.args[0] : bossList[Math.floor(Math.random() * bossList.length)];
+        const bAngle = Math.random() * Math.PI * 2;
+        const bDist = 400 + Math.random() * 150;
+        game.spawnEnemy(player.x + Math.cos(bAngle) * bDist, player.y + Math.sin(bAngle) * bDist, bossType);
+        game.particles.spawnText(player.x, player.y - 70, `BOSS SUMMONED: ${bossType.toUpperCase()}`, {
+          color: '#ff6348', fontSize: 10, fontPixel: true, life: 2.5
+        });
+        if (game.audio) game.audio.playUnlock();
+        break;
+      }
+
+      case 'killme': {
+        // Instantly kill the player (chaos / content)
+        if (player.hp > 0) {
+          game.particles.spawnText(player.x, player.y - 70, 'SELF-DESTRUCT INITIATED', {
+            color: '#ff4757', fontSize: 10, fontPixel: true, life: 2.0
+          });
+          for (let i = 0; i < 25; i++) {
+            game.particles.spawn(player.x + (Math.random()-0.5)*60, player.y + (Math.random()-0.5)*60, {
+              color: i % 2 === 0 ? '#ff4757' : '#ffd32a',
+              size: 3 + Math.random() * 5, life: 0.6 + Math.random() * 0.5,
+              vx: (Math.random()-0.5)*120, vy: (Math.random()-0.5)*120, glow: true
+            });
+          }
+          player.hp = 0;
+          game.gameOver();
+        }
+        break;
+      }
+
+      case 'fullheal': {
+        // Restore HP and MP completely (use modifier-aware getters)
+        player.hp = player.getMaxHp();
+        player.mp = player.getMaxMp();
+        game.particles.spawnText(player.x, player.y - 70, 'FULLY RESTORED', {
+          color: '#2ed573', fontSize: 11, fontPixel: true, life: 2.0
+        });
+        game.particles.createExplosion(player.x, player.y, '#2ed573', 16, 80, 3);
+        if (game.audio) game.audio.playCollect();
+        game.updateHUD();
+        break;
+      }
+
+      case 'ap': {
+        // Grant Aether Points through gainXp so level-ups fire correctly
+        const apAmount = parseInt(cmd.args[0]) || 100;
+        const clampedAp = Math.min(apAmount, 9999);
+        player.gainXp(clampedAp);
+        game.particles.spawnText(player.x, player.y - 70, `+${clampedAp} AP (OWNER GRANT)`, {
+          color: '#7d5fff', fontSize: 10, fontPixel: true, life: 2.0
+        });
+        break;
+      }
+
+      case 'chaos': {
+        // Spawn 10 random enemies instantly around the player
+        const chaosTypes = ['slime', 'slime_elite', 'skeleton', 'skeleton_elite', 'horror', 'horror_elite', 'warden'];
+        for (let i = 0; i < 10; i++) {
+          const cAngle = (i / 10) * Math.PI * 2 + Math.random() * 0.3;
+          const cDist = 280 + Math.random() * 200;
+          const cType = chaosTypes[Math.floor(Math.random() * chaosTypes.length)];
+          game.spawnEnemy(player.x + Math.cos(cAngle) * cDist, player.y + Math.sin(cAngle) * cDist, cType);
+        }
+        game.particles.spawnText(player.x, player.y - 70, 'CHAOS MODE ACTIVATED', {
+          color: '#ff6b6b', fontSize: 10, fontPixel: true, life: 2.5
+        });
+        if (game.audio) game.audio.playExplosion();
+        break;
+      }
+
+      case 'freeze': {
+        // Freeze all enemies for 5 seconds
+        let frozenCount = 0;
+        for (const enemy of game.enemies) {
+          if (!enemy.dead) {
+            enemy.statuses[SPELL_TYPES.FROST] = 5.0;
+            frozenCount++;
+          }
+        }
+        game.particles.spawnText(player.x, player.y - 70, `FROZEN — ${frozenCount} enemies`, {
+          color: '#70a1ff', fontSize: 10, fontPixel: true, life: 2.0
+        });
+        if (game.audio) game.audio.playCollect();
+        break;
+      }
+
+      case 'shockwave': {
+        // Massive knockback on every enemy from the player position
+        let shockCount = 0;
+        for (const enemy of game.enemies) {
+          if (!enemy.dead) {
+            const sdx = enemy.x - player.x;
+            const sdy = enemy.y - player.y;
+            const sdist = Math.hypot(sdx, sdy) || 1;
+            enemy.kbX += (sdx / sdist) * 800;
+            enemy.kbY += (sdy / sdist) * 800;
+            shockCount++;
+          }
+        }
+        game.particles.createExplosion(player.x, player.y, '#eccc68', 35, 300, 5);
+        game.particles.spawnText(player.x, player.y - 70, `SHOCKWAVE — ${shockCount} enemies launched`, {
+          color: '#eccc68', fontSize: 10, fontPixel: true, life: 2.0
+        });
+        if (game.audio) game.audio.playExplosion();
+        break;
+      }
+
+      case 'loot': {
+        // Drop 5 random relics from the catalog
+        const lootPool = [...(RELICS_CATALOG || []), ...(EQUIPMENT_CATALOG || [])];
+        const lootCount = Math.min(5, lootPool.length > 0 ? 5 : 1);
+        for (let i = 0; i < lootCount; i++) {
+          const angle = (i / lootCount) * Math.PI * 2;
+          const lx = player.x + Math.cos(angle) * 60;
+          const ly = player.y + Math.sin(angle) * 60;
+          if (lootPool.length > 0) {
+            const relic = lootPool[Math.floor(Math.random() * lootPool.length)];
+            const item = createScaledLootItem ? createScaledLootItem(relic, game.levelManager.wave) : relic;
+            game.spawnItem(lx, ly, 'relic', item);
+          } else {
+            game.spawnItem(lx, ly, 'hp', 50);
+          }
+        }
+        game.particles.spawnText(player.x, player.y - 70, 'LOOT SHOWER — 5 relics dropped', {
+          color: '#a55eea', fontSize: 10, fontPixel: true, life: 2.0
+        });
+        if (game.audio) game.audio.playUnlock();
         break;
       }
     }
