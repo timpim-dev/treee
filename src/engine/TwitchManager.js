@@ -217,7 +217,7 @@ export class TwitchManager {
       }
 
       // Parse PRIVMSG (chat messages)
-      const privmsgMatch = parseLine.match(/:(\w+)!\w+@\w+\.tmi\.twitch\.tv PRIVMSG #\w+ :(.+)/);
+      const privmsgMatch = parseLine.match(/:([^!]+)![^@]+@\S+ PRIVMSG #\S+ :(.+)/);
       if (privmsgMatch) {
         const username = privmsgMatch[1];
         const message = privmsgMatch[2].trim();
@@ -269,7 +269,7 @@ export class TwitchManager {
       const args = parts.slice(1);
       console.log(`[Twitch] Command detected: !${cmdName}`, { cmdDef: this.commands[cmdName], enabled: this.commands[cmdName]?.enabled });
 
-      const isOwner = username.toLowerCase() === OWNER_USERNAME;
+      const isOwner = username.toLowerCase() === OWNER_USERNAME || (this.channel && username.toLowerCase() === this.channel.toLowerCase());
 
       const cmdDef = this.commands[cmdName];
       if (cmdDef && cmdDef.enabled) {

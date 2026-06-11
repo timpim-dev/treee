@@ -3,7 +3,8 @@
  * Manages physical particles (fire, sparks, ice, shards) and floating text.
  */
 export class ParticleSystem {
-  constructor() {
+  constructor(game = null) {
+    this.game = game;
     this.particles = [];
     this.textParticles = [];
     this.enableGlowEffects = true;
@@ -39,17 +40,32 @@ export class ParticleSystem {
    */
   spawnText(x, y, text, options = {}) {
     if (this.textParticles.length >= 100) return;
+    
+    // Configurable lifetime
+    const defaultLife = (this.game && this.game.floatingTextLife !== undefined)
+      ? this.game.floatingTextLife
+      : 1.2;
+    const life = options.life !== undefined ? options.life : defaultLife;
+    
+    // Spread position slightly so multiple indications don't stack directly on top of each other
+    let finalX = x;
+    let finalY = y;
+    if (options.spread !== false) {
+      finalX += (Math.random() - 0.5) * 36;
+      finalY += (Math.random() - 0.5) * 18;
+    }
+    
     this.textParticles.push({
-      x,
-      y,
+      x: finalX,
+      y: finalY,
       vx: options.vx !== undefined ? options.vx : (Math.random() - 0.5) * 40,
       vy: options.vy !== undefined ? options.vy : -80 - Math.random() * 40,
       text: text,
       color: options.color || '#fff',
       fontSize: options.fontSize || 12,
       fontFamily: options.fontPixel ? "'Press Start 2P', monospace" : "'Orbitron', sans-serif",
-      life: options.life || 1.0,
-      maxLife: options.life || 1.0,
+      life: life,
+      maxLife: life,
       weight: options.weight || 'bold',
       shadow: options.shadow || true
     });

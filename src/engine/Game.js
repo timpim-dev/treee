@@ -24,7 +24,7 @@ export class Game {
     
     // 2. Instantiate Systems
     this.assets = new AssetManager();
-    this.particles = new ParticleSystem();
+    this.particles = new ParticleSystem(this);
     this.audio = new AudioManager();
     this.abilityTree = new AbilityTree(this);
     this.levelManager = new LevelManager(this);
@@ -41,6 +41,7 @@ export class Game {
     this.showFloorGrid = true;
     this.lowParticleMode = false;
     this.showSpellTrails = true;
+    this.floatingTextLife = 1.2;
     this.isStoryMode = false;
     this.mpAllowJoins = true;
     this.mpJoinMode = 'free';
@@ -1355,15 +1356,18 @@ export class Game {
 
     // Runic Shop Buttons
     document.getElementById('btn-buy-hp').addEventListener('click', () => {
-      if (this.player.shards >= 15) {
+      const price = this.player.getShopPriceHp();
+      if (this.player.shards >= price) {
         if (this.player.hp >= this.player.getMaxHp()) {
           this.particles.spawnText(this.player.x, this.player.y - 20, "ALREADY FULL HP", { color: '#ff4757', fontSize: 10, fontPixel: true });
           return;
         }
-        this.player.shards -= 15;
+        this.player.shards -= price;
+        this.player.shopBoughtHp = (this.player.shopBoughtHp || 0) + 1;
         this.player.hp = Math.min(this.player.getMaxHp(), this.player.hp + 50);
         this.player.saveGameState();
         this.updateHUD();
+        this.drawShopItems();
         const shopShards = document.getElementById('shop-shards-value');
         if (shopShards) shopShards.innerText = this.player.shards;
         this.particles.spawnText(this.player.x, this.player.y - 20, "+50 HP", { color: '#ff4757', fontSize: 10, fontPixel: true });
@@ -1373,15 +1377,18 @@ export class Game {
     });
 
     document.getElementById('btn-buy-mp').addEventListener('click', () => {
-      if (this.player.shards >= 15) {
+      const price = this.player.getShopPriceMp();
+      if (this.player.shards >= price) {
         if (this.player.mp >= this.player.getMaxMp()) {
           this.particles.spawnText(this.player.x, this.player.y - 20, "ALREADY FULL MANA", { color: '#70a1ff', fontSize: 10, fontPixel: true });
           return;
         }
-        this.player.shards -= 15;
+        this.player.shards -= price;
+        this.player.shopBoughtMp = (this.player.shopBoughtMp || 0) + 1;
         this.player.mp = Math.min(this.player.getMaxMp(), this.player.mp + 30);
         this.player.saveGameState();
         this.updateHUD();
+        this.drawShopItems();
         const shopShards = document.getElementById('shop-shards-value');
         if (shopShards) shopShards.innerText = this.player.shards;
         this.particles.spawnText(this.player.x, this.player.y - 20, "+30 MANA", { color: '#70a1ff', fontSize: 10, fontPixel: true });
@@ -1391,13 +1398,16 @@ export class Game {
     });
 
     document.getElementById('btn-buy-vit').addEventListener('click', () => {
-      if (this.player.shards >= 40) {
-        this.player.shards -= 40;
+      const price = this.player.getShopPriceVit();
+      if (this.player.shards >= price) {
+        this.player.shards -= price;
+        this.player.shopBoughtVit = (this.player.shopBoughtVit || 0) + 1;
         this.player.shopMaxHp += 15;
         this.player.hp += 15; // also heal by 15
         this.player.recalculateModifiers(this.abilityTree);
         this.player.saveGameState();
         this.updateHUD();
+        this.drawShopItems();
         const shopShards = document.getElementById('shop-shards-value');
         if (shopShards) shopShards.innerText = this.player.shards;
         this.particles.spawnText(this.player.x, this.player.y - 20, "+15 MAX HP", { color: '#ff4757', fontSize: 10, fontPixel: true });
@@ -1407,14 +1417,17 @@ export class Game {
     });
 
     document.getElementById('btn-buy-mana').addEventListener('click', () => {
-      if (this.player.shards >= 40) {
-        this.player.shards -= 40;
+      const price = this.player.getShopPriceMana();
+      if (this.player.shards >= price) {
+        this.player.shards -= price;
+        this.player.shopBoughtMana = (this.player.shopBoughtMana || 0) + 1;
         this.player.shopMaxMp += 10;
         this.player.shopManaRegen += 0.3;
         this.player.mp += 10; // also heal by 10
         this.player.recalculateModifiers(this.abilityTree);
         this.player.saveGameState();
         this.updateHUD();
+        this.drawShopItems();
         const shopShards = document.getElementById('shop-shards-value');
         if (shopShards) shopShards.innerText = this.player.shards;
         this.particles.spawnText(this.player.x, this.player.y - 20, "+10 MAX MP & REGEN", { color: '#70a1ff', fontSize: 10, fontPixel: true });
@@ -1424,8 +1437,10 @@ export class Game {
     });
 
     document.getElementById('btn-buy-relic').addEventListener('click', () => {
-      if (this.player.shards >= 50) {
-        this.player.shards -= 50;
+      const price = this.player.getShopPriceRelic();
+      if (this.player.shards >= price) {
+        this.player.shards -= price;
+        this.player.shopBoughtRelic = (this.player.shopBoughtRelic || 0) + 1;
         const combinedPool = [...RELICS_CATALOG, ...EQUIPMENT_CATALOG];
         const item = combinedPool[Math.floor(Math.random() * combinedPool.length)];
         const isGear = !!item.type;
@@ -1439,6 +1454,7 @@ export class Game {
         this.player.recalculateModifiers(this.abilityTree);
         this.player.saveGameState();
         this.updateHUD();
+        this.drawShopItems();
         const shopShards = document.getElementById('shop-shards-value');
         if (shopShards) shopShards.innerText = this.player.shards;
       } else {
@@ -1696,6 +1712,7 @@ export class Game {
         listContainer.style.pointerEvents = isTwitchActive ? 'auto' : 'none';
         
         for (const [cmdName, cmdDef] of Object.entries(this.twitchManager.commands)) {
+          if (cmdDef.ownerOnly) continue;
           const row = document.createElement('div');
           row.className = 'devtools-row';
           row.style.margin = '4px 0';
